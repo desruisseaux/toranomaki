@@ -1,0 +1,17 @@
+# Logs and databases #
+######################
+*.log
+*.sqlite
+
+# OS generated files #
+######################
+.DS_Store*
+ehthumbs.db
+Icon?
+Thumbs.db
+
+# NetBeans files #
+##################
+/nbproject/private/
+/build/
+/dist/
