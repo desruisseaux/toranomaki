@@ -16,10 +16,12 @@ package fr.toranomaki.edict;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.logging.Level;
+import java.util.regex.Pattern;
 import java.io.FileInputStream;
 import java.io.IOException;
 
@@ -56,17 +58,65 @@ final class JMdictImport extends DefaultHandler {
     private ElementType elementType;
 
     /**
-     * The entry being parsed.
+     * The entry being parsed. A new instance is created every time a new {@code <entry>}
+     * element start. This object contains an arbitrary amount of Kanji and reading elements.
+     *
+     * @see ElementType#entry
      */
     private Entry entry;
 
     /**
-     * The word to add to the entry, after we collected all its priority and information elements.
+     * The next Kanji or reading element to add to the {@linkplain #entry}. The addition
+     * will happen only after we collected all priority and information elements.
+     *
+     * @see ElementType#keb
+     * @see ElementType#reb
      */
     private String word;
 
     /**
+     * The <cite>Part Of Speech</cite> (POS) information about the word.
+     *
+     * @see ElementType#pos
+     */
+    private final Set<PartOfSpeech> partOfSpeech;
+
+    /**
+     * {@code true} if no {@code <pos>} declarations has been explicitely defined in the current
+     * {@code <sense>} element. In such case, the next {@code <sense>} elements will inherit the
+     * POS from the previous {@code <sense>} element.
+     */
+    private boolean inheritPOS;
+
+    /**
+     * The {@link #partOfSpeech} values created up to date. The values are either
+     * {@link PartOfSpeech} enumeration values, or instances of {@link Short} if
+     * the value is actually a compound of many POS.
+     */
+    private final Map<String, Comparable<?>> cachePOS;
+
+    /**
+     * The patterns used in order to find the enum value of a <cite>Part Of Speech</cite>.
+     */
+    private final Map<PartOfSpeech, Pattern> patternPOS;
+
+    /**
+     * Next numeric identifier available for compounds <cite>Part Of Speech</cite>.
+     */
+    private short nextFreePosIdentifier = 100;
+
+    /**
+     * The target language of the {@linkplain #word} translation, as a 3 letters ISO code.
+     * The translation itself will be stored in the database directly (no field in this class).
+     *
+     * @see ElementType#gloss
+     */
+    private String language;
+
+    /**
      * The set of informations for the word in process of being parsed.
+     *
+     * @see ElementType#info
      */
     private final Set<String> informations;
 
@@ -86,7 +136,17 @@ final class JMdictImport extends DefaultHandler {
     private final Priority.Type[] priorityColumns;
 
     /**
-     * The statement to use for writing in the "{@code entry}" table.
+     * The synonyms and antonyms for an entry. Those values will be written only after we
+     * finished to write every entries in the database, in order to resolve cross-references.
+     * <p>
+     * The keys are the {@link ElementType#ent_seq} value for which the synonym or antonym is
+     * declared. The values are the defining element (Kanji or reading) which will need to be
+     * resolved.
+     */
+    private final Map<Integer, Set<String>> synonyms, antonyms;
+
+    /**
+     * The statement to use for writing in the "{@code entries}" table.
      */
     private final PreparedStatement insertEntry;
 
@@ -96,9 +156,19 @@ final class JMdictImport extends DefaultHandler {
     private final PreparedStatement insertInformation;
 
     /**
-     * The statement to use for writing in the "{@code priority}" table.
+     * The statement to use for writing in the "{@code priorities}" table.
      */
     private final PreparedStatement insertPriority;
+
+    /**
+     * The statement to use for writing in the "{@code pos}" table.
+     */
+    private final PreparedStatement insertPos;
+
+    /**
+     * The statement to use for writing in the "{@code senses}" table.
+     */
+    private final PreparedStatement insertSense;
 
     /**
      * Creates a new instance which will import the {@code JMdict.xml} content using
@@ -111,42 +181,42 @@ final class JMdictImport extends DefaultHandler {
         priorityColumns   = Priority.Type.values();
         priorities        = new EnumMap<>(Priority.Type.class);
         priorityCache     = new HashMap<>();
+        partOfSpeech      = EnumSet.noneOf(PartOfSpeech.class);
+        cachePOS          = new HashMap<>();
+        patternPOS        = new EnumMap<>(PartOfSpeech.class);
         informations      = new HashSet<>();
-        insertEntry       = prepareInsert(connection, "entries", ElementType.ent_seq, ElementType.keb, ElementType.reb, ElementType.ke_pri, ElementType.re_pri);
-        insertPriority    = prepareInsert(connection, "priorities", addId(priorityColumns));
-        insertInformation = prepareInsert(connection, "information", ElementType.ent_seq, "element", "description");
+        synonyms          = new HashMap<>();
+        antonyms          = new HashMap<>();
+        insertEntry       = prepareInsert(connection, TableOrColumn.entries);
+        insertPos         = prepareInsert(connection, TableOrColumn.pos);
+        insertPriority    = prepareInsert(connection, TableOrColumn.priorities);
+        insertInformation = prepareInsert(connection, TableOrColumn.information);
+        insertSense       = prepareInsert(connection, TableOrColumn.senses);
+        for (final PartOfSpeech pos : PartOfSpeech.values()) {
+            final String pattern = "\\b" + pos.pattern.replace(" ", "\\b.+\\b") + "\\b";
+            patternPOS.put(pos, Pattern.compile(pattern, Pattern.CASE_INSENSITIVE));
+        }
     }
 
     /**
-     * Adds an {@code "id"} column in from of the given column names.
-     */
-    private static Comparable<?>[] addId(final Comparable<?>[] columns) {
-        final Comparable<?>[] copy = new Comparable<?>[columns.length + 1];
-        System.arraycopy(columns, 0, copy, 1, columns.length);
-        copy[0] = "id";
-        return copy;
-    }
-
-    /**
-     * Creates an {@code INSERT} statement into the given table and columns.
+     * Creates an {@code INSERT} statement into the given table.
      *
      * @param  connection The connection to the SQL database.
      * @param  table      The table where the values will be inserted.
-     * @param  columns    The columns where the values will be inserted.
      * @return The prepared statement.
      * @throws SQLException If an error occurred while preparing the statement.
      */
     private static PreparedStatement prepareInsert(final Connection connection,
-            final String table, final Comparable<?>... columns) throws SQLException
+            final TableOrColumn table) throws SQLException
     {
         final StringBuilder sql = new StringBuilder("INSERT INTO ").append(table);
         String separator = " (";
-        for (final Comparable<?> column : columns) {
+        for (final Enum<?> column : table.columns) {
             sql.append(separator).append(column);
             separator = ", ";
         }
         separator = ") VALUES (";
-        for (int i=0; i<columns.length; i++) {
+        for (int i=table.columns.length; --i>=0;) {
             sql.append(separator).append('?');
             separator = ", ";
         }
@@ -167,6 +237,7 @@ final class JMdictImport extends DefaultHandler {
         try {
             saxReader.setContentHandler(this);
             saxReader.parse(new InputSource(new FileInputStream(file)));
+            complete();
         } catch (DictionaryException e) {
             // Unwraps the SQL exception for easier reading of stack trace.
             final Throwable cause = e.getCause();
@@ -175,9 +246,11 @@ final class JMdictImport extends DefaultHandler {
             }
             throw e;
         }
-        insertEntry.close();
+        insertEntry      .close();
         insertInformation.close();
-        insertPriority.close();
+        insertPriority   .close();
+        insertPos        .close();
+        insertSense      .close();
     }
 
     /**
@@ -197,6 +270,7 @@ final class JMdictImport extends DefaultHandler {
         switch (type) {
             case entry: {
                 entry = null;
+                partOfSpeech.clear();
                 break;
             }
             case k_ele:
@@ -204,6 +278,17 @@ final class JMdictImport extends DefaultHandler {
                 word = null;
                 priorities.clear();
                 informations.clear();
+                break;
+            }
+            case sense: {
+                inheritPOS = true;
+                break;
+            }
+            case gloss: {
+                language = attributes.getValue("xml:lang");
+                if (language == null) {
+                    language = "eng"; // Default value.
+                }
                 break;
             }
         }
@@ -279,8 +364,61 @@ final class JMdictImport extends DefaultHandler {
                     }
                     break;
                 }
+                /*
+                 * Set the "part of speech" code. If we were inheriting the POS values from
+                 * the previous <sense> entry, clear the collection since the new declarations
+                 * replace the inherited ones.
+                 */
+                case pos: try {
+                    if (inheritPOS) {
+                        inheritPOS = false;
+                        partOfSpeech.clear();
+                    }
+                    partOfSpeech.add(getPartOfSpeech(content));
+                    break;
+                } catch (SQLException e) {
+                    throw new DictionaryException(e);
+                }
+                /*
+                 * Add the meaning of a Japanese word in the target language.
+                 */
+                case gloss: try {
+                    insertSense.setInt(1, entry.identifier);
+                    if (partOfSpeech.isEmpty()) {
+                        insertSense.setNull(2, Types.SMALLINT);
+                    } else {
+                        insertSense.setShort(2, getPartOfSpeechCode());
+                    }
+                    insertSense.setString(3, language);
+                    insertSense.setString(4, content);
+                    if (INSERT) {
+                        insertSense.executeUpdate();
+                    }
+                    break;
+                } catch (SQLException e) {
+                    throw new DictionaryException(e);
+                }
+                /*
+                 * Add a synonym or antonym.
+                 */
+                case xref: addTo(synonyms, entry.identifier, content); break;
+                case ant:  addTo(antonyms, entry.identifier, content); break;
             }
         }
+    }
+
+    /**
+     * Adds the given string into the given map. This is an helper method for writing into
+     * the {@link #synonyms} and {@link #antonyms} maps. Those information will be written
+     * to the database when {@link #complete()} will be invoked.
+     */
+    private static void addTo(final Map<Integer, Set<String>> map, final Integer id, final String word) {
+        Set<String> set = map.get(id);
+        if (set == null) {
+            set = new HashSet<>();
+            map.put(id, set);
+        }
+        set.add(word);
     }
 
     /**
@@ -381,5 +519,127 @@ final class JMdictImport extends DefaultHandler {
             }
         }
         return code;
+    }
+
+    /**
+     * Returns a code for the <cite>Part Of Speech</cite> (POS). If there is many POS,
+     * we will create a new one as the aggregation of all specified POS.
+     *
+     * @return The code to use, or 0 if the {@link #partOfSpeech} set is empty.
+     * @throws SQLException If an error occurred while inserting the new POS value in the database.
+     */
+    private short getPartOfSpeechCode() throws SQLException {
+        short code = 0;
+        CharSequence description = null;
+        for (final PartOfSpeech pos : partOfSpeech) {
+            if (description == null) {
+                description = pos.name();
+                code = pos.getIdentifier();
+            } else {
+                /*
+                 * Creates a StringBuilder only if we found more than 1 part of speech.
+                 * Otherwise, the 'code' local variable already have the appropriate value.
+                 */
+                final StringBuilder buffer;
+                if (description instanceof StringBuilder) {
+                    buffer = (StringBuilder) description;
+                } else {
+                    buffer = new StringBuilder(description.toString());
+                    description = buffer;
+                }
+                buffer.append(", ").append(pos.name());
+            }
+        }
+        /*
+         * If we had more than 1 part of speech, a StringBuilder has been created above.
+         * We need to create a new entry for its content, if not already done.
+         */
+        if (description instanceof StringBuilder) {
+            final StringBuilder buffer = (StringBuilder) description;
+            for (int i=buffer.length(); --i>=0;) {
+                char c = buffer.charAt(i);
+                switch (c) {
+                    case '_': c = ' '; break;
+                    default:  c = Character.toLowerCase(c); break;
+                }
+                buffer.setCharAt(i, c);
+            }
+            description = buffer.toString();
+            Comparable<?> pos = cachePOS.get(description);
+            if (pos != null) {
+                code = (Short) pos;
+            } else {
+                code = nextFreePosIdentifier++;
+                cachePOS.put((String) description, code);
+                insertPos.setShort(1, code);
+                insertPos.setString(2, (String) description);
+                if (INSERT) {
+                    insertPos.executeUpdate();
+                }
+            }
+        }
+        return code;
+    }
+
+    /**
+     * Parses the <cite>Part Of Speech</cite> description.
+     * This method inserts new description in the database if needed.
+     *
+     * @param  description The <cite>Part Of Speech</cite> description.
+     * @return The <cite>Part Of Speech</cite> enumeration value.
+     * @throws SQLException If an error occurred while inserting the new POS value in the database.
+     */
+    private PartOfSpeech getPartOfSpeech(final String description) throws SQLException {
+        PartOfSpeech pos = (PartOfSpeech) cachePOS.get(description);
+        if (pos == null) {
+            for (final Map.Entry<PartOfSpeech, Pattern> pattern : patternPOS.entrySet()) {
+                if (pattern.getValue().matcher(description).find()) {
+                    if (pos != null) {
+                        throw new DictionaryException("Ambiguous part of speech: \"" + description +
+                                "\". Both " + pos + " and " + pattern.getKey() + " match.");
+                    }
+                    pos = pattern.getKey();
+                }
+            }
+            if (pos == null) {
+                throw new DictionaryException("Unrecognized part of speech: \"" + description + "\".");
+            }
+            cachePOS.put(description, pos);
+            insertPos.setShort(1, pos.getIdentifier());
+            insertPos.setString(2, description);
+            if (INSERT) {
+                insertPos.executeUpdate();
+            }
+        }
+        return pos;
+    }
+
+    /**
+     * Invoked after the parsing of the XML file has been completed. This method
+     * writes to the database any information which was deferred to the end.
+     *
+     * @throws SQLException If an error occurred while writing to the database.
+     */
+    private void complete() throws SQLException {
+        final Connection connection = insertSense.getConnection();
+        try (final JMdict dict = new JMdict(connection, true);
+             final PreparedStatement stmt = prepareInsert(connection, TableOrColumn.xref))
+        {
+            boolean isAntonym = false;
+            do { // Loop executed exactly twice.
+                stmt.setBoolean(3, isAntonym);
+                for (final Map.Entry<Integer, Set<String>> entry : (isAntonym ? antonyms : synonyms).entrySet()) {
+                    stmt.setInt(1, entry.getKey());
+                    for (final String word : entry.getValue()) {
+                        for (final Entry xref : dict.search(word)) {
+                            stmt.setInt(2, xref.identifier);
+                            if (INSERT) {
+                                stmt.executeUpdate();
+                            }
+                        }
+                    }
+                }
+            } while ((isAntonym = !isAntonym) == true);
+        }
     }
 }

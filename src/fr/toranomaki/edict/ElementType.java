@@ -52,6 +52,7 @@ public enum ElementType {
      * indicated in the cross-reference field associated with the sense element.
      *
      * @see #r_ele
+     * @see #isIdeographic(String)
      */
     k_ele(entry),
 
@@ -111,6 +112,7 @@ public enum ElementType {
      * case of a word or phrase written entirely in kana, these elements will define the entry.
      *
      * @see #k_ele
+     * @see #isIdeographic(String)
      */
     r_ele(entry),
 
@@ -299,8 +301,17 @@ public enum ElementType {
     dial(sense),
 
     /**
-     * The {@code g_gend} attribute defines the gender of the gloss (typically a noun) in the
-     * target language. When absent, the gender is either not relevant or has yet to be provided.
+     * Target-language words or phrases which are equivalents to the Japanese word. This element
+     * would normally be present, however it may be omitted in entries which are purely for a
+     * cross-reference.
+     * <p>
+     * <ul>
+     *   <li>The {@code xml:lang} attribute defines the target language of the gloss. It will be
+     *       coded using the three-letter language code from the ISO 639 standard. When absent,
+     *       the value {@code "eng"} (i.e. English) is the default value.</li>
+     *   <li>The {@code g_gend} attribute defines the gender of the gloss (typically a noun) in the
+     *       target language. When absent, the gender is either not relevant or has yet to be provided.</li>
+     * </ul>
      */
     gloss(sense),
 
@@ -332,5 +343,25 @@ public enum ElementType {
      */
     public ElementType getParent() {
         return parent;
+    }
+
+    /**
+     * Returns {@code true} if the given word contains at least one
+     * {@linkplain Character#isIdeographic(int) ideographic} character.
+     * This method can be used in order to determine where to search for an element.
+     * If {@code true}, search in {@link #k_ele}. Otherwise search in {@link #r_ele}.
+     *
+     * @param  word The word to examine.
+     * @return {@code true} if the given word contains at least one ideographic character.
+     */
+    public static boolean isIdeographic(final String word) {
+        for (int i=0; i<word.length();) {
+            final int c = word.codePointAt(i);
+            if (Character.isIdeographic(c)) {
+                return true;
+            }
+            i += Character.charCount(c);
+        }
+        return true;
     }
 }
