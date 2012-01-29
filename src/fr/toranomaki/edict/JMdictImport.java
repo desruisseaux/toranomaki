@@ -642,4 +642,22 @@ final class JMdictImport extends DefaultHandler {
             } while ((isAntonym = !isAntonym) == true);
         }
     }
+
+    /**
+     * Run the JMdict import from the command line. This method expect a single argument,
+     * which is the path to the {@code JMdict.xml} file.
+     *
+     * @param  args The command line arguments.
+     * @throws Exception If a SQL, I/O, SAX or other exception occurred.
+     */
+    public static void main(String[] args) throws Exception {
+        if (args.length != 1) {
+            System.err.println("Expected argument: path to JMdict.xml file.");
+            return;
+        }
+        try (final Connection connection = JMdict.getDataSource().getConnection()) {
+            final JMdictImport db = new JMdictImport(connection);
+            db.parse(args[0]);
+        }
+    }
 }

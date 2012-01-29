@@ -21,6 +21,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import javax.sql.DataSource;
 
 
 /**
@@ -40,6 +41,12 @@ public final class JMdict implements AutoCloseable {
     private final boolean exact;
 
     /**
+     * The connection to the SQL database to be closed by the {@link #close()} method,
+     * or {@code null} if this class doesn't own the connection.
+     */
+    private final Connection toClose;
+
+    /**
      * The statement for searching a Kanji element.
      */
     private final PreparedStatement searchKanji;
@@ -50,16 +57,37 @@ public final class JMdict implements AutoCloseable {
     private final PreparedStatement searchReading;
 
     /**
+     * Returns the datasource to use for the connection to the SQL database.
+     */
+    static DataSource getDataSource() {
+        final org.postgresql.ds.PGSimpleDataSource datasource = new org.postgresql.ds.PGSimpleDataSource();
+        datasource.setServerName("localhost");
+        datasource.setDatabaseName("Toranomaki");
+        datasource.setUser("postgres");
+        return datasource;
+    }
+
+    /**
+     * Creates a new connection to the dictionary.
+     *
+     * @throws SQLException If an error occurred while preparing the statements.
+     */
+    public JMdict() throws SQLException {
+        this(getDataSource().getConnection(), false);
+    }
+
+    /**
      * Creates a new connection to the dictionary.
      *
      * @param  connection The connection to the database.
      * @param  exact {@code true} if the search methods should look for exact matches.
      * @throws SQLException If an error occurred while preparing the statements.
      */
-    public JMdict(final Connection connection, final boolean exact) throws SQLException {
+    JMdict(final Connection connection, final boolean exact) throws SQLException {
         this.exact = exact;
-        searchKanji   = prepareSelect(connection, TableOrColumn.entries, ElementType.keb);
-        searchReading = prepareSelect(connection, TableOrColumn.entries, ElementType.reb);
+        toClose       = exact ? null : connection; // For now, close only if invoked from the public constructor.
+        searchKanji   = prepareSelect(connection, TableOrColumn.entries, ElementType.keb, ElementType.ent_seq);
+        searchReading = prepareSelect(connection, TableOrColumn.entries, ElementType.reb, ElementType.ent_seq);
     }
 
     /**
@@ -71,7 +99,7 @@ public final class JMdict implements AutoCloseable {
      * @throws SQLException If an error occurred while preparing the statement.
      */
     private PreparedStatement prepareSelect(final Connection connection, final TableOrColumn table,
-            final Enum<?>... criterions) throws SQLException
+            final Enum<?> criterion, final Enum<?> orderBy) throws SQLException
     {
         final StringBuilder sql = new StringBuilder();
         String separator = "SELECT ";
@@ -79,34 +107,54 @@ public final class JMdict implements AutoCloseable {
             sql.append(separator).append(column);
             separator = ", ";
         }
-        sql.append(" FROM ").append(table);
-        separator = " WHERE ";
-        for (final Enum<?> column : criterions) {
-            sql.append(separator).append(column).append(exact ? " = " : " LIKE ").append('?');
-            separator = " AND ";
-        }
+        sql.append(" FROM ").append(table).append(" WHERE ").append(criterion)
+                .append(exact ? " = " : " LIKE ").append('?').append(" ORDER BY ").append(orderBy);
         return connection.prepareStatement(sql.toString());
     }
 
     /**
      * Returns all entries matching the given criterion.
+     * Note: the array returned by this method may be cached - <strong>do not modify</strong>.
      *
      * @param  word The Kanji or reading word to search.
      * @return All entries for the given words.
      * @throws SQLException If an error occurred while querying the database.
      */
-    public List<Entry> search(final String word) throws SQLException {
-        final PreparedStatement stmt = ElementType.isIdeographic(word) ? searchKanji : searchReading;
-        stmt.setString(1, word);
+    public Entry[] search(final String word) throws SQLException {
+        final boolean isKanji = ElementType.isIdeographic(word);
+        final PreparedStatement stmt = isKanji ? searchKanji : searchReading;
+        stmt.setString(1, exact ? word : word + '%');
         final List<Entry> entries = new ArrayList<>();
         try (final ResultSet rs = stmt.executeQuery()) {
+            Entry entry = null;
             while (rs.next()) {
                 final int seq = rs.getInt(1);
-                final Entry entry = new Entry(seq);
-                entries.add(entry);
+                if (entry == null || entry.identifier != seq) {
+                    entry = new Entry(seq);
+                    entries.add(entry);
+                }
+                boolean isKanjiResult = true;
+                do { // This loop is executed twice: once for Kanji and once for reading element.
+                    final String found = rs.getString(isKanjiResult ? 2 : 3);
+                    if (!rs.wasNull()) {
+                        short priority = rs.getShort(isKanjiResult ? 4 : 5);
+                        if (rs.wasNull()) {
+                            priority = 0;
+                        }
+                        entry.add(isKanjiResult, found, priority);
+                    }
+                } while ((isKanjiResult = !isKanjiResult) == false);
             }
         }
-        return entries;
+        /*
+         * For each entry, sort the elements by priority order.
+         */
+        final Entry[] array = entries.toArray(new Entry[entries.size()]);
+        for (final Entry entry : array) {
+            entry.sortByPriority(true);
+            entry.sortByPriority(false);
+        }
+        return array;
     }
 
     /**
@@ -118,5 +166,8 @@ public final class JMdict implements AutoCloseable {
     public void close() throws SQLException {
         searchKanji.close();
         searchReading.close();
+        if (toClose != null) {
+            toClose.close();
+        }
     }
 }

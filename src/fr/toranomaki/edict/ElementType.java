@@ -362,6 +362,6 @@ public enum ElementType {
             }
             i += Character.charCount(c);
         }
-        return true;
+        return false;
     }
 }

@@ -232,4 +232,38 @@ public final class Entry {
         }
         return 0;
     }
+
+    /**
+     * Sorts the Kanji or reading elements by priority. This method should be invoked only
+     * after all elements have been {@linkplain #add(boolean, String, short) added} to this
+     * entry. We use the "bubble" sort method, which is simple but slow. However since we
+     * should have very few entries (only a single entry in about 90% of cases), the slow
+     * behavior is not an issue.
+     */
+    final void sortByPriority(final boolean kanji) {
+        final Object value = kanji ? this.kanji : reading;
+        if (value instanceof String[]) {
+            final String[] words = (String[]) value;
+            final short[] priorities = this.priorities;
+            final int offset = kanji ? 0 : getCount(this.kanji);
+            boolean modified;
+            do {
+                modified = false;
+                for (int i=1; i<words.length; i++) {
+                    final short p1 = priorities[i+offset-1];
+                    final short p2 = priorities[i+offset  ];
+                    // The 0 value stands for "not classified",
+                    // (NULL in the database), which we sort last.
+                    if (p2 != 0 && (p1 == 0 || p1 > p2)) {
+                        priorities[i+offset-1] = p2;
+                        priorities[i+offset  ] = p1;
+                        final String s1 = words[i-1];
+                        words[i-1] = words[i];
+                        words[i] = s1;
+                        modified = true;
+                    }
+                }
+            } while (modified);
+        }
+    }
 }
