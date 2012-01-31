@@ -14,6 +14,7 @@
  */
 package fr.toranomaki.edict;
 
+import java.util.Locale;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -72,6 +73,19 @@ public final class Entry {
      * @see ElementType#re_pri
      */
     private short[] priorities;
+
+    /**
+     * The meaning of this entry as a comma-separated list for each locale. This field is either
+     * a {@link String} instance if the meaning is available only for the first locale, or a
+     * {@code String[]} array if the meaning is available for more locales.
+     */
+    private Object senses;
+
+    /**
+     * The locales for which the meanings are available. All entries will typically share
+     * a reference to the same array.
+     */
+    private Locale[] locales;
 
     /**
      * Creates an initially empty entry.
@@ -146,11 +160,11 @@ public final class Entry {
     /**
      * Returns the number of Kanji or reading elements.
      *
-     * @param  kanji {@code true} for the Kanji elements, or {@code false} for the reading elements.
+     * @param  isKanji {@code true} for the Kanji elements, or {@code false} for the reading elements.
      * @return Number of Kanji or reading elements.
      */
-    public int getCount(final boolean kanji) {
-        return getCount(kanji ? this.kanji : reading);
+    public int getCount(final boolean isKanji) {
+        return getCount(isKanji ? kanji : reading);
     }
 
     /**
@@ -184,15 +198,15 @@ public final class Entry {
      * Returns the Kanji or reading elements at the given index, or {@code null} if none.
      * This method does not thrown an exception for non-negative index out of bounds.
      *
-     * @param  kanji {@code true} for the Kanji element, or {@code false} for the reading element.
+     * @param  isKanji {@code true} for the Kanji element, or {@code false} for the reading element.
      * @param  index The index of the element for which to get the word.
      * @return The Kanji or reading elements, or {@code null}.
      *
      * @see ElementType#keb
      * @see ElementType#reb
      */
-    public String getWord(final boolean kanji, final int index) {
-        final Object value = kanji ? this.kanji : reading;
+    public String getWord(final boolean isKanji, final int index) {
+        final Object value = isKanji ? kanji : reading;
         if (value != null) {
             if (value instanceof String) {
                 if (index == 0) {
@@ -213,18 +227,21 @@ public final class Entry {
      * if none. This method does not thrown an exception for non-negative index out of bounds,
      * because priorities are optional.
      *
-     * @param  kanji {@code true} for the Kanji element, or {@code false} for the reading element.
+     * @param  isKanji {@code true} for the Kanji element, or {@code false} for the reading element.
      * @param  index The index of the element for which to get the priority.
      * @return The priority of the Kanji or reading elements, or {@code 0} if none.
      *
      * @see ElementType#ke_pri
      * @see ElementType#re_pri
      */
-    public short getPriority(final boolean kanji, int index) {
+    public short getPriority(final boolean isKanji, int index) {
         final short[] priorities = this.priorities;
         if (priorities != null) {
-            if (!kanji) {
-                index += getCount(this.kanji);
+            final int nk = getCount(kanji);
+            if (!isKanji) {
+                index += nk; // Reading elements are stored after Kanjis.
+            } else if (index >= nk) {
+                return 0; // Kanji index is actually in the reading elements part.
             }
             if (index < priorities.length) {
                 return priorities[index];
@@ -234,36 +251,49 @@ public final class Entry {
     }
 
     /**
-     * Sorts the Kanji or reading elements by priority. This method should be invoked only
-     * after all elements have been {@linkplain #add(boolean, String, short) added} to this
-     * entry. We use the "bubble" sort method, which is simple but slow. However since we
-     * should have very few entries (only a single entry in about 90% of cases), the slow
-     * behavior is not an issue.
+     * Sets the comma-separated senses for the given locales.
+     *
+     * @param locales The locales for the meaning. This array is not cloned - do not modify.
+     * @param senses  The senses. May contains trailing null elements, which will be ignored.
      */
-    final void sortByPriority(final boolean kanji) {
-        final Object value = kanji ? this.kanji : reading;
-        if (value instanceof String[]) {
-            final String[] words = (String[]) value;
-            final short[] priorities = this.priorities;
-            final int offset = kanji ? 0 : getCount(this.kanji);
-            boolean modified;
-            do {
-                modified = false;
-                for (int i=1; i<words.length; i++) {
-                    final short p1 = priorities[i+offset-1];
-                    final short p2 = priorities[i+offset  ];
-                    // The 0 value stands for "not classified",
-                    // (NULL in the database), which we sort last.
-                    if (p2 != 0 && (p1 == 0 || p1 > p2)) {
-                        priorities[i+offset-1] = p2;
-                        priorities[i+offset  ] = p1;
-                        final String s1 = words[i-1];
-                        words[i-1] = words[i];
-                        words[i] = s1;
-                        modified = true;
+    final void setSenses(final Locale[] locales, final String[] senses) {
+        int n = senses.length;
+        if (n != 0) {
+            while (senses[n-1] == null) {
+                if (--n == 0) {
+                    return;
+                }
+            }
+            this.locales = locales;
+            if (n == 1) {
+                this.senses = senses[0];
+            } else {
+                this.senses = Arrays.copyOf(senses, n);
+            }
+        }
+    }
+
+    /**
+     * Returns the meaning of this entry as a comma-separated list of senses
+     * in the given language.
+     *
+     * @param  locale The language for the meaning.
+     * @return The meaning of this entry, or {@code null} if none.
+     */
+    public String getSenses(final Locale locale) {
+        final Locale[] locales = this.locales;
+        if (locales != null) {
+            if (senses instanceof String[]) {
+                final String[] array = (String[]) senses;
+                for (int i=0; i<array.length; i++) {
+                    if (locale.equals(locales[i])) {
+                        return array[i];
                     }
                 }
-            } while (modified);
+            } else if (locale.equals(locales[0])) {
+                return (String) senses;
+            }
         }
+        return null;
     }
 }

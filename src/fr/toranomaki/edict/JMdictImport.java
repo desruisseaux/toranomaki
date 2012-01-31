@@ -22,11 +22,14 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
+import java.io.BufferedReader;
 import java.io.FileInputStream;
+import java.io.InputStreamReader;
 import java.io.IOException;
 
 import java.sql.Types;
 import java.sql.Connection;
+import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
@@ -40,16 +43,11 @@ import org.xml.sax.helpers.XMLReaderFactory;
 
 /**
  * Imports the {@code JMDict.xml} content to the database.
+ * To start the import, run the {@link #main(String[])} method.
  *
  * @author Martin Desruisseaux
  */
-final class JMdictImport extends DefaultHandler {
-    /**
-     * {@code true} for executing the {@code "INSERT INTO"} SQL statement.
-     * This flag is set to {@code false} only for testing purpose.
-     */
-    private static final boolean INSERT = true;
-
+final class JMdictImport extends DefaultHandler implements AutoCloseable {
     /**
      * The XML element which is in process of being parsed. This field is modified every time a XML
      * element is started or ended. This information is used by {@link #characters(char[], int, int)}
@@ -172,12 +170,15 @@ final class JMdictImport extends DefaultHandler {
 
     /**
      * Creates a new instance which will import the {@code JMdict.xml} content using
-     * the given database connection.
+     * the given database connection. The prepared statements will be closed by the
+     * {@link #close()} method, but closing the connection is caller responsibility.
      *
      * @param  connection   The connection to the database where to insert the dictionary content.
+     * @throws IOException  If an error occurred while reading the SQL script for tables creation.
      * @throws SQLException If an error occurred while preparing the SQL statements.
      */
-    private JMdictImport(final Connection connection) throws SQLException {
+    private JMdictImport(final Connection connection) throws IOException, SQLException {
+        script(connection, "create.sql");
         priorityColumns   = Priority.Type.values();
         priorities        = new EnumMap<>(Priority.Type.class);
         priorityCache     = new HashMap<>();
@@ -224,7 +225,42 @@ final class JMdictImport extends DefaultHandler {
     }
 
     /**
+     * Executes a SQL script from the given resource file. The SQL statement will
+     * be executed when the {@code ';'} character is meet.
+     *
+     * @param  connection The connection to the database.
+     * @param  name The name of the script to execute, in the directory of this {@code JMdictImport} class.
+     * @throws IOException If an error occurred while reading the script.
+     * @throws SQLException If an error occurred while executing the script.
+     */
+    private static void script(final Connection connection, final String name) throws IOException, SQLException {
+        String line;
+        final StringBuilder buffer = new StringBuilder();
+        try (final Statement stmt = connection.createStatement();
+             final BufferedReader in = new BufferedReader(new InputStreamReader(JMdictImport.class.getResourceAsStream(name), "UTF-8")))
+        {
+            while ((line = in.readLine()) != null) {
+                line = line.trim();
+                if (!line.isEmpty() && !line.startsWith("--")) {
+                    buffer.append(line);
+                    final int length = buffer.length();
+                    if (buffer.charAt(length-1) == ';') {
+                        buffer.setLength(length-1);
+                        stmt.executeUpdate(buffer.toString());
+                        buffer.setLength(0);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Executes the XML parsing and writes the information in the database.
+     * This method can be invoked for each XML file to parse, but there is
+     * usually only one.
+     * <p>
+     * After every XML files have been parsed, the {@link #complete()} method
+     * must be invoked before to {@linkplain #close() close} the statements/
      *
      * @param  file The path to "{@code JMdict.xml}" file to parse.
      * @throws IOException   If an I/O error occurred while reading the XML file.
@@ -232,12 +268,11 @@ final class JMdictImport extends DefaultHandler {
      * @throws SQLException  If an error occurred while writing in the database.
      * @throws DictionaryException If a logical error occurred with the XML content.
      */
-    final void parse(final String file) throws IOException, SAXException, SQLException, DictionaryException {
+    private void parse(final String file) throws IOException, SAXException, SQLException, DictionaryException {
         final XMLReader saxReader = XMLReaderFactory.createXMLReader();
         try {
             saxReader.setContentHandler(this);
             saxReader.parse(new InputSource(new FileInputStream(file)));
-            complete();
         } catch (DictionaryException e) {
             // Unwraps the SQL exception for easier reading of stack trace.
             final Throwable cause = e.getCause();
@@ -246,11 +281,6 @@ final class JMdictImport extends DefaultHandler {
             }
             throw e;
         }
-        insertEntry      .close();
-        insertInformation.close();
-        insertPriority   .close();
-        insertPos        .close();
-        insertSense      .close();
     }
 
     /**
@@ -391,9 +421,7 @@ final class JMdictImport extends DefaultHandler {
                     }
                     insertSense.setString(3, language);
                     insertSense.setString(4, content);
-                    if (INSERT) {
-                        insertSense.executeUpdate();
-                    }
+                    insertSense.executeUpdate();
                     break;
                 } catch (SQLException e) {
                     throw new DictionaryException(e);
@@ -446,9 +474,7 @@ final class JMdictImport extends DefaultHandler {
                         insertInformation.setInt(1, entry.identifier);
                         insertInformation.setString(2, word);
                         insertInformation.setString(3, info);
-                        if (INSERT) {
-                            insertInformation.executeUpdate();
-                        }
+                        insertInformation.executeUpdate();
                     }
                     break;
                 }
@@ -472,9 +498,7 @@ final class JMdictImport extends DefaultHandler {
                             if (c!=0) insertEntry.setShort(p, c);
                             else      insertEntry.setNull (p, Types.SMALLINT);
                         } while ((isKanji = !isKanji) == false);
-                        if (INSERT) {
-                            insertEntry.executeUpdate();
-                        }
+                        insertEntry.executeUpdate();
                     }
                     break;
                 }
@@ -513,9 +537,7 @@ final class JMdictImport extends DefaultHandler {
                     throw new DictionaryException("Priority code collision: " + code);
                 }
                 insertPriority.setShort(1, code);
-                if (INSERT) {
-                    insertPriority.executeUpdate();
-                }
+                insertPriority.executeUpdate();
             }
         }
         return code;
@@ -573,9 +595,7 @@ final class JMdictImport extends DefaultHandler {
                 cachePOS.put((String) description, code);
                 insertPos.setShort(1, code);
                 insertPos.setString(2, (String) description);
-                if (INSERT) {
-                    insertPos.executeUpdate();
-                }
+                insertPos.executeUpdate();
             }
         }
         return code;
@@ -607,9 +627,7 @@ final class JMdictImport extends DefaultHandler {
             cachePOS.put(description, pos);
             insertPos.setShort(1, pos.getIdentifier());
             insertPos.setString(2, description);
-            if (INSERT) {
-                insertPos.executeUpdate();
-            }
+            insertPos.executeUpdate();
         }
         return pos;
     }
@@ -618,10 +636,13 @@ final class JMdictImport extends DefaultHandler {
      * Invoked after the parsing of the XML file has been completed. This method
      * writes to the database any information which was deferred to the end.
      *
+     * @throws IOException  If an error occurred while reading the SQL script for tables creation.
      * @throws SQLException If an error occurred while writing to the database.
      */
-    private void complete() throws SQLException {
+    private void complete() throws IOException, SQLException {
         final Connection connection = insertSense.getConnection();
+        script(connection, "index.sql"); // This method needs those index.
+        final HashMap<Long, Boolean> done = new HashMap<>(); // Prevent (ent_seq, xref) duplication.
         try (final JMdict dict = new JMdict(connection, true);
              final PreparedStatement stmt = prepareInsert(connection, TableOrColumn.xref))
         {
@@ -629,18 +650,54 @@ final class JMdictImport extends DefaultHandler {
             do { // Loop executed exactly twice.
                 stmt.setBoolean(3, isAntonym);
                 for (final Map.Entry<Integer, Set<String>> entry : (isAntonym ? antonyms : synonyms).entrySet()) {
-                    stmt.setInt(1, entry.getKey());
+                    final int ent_seq = entry.getKey();
+                    stmt.setInt(1, ent_seq);
+                    /*
+                     * For each synonym or antonym in this entry, search in the dictionary
+                     * the other entry for which a cross reference is created.
+                     */
                     for (final String word : entry.getValue()) {
                         for (final Entry xref : dict.search(word)) {
-                            stmt.setInt(2, xref.identifier);
-                            if (INSERT) {
-                                stmt.executeUpdate();
+                            /*
+                             * Ensures that the (ent_seq, xref) pair has not been already added.
+                             * This is necessary to prevent primary key constraint violation.
+                             */
+                            long pack = ent_seq;
+                            pack <<= Integer.SIZE;
+                            pack |= xref.identifier;
+                            final Boolean previous = done.put(pack, isAntonym);
+                            if (previous != null) {
+                                if (previous.booleanValue() == isAntonym) {
+                                    continue; // Skip the database insertion.
+                                }
+                                throw new DictionaryException("Inconsistent cross-reference "
+                                        + "from entry " + ent_seq + " to \"" + word + "\".");
                             }
+                            /*
+                             * Now insert the cross-reference in the database.
+                             */
+                            stmt.setInt(2, xref.identifier);
+                            stmt.executeUpdate();
                         }
                     }
                 }
             } while ((isAntonym = !isAntonym) == true);
         }
+    }
+
+    /**
+     * Closes all statements which were prepared by the constructor.
+     * This method does not close the connection; it is caller responsibility to close it.
+     *
+     * @throws SQLException If an error occurred while closing the statements.
+     */
+    @Override
+    public void close() throws SQLException {
+        insertEntry      .close();
+        insertInformation.close();
+        insertPriority   .close();
+        insertPos        .close();
+        insertSense      .close();
     }
 
     /**
@@ -656,8 +713,18 @@ final class JMdictImport extends DefaultHandler {
             return;
         }
         try (final Connection connection = JMdict.getDataSource().getConnection()) {
-            final JMdictImport db = new JMdictImport(connection);
-            db.parse(args[0]);
+            connection.setAutoCommit(false);
+            boolean success = false;
+            try (final JMdictImport db = new JMdictImport(connection)) {
+                for (int i=0; i<args.length; i++) {
+                    db.parse(args[i]);
+                }
+                db.complete();
+                success = true;
+            } finally {
+                if (success) connection.commit();
+                else         connection.rollback();
+            }
         }
     }
 }

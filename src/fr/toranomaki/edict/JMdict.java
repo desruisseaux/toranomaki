@@ -15,7 +15,9 @@
 package fr.toranomaki.edict;
 
 import java.util.List;
+import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.logging.Logger;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -34,6 +36,11 @@ public final class JMdict implements AutoCloseable {
      * The logger for reporting warnings.
      */
     public static final Logger LOGGER = Logger.getLogger("fr.toranomaki.edict");
+
+    /**
+     * The locales for which to search meanings, in preference order.
+     */
+    private Locale[] locales;
 
     /**
      * {@code true} if this dictionary is looking for exact matches.
@@ -84,31 +91,48 @@ public final class JMdict implements AutoCloseable {
      * @throws SQLException If an error occurred while preparing the statements.
      */
     JMdict(final Connection connection, final boolean exact) throws SQLException {
-        this.exact = exact;
+        this.exact    = exact;
         toClose       = exact ? null : connection; // For now, close only if invoked from the public constructor.
-        searchKanji   = prepareSelect(connection, TableOrColumn.entries, ElementType.keb, ElementType.ent_seq);
-        searchReading = prepareSelect(connection, TableOrColumn.entries, ElementType.reb, ElementType.ent_seq);
+        searchKanji   = prepareSelect(connection, ElementType.keb);
+        searchReading = prepareSelect(connection, ElementType.reb);
+        locales = new Locale[] {
+            Locale.getDefault(),
+            Locale.ENGLISH
+        };
+        if (locales[0].getLanguage().equals(locales[1].getLanguage())) {
+            // Trims the English locale if this is the default language.
+            locales = Arrays.copyOf(locales, 1);
+        }
     }
 
     /**
-     * Creates a {@code SELECT} statement into the given table using the given search criterion.
+     * Creates a {@code SELECT} statement into the given table using the given search column.
+     * The statement created by this method looks like below:
+     *
+     * <blockquote><code>
+     * SELECT ent_seq, keb, reb, ke_pri, re_pri FROM entries WHERE ent_seq IN
+     * (SELECT DISTINCT ent_seq FROM entries WHERE reb = 'あした') ORDER BY ent_seq;
+     * </code></blockquote>
      *
      * @param  connection The connection to the SQL database.
-     * @param  table      The table where the values will be searched.
+     * @param  toSearch   The column of the value to search.
      * @return The prepared statement.
      * @throws SQLException If an error occurred while preparing the statement.
      */
-    private PreparedStatement prepareSelect(final Connection connection, final TableOrColumn table,
-            final Enum<?> criterion, final Enum<?> orderBy) throws SQLException
-    {
+    private PreparedStatement prepareSelect(final Connection connection, final ElementType toSearch) throws SQLException {
+        final TableOrColumn table      = TableOrColumn.entries;
+        final ElementType   identifier = ElementType.ent_seq;
         final StringBuilder sql = new StringBuilder();
         String separator = "SELECT ";
         for (final Enum<?> column : table.columns) {
             sql.append(separator).append(column);
             separator = ", ";
         }
-        sql.append(" FROM ").append(table).append(" WHERE ").append(criterion)
-                .append(exact ? " = " : " LIKE ").append('?').append(" ORDER BY ").append(orderBy);
+        sql.append(" FROM ").append(table).append(" WHERE ").append(identifier)
+           .append(" IN (SELECT DISTINCT ").append(identifier).append(" FROM ").append(table)
+           .append(" WHERE ").append(toSearch).append(exact ? " = " : " LIKE ").append("?)")
+           .append(" ORDER BY ").append(identifier).append(", ")
+           .append(ElementType.ke_pri).append(", ").append(ElementType.re_pri);
         return connection.prepareStatement(sql.toString());
     }
 
@@ -146,15 +170,7 @@ public final class JMdict implements AutoCloseable {
                 } while ((isKanjiResult = !isKanjiResult) == false);
             }
         }
-        /*
-         * For each entry, sort the elements by priority order.
-         */
-        final Entry[] array = entries.toArray(new Entry[entries.size()]);
-        for (final Entry entry : array) {
-            entry.sortByPriority(true);
-            entry.sortByPriority(false);
-        }
-        return array;
+        return entries.toArray(new Entry[entries.size()]);
     }
 
     /**
