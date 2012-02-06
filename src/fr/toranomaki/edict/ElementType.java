@@ -52,7 +52,6 @@ public enum ElementType {
      * indicated in the cross-reference field associated with the sense element.
      *
      * @see #r_ele
-     * @see #isIdeographic(String)
      */
     k_ele(entry),
 
@@ -112,7 +111,6 @@ public enum ElementType {
      * case of a word or phrase written entirely in kana, these elements will define the entry.
      *
      * @see #k_ele
-     * @see #isIdeographic(String)
      */
     r_ele(entry),
 
@@ -343,25 +341,5 @@ public enum ElementType {
      */
     public ElementType getParent() {
         return parent;
-    }
-
-    /**
-     * Returns {@code true} if the given word contains at least one
-     * {@linkplain Character#isIdeographic(int) ideographic} character.
-     * This method can be used in order to determine where to search for an element.
-     * If {@code true}, search in {@link #k_ele}. Otherwise search in {@link #r_ele}.
-     *
-     * @param  word The word to examine.
-     * @return {@code true} if the given word contains at least one ideographic character.
-     */
-    public static boolean isIdeographic(final String word) {
-        for (int i=0; i<word.length();) {
-            final int c = word.codePointAt(i);
-            if (Character.isIdeographic(c)) {
-                return true;
-            }
-            i += Character.charCount(c);
-        }
-        return false;
     }
 }

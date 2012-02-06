@@ -14,8 +14,9 @@
  */
 package fr.toranomaki.edict;
 
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.logging.Logger;
@@ -24,6 +25,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import javax.sql.DataSource;
+
+import fr.toranomaki.grammar.CharacterType;
 
 
 /**
@@ -38,14 +41,38 @@ public final class JMdict implements AutoCloseable {
     public static final Logger LOGGER = Logger.getLogger("fr.toranomaki.edict");
 
     /**
-     * The locales for which to search meanings, in preference order.
+     * A cache of most recently used entries. The cache capacity is arbitrary, but we are
+     * better to use a value not greater than a power of 2 time the load factor (0.75).
      */
-    private Locale[] locales;
+    @SuppressWarnings("serial")
+    private final Map<Integer,Entry> entries = new LinkedHashMap<Integer,Entry>(1024, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(final Map.Entry eldest) {
+            return size() > 6100; // Arbitrary cache capacity (see javadoc).
+        }
+    };
+
+    /**
+     * The locales for which to search meanings, in <strong>reverse</strong> of preference order.
+     * We use reverse order because the English is the most extensively used language in the EDICT
+     * dictionary, so it is worth to put it first in our data structure. But it still only the
+     * fallback language for non-English users.
+     * <p>
+     * The default values are {@linkplain Locale#ENGLISH English} followed by the
+     * {@linkplain Locale#getDefault() system default}, if different then English.
+     */
+    private final Locale[] locales;
+
+    /**
+     * The 3-letters language codes for the {@link #locales}, in the same order.
+     *
+     * @see Locale#getISO3Language()
+     */
+    private final String[] localeCodes;
 
     /**
      * {@code true} if this dictionary is looking for exact matches.
      */
-    private final boolean exact;
+    private final boolean exactMatch;
 
     /**
      * The connection to the SQL database to be closed by the {@link #close()} method,
@@ -54,9 +81,19 @@ public final class JMdict implements AutoCloseable {
     private final Connection toClose;
 
     /**
-     * The statement for searching a Kanji element.
+     * The statement for reading an entry for a given {@code seq_ent} key;
      */
-    private final PreparedStatement searchKanji;
+    private final PreparedStatement selectEntry;
+
+    /**
+     * Selects the meaning for an entry.
+     */
+    private final PreparedStatement selectMeaning;
+
+    /**
+     * The statement for searching the meaning.
+     */
+    private final PreparedStatement searchMeaning;
 
     /**
      * The statement for searching a reading element.
@@ -64,7 +101,14 @@ public final class JMdict implements AutoCloseable {
     private final PreparedStatement searchReading;
 
     /**
-     * Returns the datasource to use for the connection to the SQL database.
+     * The statement for searching a Kanji element.
+     */
+    private final PreparedStatement searchKanji;
+
+    /**
+     * Returns the data source to use for the connection to the SQL database.
+     *
+     * @todo Connect to a local PostgreSQL database for now. Final version will connect to Derby.
      */
     static DataSource getDataSource() {
         final org.postgresql.ds.PGSimpleDataSource datasource = new org.postgresql.ds.PGSimpleDataSource();
@@ -91,49 +135,132 @@ public final class JMdict implements AutoCloseable {
      * @throws SQLException If an error occurred while preparing the statements.
      */
     JMdict(final Connection connection, final boolean exact) throws SQLException {
-        this.exact    = exact;
-        toClose       = exact ? null : connection; // For now, close only if invoked from the public constructor.
-        searchKanji   = prepareSelect(connection, ElementType.keb);
-        searchReading = prepareSelect(connection, ElementType.reb);
-        locales = new Locale[] {
-            Locale.getDefault(),
-            Locale.ENGLISH
-        };
-        if (locales[0].getLanguage().equals(locales[1].getLanguage())) {
-            // Trims the English locale if this is the default language.
-            locales = Arrays.copyOf(locales, 1);
+        final Locale locale = Locale.getDefault();
+        if (locale.getLanguage().equals(Locale.ENGLISH.getLanguage())) {
+            locales = new Locale[] {locale};
+        } else {
+            locales = new Locale[] {Locale.ENGLISH, locale}; // Reverse of preference order.
         }
+        localeCodes = new String[locales.length];
+        for (int i=0; i<localeCodes.length; i++) {
+            localeCodes[i] = locales[i].getISO3Language();
+        }
+        exactMatch    = exact;
+        toClose       = exact ? null : connection; // For now, close only if invoked from the public constructor.
+        selectEntry   = prepareSelect(connection, TableOrColumn.entries, false, ElementType.ent_seq, true, null);
+        selectMeaning = prepareSelect(connection, TableOrColumn.senses,  false, ElementType.ent_seq, true, localeCodes);
+        searchMeaning = prepareSelect(connection, TableOrColumn.senses,  true,  ElementType.gloss,  exact, localeCodes);
+        searchReading = prepareSelect(connection, TableOrColumn.entries, true,  ElementType.reb,    exact, null);
+        searchKanji   = prepareSelect(connection, TableOrColumn.entries, true,  ElementType.keb,    exact, null);
     }
 
     /**
-     * Creates a {@code SELECT} statement into the given table using the given search column.
+     * Creates a {@code SELECT} statement into the given table.
      * The statement created by this method looks like below:
      *
      * <blockquote><code>
-     * SELECT ent_seq, keb, reb, ke_pri, re_pri FROM entries WHERE ent_seq IN
-     * (SELECT DISTINCT ent_seq FROM entries WHERE reb = 'あした') ORDER BY ent_seq;
+     * SELECT keb, reb, ke_pri, re_pri FROM entries WHERE ent_seq = ?;
      * </code></blockquote>
      *
-     * @param  connection The connection to the SQL database.
-     * @param  toSearch   The column of the value to search.
+     * @param  connection  The connection to the SQL database.
+     * @param  table       The table where to search.
+     * @param  distinctID  {@code true} if only distinct values from the first column are wanted.
+     * @param  toSearch    The column where to search a value. This column will be excluded from the result.
+     * @param  exactMatch  {@code true} if the search methods should look for exact matches.
+     * @param  languages   If non-null, add {@code "WHERE lang="} clauses.
      * @return The prepared statement.
      * @throws SQLException If an error occurred while preparing the statement.
      */
-    private PreparedStatement prepareSelect(final Connection connection, final ElementType toSearch) throws SQLException {
-        final TableOrColumn table      = TableOrColumn.entries;
-        final ElementType   identifier = ElementType.ent_seq;
+    private static PreparedStatement prepareSelect(final Connection connection,
+            final TableOrColumn table,  final boolean distinctID,
+            final ElementType toSearch, final boolean exactMatch,
+            final String[] languages) throws SQLException
+    {
         final StringBuilder sql = new StringBuilder();
-        String separator = "SELECT ";
+        String separator = distinctID ? "SELECT DISTINCT " : "SELECT ";
         for (final Enum<?> column : table.columns) {
-            sql.append(separator).append(column);
-            separator = ", ";
+            if (column != toSearch) {
+                sql.append(separator).append(column);
+                if (distinctID) break;
+                separator = ", ";
+            }
         }
-        sql.append(" FROM ").append(table).append(" WHERE ").append(identifier)
-           .append(" IN (SELECT DISTINCT ").append(identifier).append(" FROM ").append(table)
-           .append(" WHERE ").append(toSearch).append(exact ? " = " : " LIKE ").append("?)")
-           .append(" ORDER BY ").append(identifier).append(", ")
-           .append(ElementType.ke_pri).append(", ").append(ElementType.re_pri);
+        sql.append(" FROM ").append(table).append(" WHERE ").append(toSearch)
+                .append(exactMatch ? " = " : " LIKE ").append('?');
+        if (languages != null) {
+            /*
+             * Restrict the search to the user language.
+             */
+            separator = " AND (";
+            for (final String lang : languages) {
+                sql.append(separator).append("lang='").append(lang).append('\'');
+                separator = " OR ";
+            }
+            sql.append(')');
+        }
         return connection.prepareStatement(sql.toString());
+    }
+
+    /**
+     * Returns the entry for the given {@code ent_seq} numeric identifier.
+     *
+     * @param  ent_seq The key of the entry to search for.
+     * @return The entry for the given key.
+     * @throws SQLException If an error occurred while querying the database.
+     */
+    private Entry getEntry(final int ent_seq) throws SQLException {
+        assert Thread.holdsLock(this);
+        final Integer key = ent_seq;
+        Entry entry = entries.get(key);
+        if (entry == null) {
+            entry = new Entry(ent_seq);
+            selectEntry.setInt(1, ent_seq);
+            try (final ResultSet rs = selectEntry.executeQuery()) {
+                while (rs.next()) {
+                    boolean isKanjiResult = true;
+                    do { // This loop is executed twice: once for Kanji and once for reading element.
+                        final String found = rs.getString(isKanjiResult ? 1 : 2);
+                        if (!rs.wasNull()) {
+                            short priority = rs.getShort(isKanjiResult ? 3 : 4);
+                            if (rs.wasNull()) {
+                                priority = 0;
+                            }
+                            entry.add(isKanjiResult, found, priority);
+                        }
+                    } while ((isKanjiResult = !isKanjiResult) == false);
+                }
+            }
+            entry.setSenses(locales, getMeanings(ent_seq));
+            entries.put(key, entry);
+        }
+        return entry;
+    }
+
+    /**
+     * Returns the meanings for the given entry. The length of the returned entry is the number
+     * of languages (typically 2). Each entry is a comma-separated list of senses in one language.
+     */
+    private StringBuilder[] getMeanings(final int ent_seq) throws SQLException {
+        assert Thread.holdsLock(this);
+        final StringBuilder[] senses = new StringBuilder[localeCodes.length];
+        selectMeaning.setInt(1, ent_seq);
+        try (final ResultSet rs = selectMeaning.executeQuery()) {
+            while (rs.next()) {
+                final String lang = rs.getString(2);
+                for (int i=0; i<localeCodes.length; i++) {
+                    if (lang.equals(localeCodes[i])) {
+                        StringBuilder buf = senses[i];
+                        if (buf == null) {
+                            senses[i] = buf = new StringBuilder();
+                        } else {
+                            buf.append(", ");
+                        }
+                        buf.append(rs.getString(3));
+                    }
+                }
+            }
+        }
+        return senses;
     }
 
     /**
@@ -144,30 +271,19 @@ public final class JMdict implements AutoCloseable {
      * @return All entries for the given words.
      * @throws SQLException If an error occurred while querying the database.
      */
-    public Entry[] search(final String word) throws SQLException {
-        final boolean isKanji = ElementType.isIdeographic(word);
-        final PreparedStatement stmt = isKanji ? searchKanji : searchReading;
-        stmt.setString(1, exact ? word : word + '%');
+    public synchronized Entry[] search(final String word) throws SQLException {
+        final PreparedStatement stmt;
+        switch (CharacterType.forWord(word)) {
+            case KANJI:    stmt = searchKanji; break;
+            case KATAKANA: // Fallthrough
+            case HIRAGANA: stmt = searchReading; break;
+            default:       stmt = searchMeaning; break;
+        }
+        stmt.setString(1, exactMatch ? word : word + '%');
         final List<Entry> entries = new ArrayList<>();
         try (final ResultSet rs = stmt.executeQuery()) {
-            Entry entry = null;
             while (rs.next()) {
-                final int seq = rs.getInt(1);
-                if (entry == null || entry.identifier != seq) {
-                    entry = new Entry(seq);
-                    entries.add(entry);
-                }
-                boolean isKanjiResult = true;
-                do { // This loop is executed twice: once for Kanji and once for reading element.
-                    final String found = rs.getString(isKanjiResult ? 2 : 3);
-                    if (!rs.wasNull()) {
-                        short priority = rs.getShort(isKanjiResult ? 4 : 5);
-                        if (rs.wasNull()) {
-                            priority = 0;
-                        }
-                        entry.add(isKanjiResult, found, priority);
-                    }
-                } while ((isKanjiResult = !isKanjiResult) == false);
+                entries.add(getEntry(rs.getInt(1)));
             }
         }
         return entries.toArray(new Entry[entries.size()]);
@@ -179,9 +295,13 @@ public final class JMdict implements AutoCloseable {
      * @throws SQLException If an error occurred while closing the statements.
      */
     @Override
-    public void close() throws SQLException {
-        searchKanji.close();
+    public synchronized void close() throws SQLException {
+        entries.clear();
+        searchKanji  .close();
         searchReading.close();
+        searchMeaning.close();
+        selectMeaning.close();
+        selectEntry  .close();
         if (toClose != null) {
             toClose.close();
         }

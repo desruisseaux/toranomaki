@@ -102,6 +102,16 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
             column.setPrefWidth(200);
             columns.add(column);
         }
+        if (true) { // Sense elements column
+            final TableColumn<Entry,String> column = new TableColumn<>("Sense");
+            column.setCellValueFactory(new Callback<CellDataFeatures<Entry,String>, ObservableValue<String>>() {
+                @Override public ObservableValue<String> call(final CellDataFeatures<Entry,String> cell) {
+                    return new EntryValue.Sense(cell.getValue());
+                }
+            });
+            column.setPrefWidth(380);
+            columns.add(column);
+        }
         final BorderPane pane = new BorderPane();
         pane.setCenter(table);
         pane.setBottom(search);
@@ -117,7 +127,13 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
         final String word = search.getText().trim();
         final Task<Entry[]> task = new Task<Entry[]>() {
             @Override protected Entry[] call() throws SQLException {
-                final Entry[] selected = dictionary.search(word);
+                final Entry[] selected;
+                try {
+                    selected = dictionary.search(word);
+                } catch (Throwable e) {
+                    e.printStackTrace(); // TODO
+                    return null;
+                }
                 Platform.runLater(new Runnable() {
                     @Override public void run() {
                         entries.setAll(selected);

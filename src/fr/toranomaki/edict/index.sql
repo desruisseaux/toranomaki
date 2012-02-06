@@ -10,5 +10,6 @@ CREATE INDEX entries_reb_idx     ON entries     (reb);
 CREATE INDEX entries_seq_idx     ON entries     (ent_seq);
 CREATE INDEX information_seq_idx ON information (ent_seq);
 CREATE INDEX senses_seq_idx      ON senses      (ent_seq);
+CREATE INDEX senses_gloss_idx    ON senses      (gloss);
 
 ALTER TABLE senses ADD CONSTRAINT senses_pos_fkey FOREIGN KEY (pos) REFERENCES pos (id) ON UPDATE RESTRICT ON DELETE RESTRICT;

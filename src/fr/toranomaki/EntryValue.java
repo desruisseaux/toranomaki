@@ -68,6 +68,19 @@ abstract class EntryValue implements ObservableStringValue {
     }
 
     /**
+     * A comma-separated list of sense, in the preferred language if available.
+     */
+    static final class Sense extends EntryValue {
+        Sense(final Entry entry) {
+            super(entry);
+        }
+
+        @Override public String getValue() {
+            return entry.getSenses(null);
+        }
+    }
+
+    /**
      * Delegates to {@link #getValue()}.
      */
     @Override

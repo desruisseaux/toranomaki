@@ -318,6 +318,11 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
                 language = attributes.getValue("xml:lang");
                 if (language == null) {
                     language = "eng"; // Default value.
+                } else {
+                    // Replace EDICT codes by ISO 639-2 codes.
+                    switch (language) {
+                        case "fre": language = "fra"; break;
+                    }
                 }
                 break;
             }

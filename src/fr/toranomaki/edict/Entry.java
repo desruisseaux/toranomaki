@@ -127,7 +127,7 @@ public final class Entry {
          * Now update the priority field if a priority has been specified. See
          * the 'priority' field javadoc for explanation about the packing.
          */
-        if (priority != 0) {
+        if (priority != 0 || isKanji) {
             assert count == getCount(words) : count;
             int i1 = count; // (index where to insert) + 1.
             if (!isKanji) {
@@ -256,7 +256,7 @@ public final class Entry {
      * @param locales The locales for the meaning. This array is not cloned - do not modify.
      * @param senses  The senses. May contains trailing null elements, which will be ignored.
      */
-    final void setSenses(final Locale[] locales, final String[] senses) {
+    final void setSenses(final Locale[] locales, final CharSequence[] senses) {
         int n = senses.length;
         if (n != 0) {
             while (senses[n-1] == null) {
@@ -266,9 +266,13 @@ public final class Entry {
             }
             this.locales = locales;
             if (n == 1) {
-                this.senses = senses[0];
+                this.senses = senses[0].toString();
             } else {
-                this.senses = Arrays.copyOf(senses, n);
+                final String[] array = new String[n];
+                while (--n >= 0) {
+                    array[n] = senses[n].toString();
+                }
+                this.senses = array;
             }
         }
     }
@@ -277,7 +281,8 @@ public final class Entry {
      * Returns the meaning of this entry as a comma-separated list of senses
      * in the given language.
      *
-     * @param  locale The language for the meaning.
+     * @param  locale The language for the meaning, or {@code null} for the first
+     *         available language in preference order.
      * @return The meaning of this entry, or {@code null} if none.
      */
     public String getSenses(final Locale locale) {
@@ -285,12 +290,15 @@ public final class Entry {
         if (locales != null) {
             if (senses instanceof String[]) {
                 final String[] array = (String[]) senses;
-                for (int i=0; i<array.length; i++) {
-                    if (locale.equals(locales[i])) {
-                        return array[i];
+                for (int i=array.length; --i>=0;) {
+                    final String candidate = array[i];
+                    if (candidate != null) {
+                        if (locale == null || locale.equals(locales[i])) {
+                            return candidate;
+                        }
                     }
                 }
-            } else if (locale.equals(locales[0])) {
+            } else if (locale == null || locale.equals(locales[0])) {
                 return (String) senses;
             }
         }
