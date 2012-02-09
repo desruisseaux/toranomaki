@@ -28,15 +28,22 @@ import javafx.beans.value.ObservableStringValue;
  */
 abstract class EntryValue implements ObservableStringValue {
     /**
-     * The entry specified at construction time.
+     * The value to be returned by {@link #getValue()}.
      */
-    protected final Entry entry;
+    protected String value;
 
     /**
-     * Creates a new instance wrapping the given entry.
+     * Creates a new instance.
      */
-    protected EntryValue(final Entry entry) {
-        this.entry = entry;
+    protected EntryValue() {
+    }
+
+    /**
+     * Returns the {@linkplain #value}, which may be null.
+     */
+    @Override
+    public String getValue() {
+        return value;
     }
 
     /**
@@ -45,11 +52,7 @@ abstract class EntryValue implements ObservableStringValue {
      */
     static final class Kanji extends EntryValue {
         Kanji(final Entry entry) {
-            super(entry);
-        }
-
-        @Override public String getValue() {
-            return entry.getWord(true, 0);
+            value = entry.getWord(true, 0);
         }
     }
 
@@ -59,11 +62,19 @@ abstract class EntryValue implements ObservableStringValue {
      */
     static final class Reading extends EntryValue {
         Reading(final Entry entry) {
-            super(entry);
+            value = entry.getWord(false, 0);
         }
+    }
 
-        @Override public String getValue() {
-            return entry.getWord(false, 0);
+    /**
+     * A comma-separated list of <cite>Part Of Speech</cite>.
+     */
+    static final class PartOfSpeech extends EntryValue {
+        PartOfSpeech(final Entry entry) {
+            final fr.toranomaki.edict.Sense sense = entry.getSense(null);
+            if (sense != null) {
+                value = sense.getPartOfSpeech();
+            }
         }
     }
 
@@ -72,11 +83,10 @@ abstract class EntryValue implements ObservableStringValue {
      */
     static final class Sense extends EntryValue {
         Sense(final Entry entry) {
-            super(entry);
-        }
-
-        @Override public String getValue() {
-            return entry.getSenses(null);
+            final fr.toranomaki.edict.Sense sense = entry.getSense(null);
+            if (sense != null) {
+                value = sense.meaning;
+            }
         }
     }
 

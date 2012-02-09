@@ -102,6 +102,16 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
             column.setPrefWidth(200);
             columns.add(column);
         }
+        if (true) { // Part Of Speech column
+            final TableColumn<Entry,String> column = new TableColumn<>("Type");
+            column.setCellValueFactory(new Callback<CellDataFeatures<Entry,String>, ObservableValue<String>>() {
+                @Override public ObservableValue<String> call(final CellDataFeatures<Entry,String> cell) {
+                    return new EntryValue.PartOfSpeech(cell.getValue());
+                }
+            });
+            column.setPrefWidth(80);
+            columns.add(column);
+        }
         if (true) { // Sense elements column
             final TableColumn<Entry,String> column = new TableColumn<>("Sense");
             column.setCellValueFactory(new Callback<CellDataFeatures<Entry,String>, ObservableValue<String>>() {
@@ -109,7 +119,7 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
                     return new EntryValue.Sense(cell.getValue());
                 }
             });
-            column.setPrefWidth(380);
+            column.setPrefWidth(300);
             columns.add(column);
         }
         final BorderPane pane = new BorderPane();

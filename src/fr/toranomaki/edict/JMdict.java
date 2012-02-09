@@ -15,9 +15,13 @@
 package fr.toranomaki.edict;
 
 import java.util.Map;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Set;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.logging.Logger;
 import java.sql.Connection;
@@ -50,6 +54,13 @@ public final class JMdict implements AutoCloseable {
             return size() > 6100; // Arbitrary cache capacity (see javadoc).
         }
     };
+
+    /**
+     * The <cite>Part Of Speech</cite> (POS) information about a word.
+     *
+     * @see ElementType#pos
+     */
+    private final Map<Short, Set<PartOfSpeech>> partOfSpeech = new HashMap<>();
 
     /**
      * The locales for which to search meanings, in <strong>reverse</strong> of preference order.
@@ -86,7 +97,12 @@ public final class JMdict implements AutoCloseable {
     private final PreparedStatement selectEntry;
 
     /**
-     * Selects the meaning for an entry.
+     * The statement for reading the <cite>Part Of Speech</cite> (POS) information about a word.
+     */
+    private final PreparedStatement selectPOS;
+
+    /**
+     * The statement for reading the meaning for an entry.
      */
     private final PreparedStatement selectMeaning;
 
@@ -148,8 +164,9 @@ public final class JMdict implements AutoCloseable {
         exactMatch    = exact;
         toClose       = exact ? null : connection; // For now, close only if invoked from the public constructor.
         selectEntry   = prepareSelect(connection, TableOrColumn.entries, false, ElementType.ent_seq, true, null);
+        selectPOS     = prepareSelect(connection, TableOrColumn.pos,     false, TableOrColumn.id,    true, null);
         selectMeaning = prepareSelect(connection, TableOrColumn.senses,  false, ElementType.ent_seq, true, localeCodes);
-        searchMeaning = prepareSelect(connection, TableOrColumn.senses,  true,  ElementType.gloss,  exact, localeCodes);
+        searchMeaning = prepareSelect(connection, TableOrColumn.senses,  true,  ElementType.gloss,  exact, new String[] {"?"});
         searchReading = prepareSelect(connection, TableOrColumn.entries, true,  ElementType.reb,    exact, null);
         searchKanji   = prepareSelect(connection, TableOrColumn.entries, true,  ElementType.keb,    exact, null);
     }
@@ -172,8 +189,8 @@ public final class JMdict implements AutoCloseable {
      * @throws SQLException If an error occurred while preparing the statement.
      */
     private static PreparedStatement prepareSelect(final Connection connection,
-            final TableOrColumn table,  final boolean distinctID,
-            final ElementType toSearch, final boolean exactMatch,
+            final TableOrColumn table, final boolean distinctID,
+            final Enum<?> toSearch,    final boolean exactMatch,
             final String[] languages) throws SQLException
     {
         final StringBuilder sql = new StringBuilder();
@@ -193,7 +210,10 @@ public final class JMdict implements AutoCloseable {
              */
             separator = " AND (";
             for (final String lang : languages) {
-                sql.append(separator).append("lang='").append(lang).append('\'');
+                sql.append(separator).append("lang=");
+                if (!lang.equals("?")) sql.append('\'');
+                sql.append(lang);
+                if (!lang.equals("?")) sql.append('\'');
                 separator = " OR ";
             }
             sql.append(')');
@@ -230,37 +250,59 @@ public final class JMdict implements AutoCloseable {
                     } while ((isKanjiResult = !isKanjiResult) == false);
                 }
             }
-            entry.setSenses(locales, getMeanings(ent_seq));
+            /*
+             * Finds the meanings for the given entry. The length of the 'senses' array
+             * is the number of languages (typically 2). Each entry is a comma-separated
+             * list of senses in one language.
+             */
+            selectMeaning.setInt(1, ent_seq);
+            try (final ResultSet rs = selectMeaning.executeQuery()) {
+                while (rs.next()) {
+                    final Set<PartOfSpeech> pos = getPartOfSpeech(rs.getShort(1));
+                    final String lang  = rs.getString(2);
+                    final String gloss = rs.getString(3);
+                    for (int i=0; i<localeCodes.length; i++) {
+                        if (lang.equals(localeCodes[i])) {
+                            entry.addSense(new Sense(locales[i], gloss, pos));
+                            // Should have exactly one occurrence, but
+                            // let continue as a matter of principle.
+                        }
+                    }
+                }
+            }
+            entry.addSenseSummary(locales);
             entries.put(key, entry);
         }
         return entry;
     }
 
     /**
-     * Returns the meanings for the given entry. The length of the returned entry is the number
-     * of languages (typically 2). Each entry is a comma-separated list of senses in one language.
+     * Returns the <cite>Part Of Speech</cite> information for the given {@code pos} primary key.
+     *
+     * @param  id The key of the {@code pos} entry to search for.
+     * @return The {@code pos} entry for the given key.
+     * @throws SQLException If an error occurred while querying the database.
      */
-    private StringBuilder[] getMeanings(final int ent_seq) throws SQLException {
+    private Set<PartOfSpeech> getPartOfSpeech(final Short id) throws SQLException {
         assert Thread.holdsLock(this);
-        final StringBuilder[] senses = new StringBuilder[localeCodes.length];
-        selectMeaning.setInt(1, ent_seq);
-        try (final ResultSet rs = selectMeaning.executeQuery()) {
-            while (rs.next()) {
-                final String lang = rs.getString(2);
-                for (int i=0; i<localeCodes.length; i++) {
-                    if (lang.equals(localeCodes[i])) {
-                        StringBuilder buf = senses[i];
-                        if (buf == null) {
-                            senses[i] = buf = new StringBuilder();
-                        } else {
-                            buf.append(", ");
-                        }
-                        buf.append(rs.getString(3));
+        Set<PartOfSpeech> pos = partOfSpeech.get(id);
+        if (pos == null) {
+            pos = EnumSet.noneOf(PartOfSpeech.class);
+            final boolean isCompound = (id >= PartOfSpeech.FIRST_AVAILABLE_ID);
+            selectPOS.setShort(1, id);
+            try (final ResultSet rs = selectPOS.executeQuery()) {
+                while (rs.next()) {
+                    final String description = rs.getString(1).trim();
+                    if (!isCompound) {
+                        pos.add(PartOfSpeech.parseEDICT(description));
+                    } else for (final String token : description.split(",")) {
+                        pos.add(PartOfSpeech.parseLabel(token.trim()));
                     }
                 }
             }
+            partOfSpeech.put(id, pos);
         }
-        return senses;
+        return pos;
     }
 
     /**
@@ -272,21 +314,35 @@ public final class JMdict implements AutoCloseable {
      * @throws SQLException If an error occurred while querying the database.
      */
     public synchronized Entry[] search(final String word) throws SQLException {
+        final String[] searchLocales;
         final PreparedStatement stmt;
         switch (CharacterType.forWord(word)) {
-            case KANJI:    stmt = searchKanji; break;
-            case KATAKANA: // Fallthrough
-            case HIRAGANA: stmt = searchReading; break;
-            default:       stmt = searchMeaning; break;
+            case KATAKANA:   // Fallthrough
+            case HIRAGANA:   stmt = searchReading; searchLocales = null;        break;
+            case KANJI:      stmt = searchKanji;   searchLocales = null;        break;
+            case ALPHABETIC: stmt = searchMeaning; searchLocales = localeCodes; break;
+            default: return new Entry[0];
         }
         stmt.setString(1, exactMatch ? word : word + '%');
         final List<Entry> entries = new ArrayList<>();
-        try (final ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                entries.add(getEntry(rs.getInt(1)));
+        for (int i=(searchLocales!=null) ? searchLocales.length : 1; --i>=0;) {
+            if (searchLocales != null) {
+                stmt.setString(2, searchLocales[i]);
+            }
+            try (final ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    entries.add(getEntry(rs.getInt(1)));
+                }
+            }
+            // If we found entries in the preferred locale,
+            // do not search in the fallback locale.
+            if (!entries.isEmpty()) {
+                break;
             }
         }
-        return entries.toArray(new Entry[entries.size()]);
+        final Entry[] array = entries.toArray(new Entry[entries.size()]);
+        Arrays.sort(array); // Sort by priority.
+        return array;
     }
 
     /**
@@ -301,6 +357,7 @@ public final class JMdict implements AutoCloseable {
         searchReading.close();
         searchMeaning.close();
         selectMeaning.close();
+        selectPOS    .close();
         selectEntry  .close();
         if (toClose != null) {
             toClose.close();

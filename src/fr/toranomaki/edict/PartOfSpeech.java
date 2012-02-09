@@ -14,6 +14,9 @@
  */
 package fr.toranomaki.edict;
 
+import java.util.Locale;
+import java.util.regex.Pattern;
+
 
 /**
  * <cite>Part Of Speech</cite> information.
@@ -75,16 +78,37 @@ public enum PartOfSpeech {
     /** {@code vi}:      Intransitive verb.                                    */ VERB_INTRANSITIVE("intransitive");
 
     /**
+     * A value that we can use which doesn't clash with the enum ordinal values.
+     */
+    static final short FIRST_AVAILABLE_ID = 100;
+
+    /**
+     * The string representation to show in graphical user interface.
+     */
+    private final String label;
+
+    /**
      * Modified regular expression pattern for identifying the enum from the EDICT description.
      * For make code reading easier, this string use the whitespace for meaning {@code "\\b.+\\b"}.
      */
-    final String pattern;
+    private final String regex;
+
+    /**
+     * Regular expression pattern for identifying the enum from the EDICT description.
+     * This is created only when first needed.
+     */
+    private transient Pattern pattern;
 
     /**
      * Creates a new enum.
+     *
+     * @param pattern Modified regular expression pattern for identifying the enum from the EDICT
+     *                description. For make code reading easier, this string use the whitespace
+     *                for meaning {@code "\\b.+\\b"}.
      */
-    private PartOfSpeech(final String pattern) {
-        this.pattern = pattern;
+    private PartOfSpeech(String pattern) {
+        regex = pattern;
+        label = formatLabel(new StringBuilder(name()));
     }
 
     /**
@@ -92,5 +116,66 @@ public enum PartOfSpeech {
      */
     final short getIdentifier() {
         return (short) (ordinal() + 1);
+    }
+
+    /**
+     * Reformats the given buffer in a more friendly way.
+     * This method is the converse of {@link #parseLabel(String)}.
+     */
+    static String formatLabel(final StringBuilder buffer) {
+        for (int i=buffer.length(); --i>=0;) {
+            char c = buffer.charAt(i);
+            switch (c) {
+                case '_': c = ' '; break;
+                default:  c = Character.toLowerCase(c); break;
+            }
+            buffer.setCharAt(i, c);
+        }
+        return buffer.toString();
+    }
+
+    /**
+     * Returns the enum for the value stored in the database {@code "description"} column.
+     * This method is the converse of {@link #formatLabel(StringBuilder)}.
+     */
+    static PartOfSpeech parseLabel(final String description) {
+        return valueOf(description.toUpperCase(Locale.ENGLISH).replace(' ', '_'));
+    }
+
+    /**
+     * Returns the <cite>Part Of Speech</cite> that match the given EDICT description.
+     *
+     * @param  description The description.
+     * @return The <cite>Part Of Speech</cite> (never null).
+     * @throws DictionaryException If no single <cite>Part Of Speech</cite> can match.
+     */
+    static PartOfSpeech parseEDICT(final String description) throws DictionaryException {
+        PartOfSpeech pos = null;
+        for (final PartOfSpeech candidate : values()) {
+            Pattern pattern = candidate.pattern;
+            if (pattern == null) {
+                final String regex = "\\b" + candidate.regex.replace(" ", "\\b.+\\b") + "\\b";
+                candidate.pattern = pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+            }
+            if (pattern.matcher(description).find()) {
+                if (pos != null) {
+                    throw new DictionaryException("Ambiguous part of speech: \"" + description +
+                            "\". Both " + pos + " and " + candidate + " match.");
+                }
+                pos = candidate;
+            }
+        }
+        if (pos == null) {
+            throw new DictionaryException("Unrecognized part of speech: \"" + description + "\".");
+        }
+        return pos;
+    }
+
+    /**
+     * Returns a string representation of this enum suitable for use in a graphical user interface.
+     */
+    @Override
+    public String toString() {
+        return label;
     }
 }

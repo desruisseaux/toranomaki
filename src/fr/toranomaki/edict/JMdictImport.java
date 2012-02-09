@@ -21,7 +21,6 @@ import java.util.HashSet;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.logging.Level;
-import java.util.regex.Pattern;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
@@ -94,14 +93,9 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
     private final Map<String, Comparable<?>> cachePOS;
 
     /**
-     * The patterns used in order to find the enum value of a <cite>Part Of Speech</cite>.
-     */
-    private final Map<PartOfSpeech, Pattern> patternPOS;
-
-    /**
      * Next numeric identifier available for compounds <cite>Part Of Speech</cite>.
      */
-    private short nextFreePosIdentifier = 100;
+    private short nextFreePosIdentifier = PartOfSpeech.FIRST_AVAILABLE_ID;
 
     /**
      * The target language of the {@linkplain #word} translation, as a 3 letters ISO code.
@@ -184,7 +178,6 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
         priorityCache     = new HashMap<>();
         partOfSpeech      = EnumSet.noneOf(PartOfSpeech.class);
         cachePOS          = new HashMap<>();
-        patternPOS        = new EnumMap<>(PartOfSpeech.class);
         informations      = new HashSet<>();
         synonyms          = new HashMap<>();
         antonyms          = new HashMap<>();
@@ -193,10 +186,6 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
         insertPriority    = prepareInsert(connection, TableOrColumn.priorities);
         insertInformation = prepareInsert(connection, TableOrColumn.information);
         insertSense       = prepareInsert(connection, TableOrColumn.senses);
-        for (final PartOfSpeech pos : PartOfSpeech.values()) {
-            final String pattern = "\\b" + pos.pattern.replace(" ", "\\b.+\\b") + "\\b";
-            patternPOS.put(pos, Pattern.compile(pattern, Pattern.CASE_INSENSITIVE));
-        }
     }
 
     /**
@@ -582,16 +571,7 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
          * We need to create a new entry for its content, if not already done.
          */
         if (description instanceof StringBuilder) {
-            final StringBuilder buffer = (StringBuilder) description;
-            for (int i=buffer.length(); --i>=0;) {
-                char c = buffer.charAt(i);
-                switch (c) {
-                    case '_': c = ' '; break;
-                    default:  c = Character.toLowerCase(c); break;
-                }
-                buffer.setCharAt(i, c);
-            }
-            description = buffer.toString();
+            description = PartOfSpeech.formatLabel((StringBuilder) description);
             Comparable<?> pos = cachePOS.get(description);
             if (pos != null) {
                 code = (Short) pos;
@@ -617,18 +597,7 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
     private PartOfSpeech getPartOfSpeech(final String description) throws SQLException {
         PartOfSpeech pos = (PartOfSpeech) cachePOS.get(description);
         if (pos == null) {
-            for (final Map.Entry<PartOfSpeech, Pattern> pattern : patternPOS.entrySet()) {
-                if (pattern.getValue().matcher(description).find()) {
-                    if (pos != null) {
-                        throw new DictionaryException("Ambiguous part of speech: \"" + description +
-                                "\". Both " + pos + " and " + pattern.getKey() + " match.");
-                    }
-                    pos = pattern.getKey();
-                }
-            }
-            if (pos == null) {
-                throw new DictionaryException("Unrecognized part of speech: \"" + description + "\".");
-            }
+            pos = PartOfSpeech.parseEDICT(description);
             cachePOS.put(description, pos);
             insertPos.setShort(1, pos.getIdentifier());
             insertPos.setString(2, description);

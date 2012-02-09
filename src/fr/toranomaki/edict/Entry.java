@@ -16,6 +16,7 @@ package fr.toranomaki.edict;
 
 import java.util.Locale;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Objects;
 
 
@@ -28,7 +29,7 @@ import java.util.Objects;
  *
  * @author Martin Desruisseaux
  */
-public final class Entry {
+public final class Entry implements Comparable<Entry> {
     /**
      * A unique numeric sequence number for each entry.
      *
@@ -75,17 +76,11 @@ public final class Entry {
     private short[] priorities;
 
     /**
-     * The meaning of this entry as a comma-separated list for each locale. This field is either
-     * a {@link String} instance if the meaning is available only for the first locale, or a
-     * {@code String[]} array if the meaning is available for more locales.
+     * The meaning of this entry. This field is either a {@link Sense} instance if the meaning is
+     * available only for the first locale, or a {@code Sense[]} array if the meaning is available
+     * for more locales or if there is many meanings.
      */
     private Object senses;
-
-    /**
-     * The locales for which the meanings are available. All entries will typically share
-     * a reference to the same array.
-     */
-    private Locale[] locales;
 
     /**
      * Creates an initially empty entry.
@@ -251,29 +246,76 @@ public final class Entry {
     }
 
     /**
-     * Sets the comma-separated senses for the given locales.
-     *
-     * @param locales The locales for the meaning. This array is not cloned - do not modify.
-     * @param senses  The senses. May contains trailing null elements, which will be ignored.
+     * Returns a single priority value used for sorting entries.
      */
-    final void setSenses(final Locale[] locales, final CharSequence[] senses) {
-        int n = senses.length;
-        if (n != 0) {
-            while (senses[n-1] == null) {
-                if (--n == 0) {
-                    return;
+    private short getPriority() {
+        short priority = Short.MAX_VALUE;
+        if (priorities != null) {
+            for (final short p : priorities) {
+                if (p != 0 && p < priority) {
+                    priority = p;
                 }
             }
-            this.locales = locales;
-            if (n == 1) {
-                this.senses = senses[0].toString();
-            } else {
-                final String[] array = new String[n];
-                while (--n >= 0) {
-                    array[n] = senses[n].toString();
-                }
-                this.senses = array;
+        }
+        return priority;
+    }
+
+    /**
+     * Returns the length of the shortest word. This is used for sorting entries.
+     */
+    private int getSmallestLength(final boolean isKanji) {
+        int length = Short.MAX_VALUE;
+        for (int i=getCount(isKanji); --i>=0;) {
+            final String word = getWord(isKanji, i);
+            if (word != null) {
+                final int c = word.codePointCount(0, word.length());
+                if (c < length) length = c;
             }
+        }
+        return length;
+    }
+
+    /**
+     * Adds a sense to the list of existing senses.
+     */
+    final void addSense(final Sense sense) {
+        if (senses == null) {
+            senses = sense;
+        } else if (senses instanceof Sense) {
+            senses = new Sense[] {(Sense) senses, sense};
+        } else {
+            Sense[] array = (Sense[]) senses;
+            final int length = array.length;
+            array = Arrays.copyOf(array, length+1);
+            array[length] = sense;
+            senses = array;
+        }
+    }
+
+    /**
+     * If there is more than one sense, create a new sense which summarize all existing senses.
+     *
+     * @param locales The locales for which to create summaries.
+     */
+    final void addSenseSummary(final Locale[] locales) {
+        if (senses instanceof Sense[]) {
+            Sense[] array = (Sense[]) senses;
+            for (final Locale locale : locales) {
+                final Sense summary = Sense.summarize(locale, array);
+                if (summary != null) {
+                    final int length = array.length;
+                    array = new Sense[length + 1];
+                    array[0] = summary;
+                    System.arraycopy(senses, 0, array, 1, length);
+                    senses = array;
+                }
+            }
+            // Sort in user language order preference.
+            Arrays.sort(array, new Comparator<Sense>() {
+                @Override public int compare(final Sense o1, final Sense o2) {
+                    return o2.indexOf(locales) - o1.indexOf(locales);
+                }
+            });
         }
     }
 
@@ -285,23 +327,41 @@ public final class Entry {
      *         available language in preference order.
      * @return The meaning of this entry, or {@code null} if none.
      */
-    public String getSenses(final Locale locale) {
-        final Locale[] locales = this.locales;
-        if (locales != null) {
-            if (senses instanceof String[]) {
-                final String[] array = (String[]) senses;
-                for (int i=array.length; --i>=0;) {
-                    final String candidate = array[i];
-                    if (candidate != null) {
-                        if (locale == null || locale.equals(locales[i])) {
-                            return candidate;
-                        }
+    public Sense getSense(final Locale locale) {
+        final Object senses = this.senses; // Protect from changes.
+        if (senses != null) {
+            if (senses instanceof Sense[]) {
+                for (final Sense candidate : (Sense[]) senses) {
+                    if (locale == null || locale.equals(candidate.locale)) {
+                        return candidate;
                     }
                 }
-            } else if (locale == null || locale.equals(locales[0])) {
-                return (String) senses;
+            } else {
+                final Sense candidate = (Sense) senses;
+                if (locale == null || locale.equals(candidate.locale)) {
+                    return candidate;
+                }
             }
         }
         return null;
+    }
+
+    /**
+     * Compares this entry with the given object in order to sort preferred entries first.
+     * If two entry has the same priority, select the shortest word.
+     *
+     * @param other The other entry.
+     * @return -1 if this entry has priority over the given entry, +1 for the converse.
+     */
+    @Override
+    public int compareTo(final Entry other) {
+        int c = getPriority() - other.getPriority();
+        if (c == 0) {
+            c = getSmallestLength(true) - other.getSmallestLength(true);
+            if (c == 0) {
+                c = getSmallestLength(false) - other.getSmallestLength(false);
+            }
+        }
+        return c;
     }
 }
