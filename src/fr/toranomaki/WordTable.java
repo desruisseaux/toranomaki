@@ -25,14 +25,11 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableColumn.CellDataFeatures;
-import javafx.beans.value.ObservableValue;
 import javafx.collections.ObservableList;
 import javafx.collections.FXCollections;
 import javafx.event.EventHandler;
 import javafx.event.ActionEvent;
 import javafx.concurrent.Task;
-import javafx.util.Callback;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.JMdict;
@@ -52,7 +49,7 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
     /**
      * The entries to show in the table.
      */
-    private final ObservableList<Entry> entries;
+    private final ObservableList<WordElement> entries;
 
     /**
      * The field where the user enter the word to search.
@@ -80,45 +77,32 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
      * Creates the widget pane to be shown in the application.
      */
     Pane createPane() {
-        final TableView<Entry> table = new TableView<>(entries);
-        final ObservableList<TableColumn<Entry, ?>> columns = table.getColumns();
+        final TableView<WordElement> table = new TableView<>(entries);
+        final ObservableList<TableColumn<WordElement, ?>> columns = table.getColumns();
+        final WordElementValue.DefaultFactory defaultFactory = new WordElementValue.DefaultFactory();
         if (true) { // Kanji elements column
-            final TableColumn<Entry,String> column = new TableColumn<>("Kanji");
-            column.setCellValueFactory(new Callback<CellDataFeatures<Entry,String>, ObservableValue<String>>() {
-                @Override public ObservableValue<String> call(final CellDataFeatures<Entry,String> cell) {
-                    return new EntryValue.Kanji(cell.getValue());
-                }
-            });
+            final TableColumn<WordElement,WordElement> column = new TableColumn<>("Kanji");
+            column.setCellFactory(new WordCellFactory(true));
+            column.setCellValueFactory(defaultFactory);
             column.setPrefWidth(120);
             columns.add(column);
         }
         if (true) { // Reading elements column
-            final TableColumn<Entry,String> column = new TableColumn<>("Reading");
-            column.setCellValueFactory(new Callback<CellDataFeatures<Entry,String>, ObservableValue<String>>() {
-                @Override public ObservableValue<String> call(final CellDataFeatures<Entry,String> cell) {
-                    return new EntryValue.Reading(cell.getValue());
-                }
-            });
+            final TableColumn<WordElement,WordElement> column = new TableColumn<>("Reading");
+            column.setCellFactory(new WordCellFactory(false));
+            column.setCellValueFactory(defaultFactory);
             column.setPrefWidth(200);
             columns.add(column);
         }
         if (true) { // Part Of Speech column
-            final TableColumn<Entry,String> column = new TableColumn<>("Type");
-            column.setCellValueFactory(new Callback<CellDataFeatures<Entry,String>, ObservableValue<String>>() {
-                @Override public ObservableValue<String> call(final CellDataFeatures<Entry,String> cell) {
-                    return new EntryValue.PartOfSpeech(cell.getValue());
-                }
-            });
-            column.setPrefWidth(80);
+            final TableColumn<WordElement,String> column = new TableColumn<>("Type");
+            column.setCellValueFactory(new WordElementValue.SenseFactory(true));
+            column.setPrefWidth(70);
             columns.add(column);
         }
         if (true) { // Sense elements column
-            final TableColumn<Entry,String> column = new TableColumn<>("Sense");
-            column.setCellValueFactory(new Callback<CellDataFeatures<Entry,String>, ObservableValue<String>>() {
-                @Override public ObservableValue<String> call(final CellDataFeatures<Entry,String> cell) {
-                    return new EntryValue.Sense(cell.getValue());
-                }
-            });
+            final TableColumn<WordElement,String> column = new TableColumn<>("Sense");
+            column.setCellValueFactory(new WordElementValue.SenseFactory(false));
             column.setPrefWidth(300);
             columns.add(column);
         }
@@ -135,11 +119,16 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
     @Override
     public void handle(final ActionEvent event) {
         final String word = search.getText().trim();
-        final Task<Entry[]> task = new Task<Entry[]>() {
-            @Override protected Entry[] call() throws SQLException {
-                final Entry[] selected;
+        final Task<WordElement[]> task = new Task<WordElement[]>() {
+            @Override @SuppressWarnings("unchecked")
+            protected WordElement[] call() throws SQLException {
+                final WordElement[] selected;
                 try {
-                    selected = dictionary.search(word);
+                    final Entry[] entries = dictionary.search(word);
+                    selected = new WordElement[entries.length];
+                    for (int i=0; i<entries.length; i++) {
+                        selected[i] = new WordElement(dictionary, entries[i]);
+                    }
                 } catch (Throwable e) {
                     e.printStackTrace(); // TODO
                     return null;

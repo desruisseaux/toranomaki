@@ -221,6 +221,15 @@ public final class Entry implements Comparable<Entry> {
      * Returns the priority of the Kanji or reading elements, at the given index or {@code 0}
      * if none. This method does not thrown an exception for non-negative index out of bounds,
      * because priorities are optional.
+     * <p>
+     * Words with low priority value are more common than words with high priority value.
+     * This is the same ordering than the one used in the EDICT dictionary for {@code news},
+     * {@code ichi}, {@code spec} and other categories, where for example words in the first
+     * 12,000 in the {@code "wordfreq"} file are marked "{@code news1}" and words in the
+     * second 12,000 are marked "{@code news2}".
+     * <p>
+     * The numeric code returned by this method can be converted into a set of {@link Priority}
+     * objects by calls to the {@link JMdict#getPriority(Short)} method.
      *
      * @param  isKanji {@code true} for the Kanji element, or {@code false} for the reading element.
      * @param  index The index of the element for which to get the priority.

@@ -45,32 +45,32 @@ public final class Priority implements Comparable<Priority> {
         * first 12,000 in that file are marked "{@code news1}" and words in the second 12,000
         * are marked "{@code news2}"
         */
-        news((short) 2, (short) 27),
+        news((short) 2, (short) 6),
 
         /**
         * Appears in the "<cite>Ichimango goi bunruishuu</cite>", Senmon Kyouiku Publishing,
         * Tokyo, 1998. (The entries marked "{@code ichi2}" were demoted from "{@code ichi1}"
         * because they were observed to have low frequencies in the WWW and newspapers.)
         */
-        ichi((short) 2, (short) 9),
+        ichi((short) 2, (short) 4),
 
         /**
         * Small number of words use this marker when they are detected as
         * being common, but are not included in other lists.
         */
-        spec((short) 2, (short) 3),
+        spec((short) 2, (short) 2),
 
         /**
         * Common loanwords, based on the "<cite>wordfreq</cite>" file.
         */
-        gai((short) 2, (short) 1),
+        gai((short) 2, (short) 0),
 
         /**
         * Indicator of frequency-of-use ranking in the "<cite>wordfreq</cite>" file. The numeric
         * value is the number of the set of 500 words in which the entry can be found, with {@code 01}
         * assigned to the first 500, {@code 02} to the second, and so on.
         */
-        nf((short) 49, (short) 81);
+        nf((short) 49, (short) 8);
 
         /**
          * The maximal allowed rank value.
@@ -78,25 +78,25 @@ public final class Priority implements Comparable<Priority> {
         final short max;
 
         /**
-         * A factor by which to multiply the {@link Priority#rank} value in order to get a
-         * primary key to use in the database. Actually this computation is not strictly
-         * necessary, but we use it for having a better sorting.
+         * A shift to apply to the {@link Priority#rank} value in order to get a primary key
+         * to use in the database. Actually this computation is not strictly necessary, but
+         * we use it for having a better sorting.
          */
-        private final short factor;
+        private final short shift;
 
         /**
          * Creates a new enumeration.
          */
-        private Type(final short max, final short factor) {
+        private Type(final short max, final short shift) {
             this.max = max;
-            this.factor = factor;
+            this.shift = shift;
         }
 
         /**
          * The weight of the given rank when computing the primary key value.
          */
         final int weight(final Short rank) {
-            return ((rank != null) ? rank-1 : max) * factor;
+            return ((rank != null) ? rank : max+1) << shift;
         }
     }
 
@@ -114,6 +114,18 @@ public final class Priority implements Comparable<Priority> {
     public final short rank;
 
     /**
+     * Creates a new priority of the given type and rank.
+     *
+     * @param type Codes indicating the reference.
+     * @param rank The rank of this priority.
+     */
+    public Priority(final Type type, final short rank) {
+        this.type = type;
+        this.rank = rank;
+        ensureValid();
+    }
+
+    /**
      * Creates a new priority from the given name.
      *
      * @param  name The priority name to parse.
@@ -127,13 +139,20 @@ public final class Priority implements Comparable<Priority> {
             if (c < '0' || c > '9') {
                 type = Type.valueOf(name.substring(0, ++i));
                 rank = Short.parseShort(name.substring(i));
-                if (rank < 1 || rank > type.max) {
-                    throw new IllegalArgumentException("Rank " + rank + " is out of range for type \"" + type + "\".");
-                }
+                ensureValid();
                 return;
             }
         }
         throw new IllegalArgumentException("Unparsable priority: " + name);
+    }
+
+    /**
+     * Invoked by the constructors to ensure that the {@link #rank} value is valid.
+     */
+    private void ensureValid() {
+        if (rank < 1 || rank > type.max) {
+            throw new IllegalArgumentException("Rank " + rank + " is out of range for type \"" + type + "\".");
+        }
     }
 
     /**

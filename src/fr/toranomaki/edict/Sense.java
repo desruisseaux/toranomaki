@@ -15,8 +15,11 @@
 package fr.toranomaki.edict;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
+
+import fr.toranomaki.grammar.GrammaticalClass;
 
 
 /**
@@ -123,21 +126,25 @@ public class Sense {
     }
 
     /**
-     * Returns a string representation of the {@link #partOfSpeech} value.
+     * Returns a string representation of the grammatical class of the {@link #partOfSpeech} value.
      *
      * @return A string representation of the part of speech, or {@code null} if none.
      */
-    public final String getPartOfSpeech() {
+    public final String getGrammaticalClass() {
+        final EnumSet<GrammaticalClass> classes = EnumSet.noneOf(GrammaticalClass.class);
+        for (final PartOfSpeech pos : partOfSpeech) {
+            classes.add(pos.grammaticalClass);
+        }
         String        first  = null;
         StringBuilder buffer = null;
-        for (final PartOfSpeech pos : partOfSpeech) {
+        for (final GrammaticalClass c : classes) {
             if (first == null) {
-                first = pos.toString();
+                first = c.toString();
             } else {
                 if (buffer == null) {
                     buffer = new StringBuilder(first);
                 }
-                buffer.append(", ").append(pos);
+                buffer.append(", ").append(c);
             }
         }
         return (buffer != null) ? buffer.toString() : first;

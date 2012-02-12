@@ -24,6 +24,7 @@ import java.util.logging.Level;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.IOException;
 
 import java.sql.Types;
@@ -251,17 +252,17 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
      * After every XML files have been parsed, the {@link #complete()} method
      * must be invoked before to {@linkplain #close() close} the statements/
      *
-     * @param  file The path to "{@code JMdict.xml}" file to parse.
+     * @param  in The input stream for the "{@code JMdict.xml}" file to parse.
      * @throws IOException   If an I/O error occurred while reading the XML file.
      * @throws SAXException  If an error occurred while parsing the XML elements.
      * @throws SQLException  If an error occurred while writing in the database.
      * @throws DictionaryException If a logical error occurred with the XML content.
      */
-    private void parse(final String file) throws IOException, SAXException, SQLException, DictionaryException {
+    private void parse(final InputStream in) throws IOException, SAXException, SQLException, DictionaryException {
         final XMLReader saxReader = XMLReaderFactory.createXMLReader();
         try {
             saxReader.setContentHandler(this);
-            saxReader.parse(new InputSource(new FileInputStream(file)));
+            saxReader.parse(new InputSource(in));
         } catch (DictionaryException e) {
             // Unwraps the SQL exception for easier reading of stack trace.
             final Throwable cause = e.getCause();
@@ -681,24 +682,37 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
      * @param  args The command line arguments.
      * @throws Exception If a SQL, I/O, SAX or other exception occurred.
      */
-    public static void main(String[] args) throws Exception {
-        if (args.length != 1) {
-            System.err.println("Expected argument: path to JMdict.xml file.");
-            return;
+    @SuppressWarnings("fallthrough")
+    public static void main(final String[] args) throws Exception {
+        final InputStream in;
+        switch (args.length) {
+            case 1: {
+                in = new FileInputStream(args[0]);
+                break;
+            }
+            case 0: {
+                in = JMdictImport.class.getResourceAsStream("JMdict.xml");
+                if (in != null) break;
+                // Fall through
+            }
+            default: {
+                System.err.println("Expected argument: path to JMdict.xml file.");
+                return;
+            }
         }
         try (final Connection connection = JMdict.getDataSource().getConnection()) {
             connection.setAutoCommit(false);
             boolean success = false;
             try (final JMdictImport db = new JMdictImport(connection)) {
-                for (int i=0; i<args.length; i++) {
-                    db.parse(args[i]);
-                }
+                db.parse(in);
                 db.complete();
                 success = true;
             } finally {
                 if (success) connection.commit();
                 else         connection.rollback();
             }
+        } finally {
+            in.close();
         }
     }
 }

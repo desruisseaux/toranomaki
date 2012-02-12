@@ -18,10 +18,13 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.logging.Logger;
 import java.sql.Connection;
@@ -56,7 +59,15 @@ public final class JMdict implements AutoCloseable {
     };
 
     /**
-     * The <cite>Part Of Speech</cite> (POS) information about a word.
+     * A cache for the priorities information about a word.
+     *
+     * @see ElementType#ke_pri
+     * @see ElementType#re_pri
+     */
+    private final Map<Short, Set<Priority>> priorities = new HashMap<>();
+
+    /**
+     * A cache for the <cite>Part Of Speech</cite> (POS) information about a word.
      *
      * @see ElementType#pos
      */
@@ -95,6 +106,11 @@ public final class JMdict implements AutoCloseable {
      * The statement for reading an entry for a given {@code seq_ent} key;
      */
     private final PreparedStatement selectEntry;
+
+    /**
+     * The statement for reading the priority of a word.
+     */
+    private final PreparedStatement selectPriority;
 
     /**
      * The statement for reading the <cite>Part Of Speech</cite> (POS) information about a word.
@@ -161,14 +177,15 @@ public final class JMdict implements AutoCloseable {
         for (int i=0; i<localeCodes.length; i++) {
             localeCodes[i] = locales[i].getISO3Language();
         }
-        exactMatch    = exact;
-        toClose       = exact ? null : connection; // For now, close only if invoked from the public constructor.
-        selectEntry   = prepareSelect(connection, TableOrColumn.entries, false, ElementType.ent_seq, true, null);
-        selectPOS     = prepareSelect(connection, TableOrColumn.pos,     false, TableOrColumn.id,    true, null);
-        selectMeaning = prepareSelect(connection, TableOrColumn.senses,  false, ElementType.ent_seq, true, localeCodes);
-        searchMeaning = prepareSelect(connection, TableOrColumn.senses,  true,  ElementType.gloss,  exact, new String[] {"?"});
-        searchReading = prepareSelect(connection, TableOrColumn.entries, true,  ElementType.reb,    exact, null);
-        searchKanji   = prepareSelect(connection, TableOrColumn.entries, true,  ElementType.keb,    exact, null);
+        exactMatch     = exact;
+        toClose        = exact ? null : connection; // For now, close only if invoked from the public constructor.
+        selectEntry    = prepareSelect(connection, TableOrColumn.entries,    false, ElementType.ent_seq, true, null);
+        selectPriority = prepareSelect(connection, TableOrColumn.priorities, false, TableOrColumn.id,    true, null);
+        selectPOS      = prepareSelect(connection, TableOrColumn.pos,        false, TableOrColumn.id,    true, null);
+        selectMeaning  = prepareSelect(connection, TableOrColumn.senses,     false, ElementType.ent_seq, true, localeCodes);
+        searchMeaning  = prepareSelect(connection, TableOrColumn.senses,     true,  ElementType.gloss,  exact, new String[] {"?"});
+        searchReading  = prepareSelect(connection, TableOrColumn.entries,    true,  ElementType.reb,    exact, null);
+        searchKanji    = prepareSelect(connection, TableOrColumn.entries,    true,  ElementType.keb,    exact, null);
     }
 
     /**
@@ -307,7 +324,6 @@ public final class JMdict implements AutoCloseable {
 
     /**
      * Returns all entries matching the given criterion.
-     * Note: the array returned by this method may be cached - <strong>do not modify</strong>.
      *
      * @param  word The Kanji or reading word to search.
      * @return All entries for the given words.
@@ -346,6 +362,74 @@ public final class JMdict implements AutoCloseable {
     }
 
     /**
+     * Returns the priority information for the given primary key. The values given to this
+     * method are typically values returned by {@link Entry#getPriority(boolean, int)}.
+     *
+     * @param  id The primary key of the priorities to search for.
+     * @return The priorities for the given primary key.
+     * @throws SQLException If an error occurred while querying the database.
+     *
+     * @see Entry#getPriority(boolean, int)
+     */
+    public synchronized Set<Priority> getPriority(final Short id) throws SQLException {
+        Set<Priority> result = priorities.get(id);
+        if (result == null) {
+            selectPriority.setShort(1, id);
+            final Enum<?>[] columns = TableOrColumn.priorities.columns;
+            try (final ResultSet rs = selectPriority.executeQuery()) {
+                while (rs.next()) {
+                    // columns[0] is the id, which we skip.
+                    for (int i=1; i<columns.length; i++) {
+                        final short n = rs.getShort(i);
+                        if (rs.wasNull()) {
+                            continue;
+                        }
+                        final Priority.Type type = (Priority.Type) columns[i];
+                        final Short singletonCode = (short) type.weight(n);
+                        Set<Priority> singleton = priorities.get(singletonCode);
+                        /*
+                         * Before to create a new Priority instance, try to recycle an existing one
+                         * from a singleton. If there is no existing singleton Priority instance, we
+                         * will unconditionally add one in order to allow subsequent call to recycle
+                         * the cached instance.
+                         */
+                        final Priority p;
+                        if (singleton != null) {
+                            final Iterator<Priority> it = singleton.iterator();
+                            p = it.next();
+                            assert !it.hasNext() : singletonCode;
+                        } else {
+                            p = new Priority(type, n);
+                            singleton = Collections.singleton(p);
+                            priorities.put(singletonCode, singleton);
+                        }
+                        assert p.type == type && p.rank == n : p;
+                        /*
+                         * Adds the Priority to the Set. A HashSet instance will need to be
+                         * created only if there is at least 2 priority instances.
+                         */
+                        if (result == null) {
+                            result = singleton;
+                        } else {
+                            if (result.size() == 1) {
+                                result = new HashSet<>(result);
+                            }
+                            result.add(p);
+                        }
+                    }
+                }
+            }
+            if (result == null) {
+                result = Collections.emptySet();
+            } else if (result.size() != 1) {
+                result = Collections.unmodifiableSet(result);
+            }
+            priorities.put(id, result);
+        }
+        return result;
+    }
+
+    /**
      * Closes the prepared statements used by this object.
      *
      * @throws SQLException If an error occurred while closing the statements.
@@ -353,12 +437,13 @@ public final class JMdict implements AutoCloseable {
     @Override
     public synchronized void close() throws SQLException {
         entries.clear();
-        searchKanji  .close();
-        searchReading.close();
-        searchMeaning.close();
-        selectMeaning.close();
-        selectPOS    .close();
-        selectEntry  .close();
+        searchKanji   .close();
+        searchReading .close();
+        searchMeaning .close();
+        selectMeaning .close();
+        selectPOS     .close();
+        selectPriority.close();
+        selectEntry   .close();
         if (toClose != null) {
             toClose.close();
         }
