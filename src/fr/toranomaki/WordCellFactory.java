@@ -18,6 +18,7 @@ import javafx.util.Callback;
 import javafx.scene.paint.Color;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import fr.toranomaki.grammar.CharacterType;
 
 import static fr.toranomaki.WordElement.WORD_INDEX;
 
@@ -79,19 +80,23 @@ final class WordCellFactory implements Callback<TableColumn<WordElement,WordElem
         @Override
         protected void updateItem(final WordElement item, final boolean empty) {
             super.updateItem(item, empty);
-            String  text = null;
-            boolean isCommon = false;
+            String text  = null;
+            Color  color = Color.BLACK;
             if (item != null) {
                 text = item.entry.getWord(isKanji, WORD_INDEX);
-                if (isKanji ? item.isCommonKanji : item.isCommonReading) {
-                    // If the word is common, choose the most common flavor between Kanji and reading elements.
-                    if (item.entry.getPriority(isKanji, WORD_INDEX) >= item.entry.getPriority(!isKanji, WORD_INDEX)) {
-                        isCommon = true;
+                if (!isSelected()) {
+                    final int state = item.getAnnotationMask(isKanji);
+                    if ((state & WordElement.COMMON_MASK) != 0) {
+                        if ((state & WordElement.PREFERRED_MASK) != 0) {
+                            color = Color.DARKBLUE;
+                        } else {
+                            color = Color.DARKGREEN;
+                        }
                     }
                 }
             }
             setText(text);
-            setTextFill(isCommon && !isSelected() ? Color.DARKGREEN : Color.BLACK);
+            setTextFill(color);
         }
     }
 }

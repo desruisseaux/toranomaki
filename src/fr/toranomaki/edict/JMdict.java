@@ -48,6 +48,13 @@ public final class JMdict implements AutoCloseable {
     public static final Logger LOGGER = Logger.getLogger("fr.toranomaki.edict");
 
     /**
+     * When searching for a words using the {@code LIKE} clause, maximal number of characters
+     * allowed after the shortest word in order to accept an entry. This is used as an heuristic
+     * filter for reducing the amount of irrelevant search results.
+     */
+    private static final int MAXIMUM_EXTRA_CHARACTERS = 3;
+
+    /**
      * A cache of most recently used entries. The cache capacity is arbitrary, but we are
      * better to use a value not greater than a power of 2 time the load factor (0.75).
      */
@@ -330,30 +337,58 @@ public final class JMdict implements AutoCloseable {
      * @throws SQLException If an error occurred while querying the database.
      */
     public synchronized Entry[] search(final String word) throws SQLException {
+        if (word == null || word.isEmpty()) {
+            return new Entry[0];
+        }
+        final Boolean isKanji;
         final String[] searchLocales;
         final PreparedStatement stmt;
-        switch (CharacterType.forWord(word)) {
-            case KATAKANA:   // Fallthrough
-            case HIRAGANA:   stmt = searchReading; searchLocales = null;        break;
-            case KANJI:      stmt = searchKanji;   searchLocales = null;        break;
-            case ALPHABETIC: stmt = searchMeaning; searchLocales = localeCodes; break;
+        final CharacterType type = CharacterType.forWord(word);
+        switch (type) {
+            case JOYO_KANJI: case KANJI:    isKanji = true;  stmt = searchKanji;   searchLocales = null;        break;
+            case KATAKANA:   case HIRAGANA: isKanji = false; stmt = searchReading; searchLocales = null;        break;
+            case ALPHABETIC:                isKanji = null;  stmt = searchMeaning; searchLocales = localeCodes; break;
             default: return new Entry[0];
         }
+        int minimalLength = Short.MAX_VALUE;
         stmt.setString(1, exactMatch ? word : word + '%');
         final List<Entry> entries = new ArrayList<>();
+        final List<Integer> matchLengths = !exactMatch ? new ArrayList<Integer>() : null;
         for (int i=(searchLocales!=null) ? searchLocales.length : 1; --i>=0;) {
             if (searchLocales != null) {
                 stmt.setString(2, searchLocales[i]);
             }
             try (final ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    entries.add(getEntry(rs.getInt(1)));
+                    final Entry entry = getEntry(rs.getInt(1));
+                    if (matchLengths != null) {
+                        final int length = entry.getShortestWord(type, word).length();
+                        final int delta = length - minimalLength;
+                        if (delta < 0) {
+                            minimalLength = length;
+                        } else if (delta > MAXIMUM_EXTRA_CHARACTERS) {
+                            continue; // Word is too long, so skip it.
+                        }
+                        matchLengths.add(length);
+                    }
+                    entries.add(entry);
                 }
             }
             // If we found entries in the preferred locale,
             // do not search in the fallback locale.
             if (!entries.isEmpty()) {
                 break;
+            }
+        }
+        /*
+         * Before to returns the array, removes the elements which are too long
+         * compared to the search criterion.
+         */
+        if (matchLengths != null) {
+            for (int i=matchLengths.size(); --i>=0;) {
+                if (matchLengths.get(i) - minimalLength > MAXIMUM_EXTRA_CHARACTERS) {
+                    entries.remove(i); // Word is too long, so remove it.
+                }
             }
         }
         final Entry[] array = entries.toArray(new Entry[entries.size()]);

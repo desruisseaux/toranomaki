@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
+import fr.toranomaki.grammar.CharacterType;
 
 
 /**
@@ -171,8 +172,8 @@ public final class Entry implements Comparable<Entry> {
     private static int getCount(final Object value) {
         if (value == null) {
             return 0;
-        } else if (value instanceof String[]) {
-            return ((String[]) value).length;
+        } else if (value instanceof Object[]) {
+            return ((Object[]) value).length;
         } else {
             return 1;
         }
@@ -353,6 +354,45 @@ public final class Entry implements Comparable<Entry> {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the shortest word of the given type. The type is used for determining where to
+     * search (Kanji elements, reading elements or senses). If a sense is actually sentences,
+     * then this method looks only at the first word because the searches in the database work
+     * that way.
+     *
+     * @param  type The type of the word.
+     * @param  prefix Check only words that begin by this prefix.
+     * @return The shortest word, or {@code null}.
+     */
+    final String getShortestWord(final CharacterType type, final String prefix) {
+        final Object data;
+        switch (type) {
+            case JOYO_KANJI: case KANJI:    data = kanji;   break;
+            case KATAKANA:   case HIRAGANA: data = reading; break;
+            case ALPHABETIC:                data = senses;  break;
+            default: return null;
+        }
+        String shortest = null;
+        for (int i=getCount(data); --i>=0;) {
+            final Object item = (data instanceof Object[]) ? ((Object[]) data)[i] : data;
+            String text = (item instanceof Sense) ? ((Sense) item).meaning : (String) item;
+            if (text != null && text.startsWith(prefix)) {
+                for (int j=0; j<text.length();) {
+                    final int c = text.codePointAt(j);
+                    if (Character.isSpaceChar(c)) {
+                        text = text.substring(0, j);
+                        break;
+                    }
+                    j += Character.charCount(c);
+                }
+                if (shortest == null || text.length() < shortest.length()) {
+                    shortest = text;
+                }
+            }
+        }
+        return shortest;
     }
 
     /**

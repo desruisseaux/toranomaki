@@ -130,7 +130,7 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
                         selected[i] = new WordElement(dictionary, entries[i]);
                     }
                 } catch (Throwable e) {
-                    e.printStackTrace(); // TODO
+                    Logging.recoverableException(WordTable.class, "handle", e);
                     return null;
                 }
                 Platform.runLater(new Runnable() {

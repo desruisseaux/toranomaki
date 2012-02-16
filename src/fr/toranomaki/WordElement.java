@@ -20,6 +20,7 @@ import java.sql.SQLException;
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.JMdict;
 import fr.toranomaki.edict.Priority;
+import fr.toranomaki.grammar.CharacterType;
 
 
 /**
@@ -37,6 +38,23 @@ final class WordElement {
     static final int WORD_INDEX = 0;
 
     /**
+     * Mask for the bit to set if the Kanji or reading element of the {@linkplain #entry} is common.
+     * This mask is used with the value returned by {@link #getAnnotationMask(boolean)}.
+     */
+    static final int COMMON_MASK = 1;
+
+    /**
+     * Mask for the bit to set if the Kanji or reading element of the {@linkplain #entry} is the
+     * preferred form. This mask is used with the value returned by {@link #getAnnotationMask(boolean)}.
+     */
+    static final int PREFERRED_MASK = 2;
+
+    /**
+     * Number of bits used by the above masks.
+     */
+    private static final int NUM_MASK_BITS = 2;
+
+    /**
      * If a word has a priority of at least one of the given types, it will be considered common.
      */
     private static final Set<Priority.Type> COMMONS = EnumSet.of(
@@ -48,14 +66,10 @@ final class WordElement {
     final Entry entry;
 
     /**
-     * {@code true} if the Kanji element of the {@linkplain #entry} is common.
+     * A combination of the above masks, with the highest bits used for the Kanji element
+     * and the lowest bits used for the reading element.
      */
-    final boolean isCommonKanji;
-
-    /**
-     * {@code true} if the reading element of the {@linkplain #entry} is common.
-     */
-    final boolean isCommonReading;
+    private final int annotations;
 
     /**
      * Creates a new row for the given entry.
@@ -67,22 +81,45 @@ final class WordElement {
      */
     WordElement(final JMdict dictionary, final Entry entry) throws SQLException {
         this.entry      = entry;
-        isCommonKanji   = isCommon(dictionary, entry, true);
-        isCommonReading = isCommon(dictionary, entry, false);
+        int maskKanji   = isCommon(dictionary, entry, true);
+        int maskReading = isCommon(dictionary, entry, false);
+        if (CharacterType.forWord(entry.getWord(true, WORD_INDEX)) == CharacterType.JOYO_KANJI) {
+            maskKanji |= PREFERRED_MASK;
+        }
+        if (entry.getPriority(false, WORD_INDEX) > entry.getPriority(true, WORD_INDEX)) {
+            maskReading |= PREFERRED_MASK;
+        }
+        annotations = (maskKanji << NUM_MASK_BITS) | maskReading;
     }
 
     /**
-     * Returns {@code true} if the Kanji or reading element is common.
+     * Returns {@link #COMMON_MASK} if the Kanji or reading element is common, or 0 otherwise.
      */
-    private static boolean isCommon(final JMdict dictionary, final Entry entry, final boolean isKanji) throws SQLException {
+    private static int isCommon(final JMdict dictionary, final Entry entry, final boolean isKanji) throws SQLException {
         final short code = entry.getPriority(isKanji, WORD_INDEX);
         if (code != 0) {
             for (final Priority priority : dictionary.getPriority(code)) {
                 if (COMMONS.contains(priority.type)) {
-                    return true;
+                    return COMMON_MASK;
                 }
             }
         }
-        return false;
+        return 0;
+    }
+
+    /**
+     * Returns the status of the Kanji or reading elements as a combination of the
+     * {@code *_MASK} constants.
+     *
+     * @param  isKanji {@code true} for querying the Kanji element, or {@code false} for
+     *         querying the reading element.
+     * @return A combination of the {@code *_MASK} constants for the requested element.
+     */
+    final int getAnnotationMask(final boolean isKanji) {
+        int mask = annotations;
+        if (isKanji) {
+            mask >>>= NUM_MASK_BITS;
+        }
+        return mask & ((1 << NUM_MASK_BITS) - 1);
     }
 }
