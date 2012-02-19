@@ -22,6 +22,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.logging.Level;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.io.InputStream;
@@ -32,6 +33,7 @@ import java.sql.Connection;
 import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import org.apache.derby.jdbc.EmbeddedDataSource;
 
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
@@ -39,6 +41,8 @@ import org.xml.sax.SAXException;
 import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.DefaultHandler;
 import org.xml.sax.helpers.XMLReaderFactory;
+
+import fr.toranomaki.Main;
 
 
 /**
@@ -684,13 +688,18 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
      */
     @SuppressWarnings("fallthrough")
     public static void main(final String[] args) throws Exception {
-        final InputStream in;
+        InputStream in;
         switch (args.length) {
             case 1: {
                 in = new FileInputStream(args[0]);
                 break;
             }
             case 0: {
+                final File file = new File(Main.getDirectory(), "JMdict.xml");
+                if (file.isFile()) {
+                    in = new FileInputStream(file);
+                    break;
+                }
                 in = JMdictImport.class.getResourceAsStream("JMdict.xml");
                 if (in != null) break;
                 // Fall through
@@ -700,7 +709,9 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
                 return;
             }
         }
-        try (final Connection connection = JMdict.getDataSource().getConnection()) {
+        final EmbeddedDataSource dataSource = fr.toranomaki.Main.getDataSource();
+        dataSource.setCreateDatabase("create");
+        try (final Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             boolean success = false;
             try (final JMdictImport db = new JMdictImport(connection)) {
@@ -713,6 +724,12 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
             }
         } finally {
             in.close();
+        }
+        dataSource.setShutdownDatabase("shutdown");
+        try {
+            dataSource.getConnection().close();
+        } catch (SQLException e) {
+            // This is the expected exception.
         }
     }
 }

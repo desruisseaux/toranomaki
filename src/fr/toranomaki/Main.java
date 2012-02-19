@@ -14,12 +14,19 @@
  */
 package fr.toranomaki;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.net.URL;
+import java.net.URISyntaxException;
+import java.net.MalformedURLException;
 import java.sql.SQLException;
 import javafx.stage.Stage;
 import javafx.scene.Scene;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.application.Application;
+import org.apache.derby.jdbc.EmbeddedDataSource;
 
 import fr.toranomaki.edict.JMdict;
 
@@ -30,6 +37,11 @@ import fr.toranomaki.edict.JMdict;
  * @author Martin Desruisseaux
  */
 public final class Main extends Application {
+    /**
+     * The connection to the JMdict dictionary.
+     */
+    private EmbeddedDataSource dataSource;
+
     /**
      * Controls the panel used for vocabulary training.
      */
@@ -56,13 +68,71 @@ public final class Main extends Application {
     }
 
     /**
+     * Returns the application installation directory. This method returns the first of the
+     * following choices:
+     * <p>
+     * <ul>
+     *   <li>If the {@code "toranomaki.dir"} property is set, returns that directory.</li>
+     *   <li>Otherwise if this application is bundled in a JAR file, returns the directory
+     *       that contain the JAR file.</li>
+     *   <li>Otherwise returns the user directory.</li>
+     * </ul>
+     * <p>
+     * If every cases, this method verify that the directory exists before to return it.
+     *
+     * @return The application directory.
+     * @throws IOException In an error occurred while getting the application directory.
+     */
+    public static File getDirectory() throws IOException {
+        File file;
+        final String directory = System.getProperty("toranomaki.dir");
+        if (directory != null) {
+            file = new File(directory);
+        } else {
+            URL url = Main.class.getResource("Main.class");
+            if ("jar".equals(url.getProtocol())) {
+                String path = url.getPath();
+                path = path.substring(0, path.indexOf('!'));
+                url = new URL(path);
+                try {
+                    file = new File(url.toURI());
+                } catch (URISyntaxException e) {
+                    throw new MalformedURLException(e.getLocalizedMessage());
+                }
+                file = file.getParentFile();
+            } else {
+                file = new File(System.getProperty("user.dir", "."));
+            }
+        }
+        if (!file.isDirectory()) {
+            throw new FileNotFoundException(file.getPath());
+        }
+        return file;
+    }
+
+    /**
+     * Returns the data source to use for the connection to the SQL database.
+     *
+     * @return The data source.
+     * @throws IOException In an error occurred while getting the application directory.
+     */
+    public static EmbeddedDataSource getDataSource() throws IOException {
+        final EmbeddedDataSource datasource = new EmbeddedDataSource();
+        datasource.setDatabaseName(new File(getDirectory(), "JMdict").getPath().replace(File.separatorChar, '/'));
+        datasource.setDataSourceName("JMdict"); // Optional - for information purpose only.
+        return datasource;
+    }
+
+    /**
      * Connects the application to the database.
      *
+     * @throws IOException In an error occurred while getting the application directory.
      * @throws SQLException If an error occurred while connecting to the database.
      */
     @Override
-    public void init() throws SQLException {
-        final JMdict dictionary = new JMdict();
+    public void init() throws IOException, SQLException {
+        dataSource = getDataSource();
+        final JMdict dictionary = new JMdict(dataSource);
         training = new Training(dictionary);
         editor = new Editor(dictionary);
     }
@@ -75,6 +145,12 @@ public final class Main extends Application {
     @Override
     public void stop() throws SQLException {
         editor.table.close();
+        dataSource.setShutdownDatabase("shutdown");
+        try {
+            dataSource.getConnection().close();
+        } catch (SQLException e) {
+            // This is the expected exception.
+        }
     }
 
     /**

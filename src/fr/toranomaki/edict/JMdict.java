@@ -145,25 +145,13 @@ public final class JMdict implements AutoCloseable {
     private final PreparedStatement searchKanji;
 
     /**
-     * Returns the data source to use for the connection to the SQL database.
-     *
-     * @todo Connect to a local PostgreSQL database for now. Final version will connect to Derby.
-     */
-    static DataSource getDataSource() {
-        final org.postgresql.ds.PGSimpleDataSource datasource = new org.postgresql.ds.PGSimpleDataSource();
-        datasource.setServerName("localhost");
-        datasource.setDatabaseName("Toranomaki");
-        datasource.setUser("postgres");
-        return datasource;
-    }
-
-    /**
      * Creates a new connection to the dictionary.
      *
+     * @param  datasource The database source.
      * @throws SQLException If an error occurred while preparing the statements.
      */
-    public JMdict() throws SQLException {
-        this(getDataSource().getConnection(), false);
+    public JMdict(final DataSource datasource) throws SQLException {
+        this(datasource.getConnection(), false);
     }
 
     /**

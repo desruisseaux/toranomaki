@@ -4,23 +4,23 @@
 CREATE TABLE entries
 (
   ent_seq INTEGER NOT NULL,
-  keb     VARCHAR,
-  reb     VARCHAR,
+  keb     VARCHAR(37),
+  reb     VARCHAR(50),
   ke_pri  SMALLINT,
   re_pri  SMALLINT
 );
 
 CREATE TABLE information
 (
-  ent_seq     INTEGER NOT NULL,
-  element     VARCHAR NOT NULL,
-  description VARCHAR NOT NULL
+  ent_seq     INTEGER     NOT NULL,
+  element     VARCHAR(13) NOT NULL,
+  description VARCHAR(64) NOT NULL
 );
 
 CREATE TABLE pos
 (
-  id          SMALLINT NOT NULL,
-  description VARCHAR NOT NULL
+  id          SMALLINT    NOT NULL,
+  description VARCHAR(64) NOT NULL
 );
 
 CREATE TABLE priorities
@@ -35,10 +35,10 @@ CREATE TABLE priorities
 
 CREATE TABLE senses
 (
-  ent_seq INTEGER  NOT NULL,
-  pos     SMALLINT NOT NULL,
-  lang    CHAR(3)  NOT NULL,
-  gloss   VARCHAR  NOT NULL
+  ent_seq INTEGER      NOT NULL,
+  pos     SMALLINT     NOT NULL,
+  lang    CHAR(3)      NOT NULL,
+  gloss   VARCHAR(464) NOT NULL
 );
 
 CREATE TABLE xref
