@@ -25,8 +25,10 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TablePosition;
 import javafx.collections.ObservableList;
 import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
 import javafx.event.EventHandler;
 import javafx.event.ActionEvent;
 import javafx.concurrent.Task;
@@ -40,7 +42,9 @@ import fr.toranomaki.edict.JMdict;
  *
  * @author Martin Desruisseaux
  */
-final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
+final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
+        ListChangeListener<TablePosition<WordElement,WordElement>>
+{
     /**
      * The dictionary to use for searching words.
      */
@@ -62,9 +66,15 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
     private final ExecutorService executor;
 
     /**
+     * The editor to notify when a new word is selected in the table.
+     */
+    private final Editor owner;
+
+    /**
      * Creates a new instance using the given dictionary for searching words.
      */
-    WordTable(final JMdict dictionary) {
+    WordTable(final Editor owner, final JMdict dictionary) {
+        this.owner = owner;
         this.dictionary = dictionary;
         executor = Executors.newSingleThreadExecutor();
         entries = FXCollections.observableArrayList();
@@ -106,6 +116,9 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
             column.setPrefWidth(300);
             columns.add(column);
         }
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        final ListChangeListener<TablePosition> listener = (ListChangeListener) this;
+        table.getSelectionModel().getSelectedCells().addListener(listener);
         final BorderPane pane = new BorderPane();
         pane.setCenter(table);
         pane.setBottom(search);
@@ -161,5 +174,22 @@ final class WordTable implements EventHandler<ActionEvent>, AutoCloseable {
              */
         }
         dictionary.close();
+    }
+
+    /**
+     * Invoked when a new row has been selected.
+     *
+     * @param change The change.
+     */
+    @Override
+    public void onChanged(final Change<? extends TablePosition<WordElement, WordElement>> change) {
+        WordElement selected = null;
+        while (change.next()) {
+            if (change.wasAdded()) {
+                selected = entries.get(change.getList().get(change.getFrom()).getRow());
+                break;
+            }
+        }
+        owner.setSelected(selected);
     }
 }

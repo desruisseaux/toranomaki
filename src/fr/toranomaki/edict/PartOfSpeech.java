@@ -94,6 +94,12 @@ public enum PartOfSpeech {
     private final String label;
 
     /**
+     * The description from the EDICT database. This is initialized to {@code null},
+     * then modified to a more accurate value when this information become available.
+     */
+    private String description;
+
+    /**
      * Modified regular expression pattern for identifying the enum from the EDICT description.
      * For make code reading easier, this string use the whitespace for meaning {@code "\\b.+\\b"}.
      */
@@ -170,12 +176,51 @@ public enum PartOfSpeech {
                             "\". Both " + pos + " and " + candidate + " match.");
                 }
                 pos = candidate;
+                if (pos.description == null) {
+                    pos.description = description;
+                }
             }
         }
         if (pos == null) {
             throw new DictionaryException("Unrecognized part of speech: \"" + description + "\".");
         }
         return pos;
+    }
+
+    /**
+     * Returns a comma-separated list of all <cite>part of speech</cite> descriptions.
+     *
+     * @param pos The collection of part of speech.
+     * @return A comma-separated list, or {@code null} if the given collection is empty.
+     */
+    public static String getDescriptions(final Iterable<PartOfSpeech> pos) {
+        CharSequence partOfSpeech = null;
+        for (final PartOfSpeech item : pos) {
+            final String description = item.getDescription();
+            if (partOfSpeech == null) {
+                partOfSpeech = description;
+            } else {
+                final StringBuilder buffer;
+                if (partOfSpeech instanceof StringBuilder) {
+                    buffer = (StringBuilder) partOfSpeech;
+                } else {
+                    buffer = new StringBuilder(partOfSpeech);
+                    partOfSpeech = buffer;
+                }
+                buffer.append(", ").append(description);
+            }
+        }
+        return (partOfSpeech != null) ? partOfSpeech.toString() : null;
+    }
+
+    /**
+     * Returns a long description of this enum.
+     *
+     * @return A long description of this enum.
+     */
+    public String getDescription() {
+        final String description = this.description;
+        return (description != null) ? description : label;
     }
 
     /**

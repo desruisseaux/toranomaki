@@ -16,10 +16,16 @@ package fr.toranomaki;
 
 import java.util.Set;
 import java.util.EnumSet;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.sql.SQLException;
+
 import fr.toranomaki.edict.Entry;
+import fr.toranomaki.edict.Sense;
 import fr.toranomaki.edict.JMdict;
 import fr.toranomaki.edict.Priority;
+import fr.toranomaki.edict.PartOfSpeech;
 import fr.toranomaki.grammar.CharacterType;
 
 
@@ -72,6 +78,12 @@ final class WordElement {
     private final int annotations;
 
     /**
+     * The senses for each locales and collection of <cite>Part Of Speech</cite>.
+     * This map is built when first needed.
+     */
+    private Map<Set<PartOfSpeech>, Map<Locale, CharSequence>> senses;
+
+    /**
      * Creates a new row for the given entry.
      *
      * @param  dictionary   The dictionary used for building the entry.
@@ -121,5 +133,44 @@ final class WordElement {
             mask >>>= NUM_MASK_BITS;
         }
         return mask & ((1 << NUM_MASK_BITS) - 1);
+    }
+
+    /**
+     * Returns the senses for each locales and collection of <cite>Part Of Speech</cite>.
+     */
+    final Map<Set<PartOfSpeech>, Map<Locale, CharSequence>> getSenses() {
+        if (senses == null) {
+            senses = new LinkedHashMap<>();
+            for (final Sense sense : entry.getSenses()) {
+                Map<Locale, CharSequence> localized = senses.get(sense.partOfSpeech);
+                if (localized == null) {
+                    localized = new LinkedHashMap<>();
+                    senses.put(sense.partOfSpeech, localized);
+                }
+                CharSequence meaning = localized.get(sense.locale);
+                if (meaning == null) {
+                    meaning = sense.meaning;
+                    localized.put(sense.locale, meaning);
+                } else {
+                    final StringBuilder buffer;
+                    if (meaning instanceof StringBuilder) {
+                        buffer = (StringBuilder) meaning;
+                    } else {
+                        buffer = new StringBuilder(meaning);
+                        localized.put(sense.locale, buffer);
+                    }
+                    buffer.append(", ").append(sense.meaning);
+                }
+            }
+            /*
+             * Replaces all StringBuilder by String instances.
+             */
+            for (final Map<Locale, CharSequence> sense : senses.values()) {
+                for (final Map.Entry<Locale, CharSequence> entry : sense.entrySet()) {
+                    entry.setValue(entry.getValue().toString());
+                }
+            }
+        }
+        return senses;
     }
 }

@@ -43,7 +43,7 @@ class WordElementValue<T> implements ObservableObjectValue<T> {
      */
     static final class Sense extends WordElementValue<String> implements ObservableStringValue {
         Sense(final Entry entry, final boolean isPartOfSpeech) {
-            final fr.toranomaki.edict.Sense sense = entry.getSense(null);
+            final fr.toranomaki.edict.Sense sense = entry.getSenseSummmary();
             if (sense != null) {
                 value = isPartOfSpeech ? sense.getGrammaticalClass() : sense.meaning;
             }

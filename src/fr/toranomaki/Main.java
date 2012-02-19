@@ -21,12 +21,14 @@ import java.net.URL;
 import java.net.URISyntaxException;
 import java.net.MalformedURLException;
 import java.sql.SQLException;
+import org.apache.derby.jdbc.EmbeddedDataSource;
+
 import javafx.stage.Stage;
 import javafx.scene.Scene;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.application.Application;
-import org.apache.derby.jdbc.EmbeddedDataSource;
+import javafx.geometry.Side;
 
 import fr.toranomaki.edict.JMdict;
 
@@ -163,6 +165,7 @@ public final class Main extends Application {
         stage.setTitle("Toranomaki");
         final TabPane tabs = new TabPane();
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        tabs.setSide(Side.LEFT);
 
         Tab tab = new Tab("Vocabulary");
         tab.setContent(training.createPane());

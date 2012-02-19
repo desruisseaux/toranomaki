@@ -330,27 +330,44 @@ public final class Entry implements Comparable<Entry> {
     }
 
     /**
-     * Returns the meaning of this entry as a comma-separated list of senses
-     * in the given language.
+     * Returns the senses, excluding the {@linkplain Sense#isSummary() summary} sense.
      *
-     * @param  locale The language for the meaning, or {@code null} for the first
-     *         available language in preference order.
+     * @return The senses, or an empty array if none.
+     */
+    public Sense[] getSenses() {
+        final Object senses = this.senses;
+        Sense[] copy = new Sense[getCount(senses)];
+        if (senses instanceof Sense[]) {
+            int count = 0;
+            final Sense[] array = (Sense[]) senses;
+            for (int i=0; i<array.length; i++) {
+                final Sense candidate = array[i];
+                if (!candidate.isSummary()) {
+                    copy[count++] = candidate;
+                }
+            }
+            if (count != copy.length) {
+                copy = Arrays.copyOf(copy, count);
+            }
+        } else {
+            copy[0] = (Sense) senses;
+        }
+        return copy;
+    }
+
+    /**
+     * Returns the meaning of this entry as a comma-separated list of senses
+     * in the preferred language.
+     *
      * @return The meaning of this entry, or {@code null} if none.
      */
-    public Sense getSense(final Locale locale) {
+    public Sense getSenseSummmary() {
         final Object senses = this.senses; // Protect from changes.
         if (senses != null) {
             if (senses instanceof Sense[]) {
-                for (final Sense candidate : (Sense[]) senses) {
-                    if (locale == null || locale.equals(candidate.locale)) {
-                        return candidate;
-                    }
-                }
+                return ((Sense[]) senses)[0];
             } else {
-                final Sense candidate = (Sense) senses;
-                if (locale == null || locale.equals(candidate.locale)) {
-                    return candidate;
-                }
+                return (Sense) senses;
             }
         }
         return null;
