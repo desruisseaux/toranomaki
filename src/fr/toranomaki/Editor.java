@@ -23,17 +23,20 @@ import javafx.scene.Node;
 import javafx.scene.control.Control;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.geometry.Pos;
+import javafx.geometry.VPos;
+import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
-import javafx.collections.ObservableList;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.JMdict;
@@ -46,6 +49,11 @@ import fr.toranomaki.edict.PartOfSpeech;
  * @author Martin Desruisseaux
  */
 final class Editor {
+    /**
+     * For size for Latin, Hiragana or Kanji characters.
+     */
+    private static final int LATIN_SIZE=12, HIRAGANA_SIZE=16, KANJI_SIZE=24;
+
     /**
      * The editor area.
      */
@@ -70,7 +78,7 @@ final class Editor {
     /**
      * The senses for the {@linkplain #reading} element.
      */
-    private final VBox senses;
+    private final GridPane senses;
 
     /**
      * The word element which is currently show.
@@ -83,20 +91,28 @@ final class Editor {
     private final Map<String, Image> flags;
 
     /**
+     * The insets for the <cite>Part Of Speech</cite> and the flags.
+     * This is used for inserting some spaces between the flags and the text.
+     */
+    private final Insets posInsets, flagInsets;
+
+    /**
      * Creates a new instance using the given dictionary for searching words.
      */
     Editor(final JMdict dictionary) {
-        flags    = new HashMap<>();
-        text     = new TextArea();
-        table    = new WordTable(this, dictionary);
-        hiragana = new Label();
-        reading  = new Label();
-        senses   = new VBox();
+        posInsets  = new Insets(/*top*/ 6, /*right*/ 0, /*bottom*/ 0, /*left*/  6);
+        flagInsets = new Insets(/*top*/ 4, /*right*/ 6, /*bottom*/ 0, /*left*/ 18);
+        flags      = new HashMap<>();
+        text       = new TextArea();
+        table      = new WordTable(this, dictionary);
+        hiragana   = new Label();
+        reading    = new Label();
+        senses     = new GridPane();
         hiragana.setAlignment(Pos.BASELINE_CENTER);
         reading .setAlignment(Pos.TOP_CENTER);
         senses  .setAlignment(Pos.TOP_LEFT);
-        hiragana.setFont(Font.font(null, 16));
-        reading .setFont(Font.font(null, 24));
+        hiragana.setFont(Font.font(null, HIRAGANA_SIZE));
+        reading .setFont(Font.font(null, KANJI_SIZE));
         hiragana.setMinWidth(160);
         reading .setMinWidth(160);
     }
@@ -105,13 +121,24 @@ final class Editor {
      * Creates the widget pane to be shown in the application.
      */
     final Control createPane() {
-        VBox.setVgrow(reading, Priority.ALWAYS);
-        HBox.setHgrow(senses,  Priority.ALWAYS);
-        final VBox readingBox = new VBox(); readingBox.getChildren().addAll(hiragana, reading);
-        final HBox selectBox  = new HBox(); selectBox .getChildren().addAll(readingBox, senses);
-        final SplitPane pane  = new SplitPane();
+        final ScrollPane scroll = new ScrollPane();
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setFitToWidth(true); // For allowing labels to wrap lines.
+        scroll.setContent(senses);
+
+        final VBox word = new VBox();
+        word.setAlignment(Pos.CENTER);
+        word.getChildren().addAll(hiragana, reading);
+
+        final BorderPane desc = new BorderPane();
+        desc.setLeft(word);
+        desc.setCenter(scroll);
+
+        SplitPane.setResizableWithParent(desc, false);
+        final SplitPane pane = new SplitPane();
         pane.setOrientation(Orientation.VERTICAL);
-        pane.getItems().addAll(selectBox, text, table.createPane());
+        pane.getItems().addAll(desc, text, table.createPane());
+        pane.setDividerPositions(0.15, 0.6);
         return pane;
     }
 
@@ -142,8 +169,7 @@ final class Editor {
         if (word != currentElement) {
             String readingText  = null;
             String hiraganaText = null;
-            final ObservableList<Node> sensesList = senses.getChildren();
-            sensesList.clear();
+            senses.getChildren().clear();
             if (word != null) {
                 final Entry entry = word.entry;
                 hiraganaText = entry.getWord(false, WordElement.WORD_INDEX);
@@ -154,17 +180,25 @@ final class Editor {
                     readingText = hiraganaText;
                     hiraganaText = null;
                 }
-                for (final Map.Entry<Set<PartOfSpeech>, Map<Locale, CharSequence>> senses : word.getSenses().entrySet()) {
-                    final String partOfSpeech = PartOfSpeech.getDescriptions(senses.getKey());
+                int row = 0;
+                for (final Map.Entry<Set<PartOfSpeech>, Map<Locale, CharSequence>> byPos : word.getSenses().entrySet()) {
+                    final String partOfSpeech = PartOfSpeech.getDescriptions(byPos.getKey());
                     if (partOfSpeech != null) {
                         final Label label = new Label(partOfSpeech);
-                        label.setFont(Font.font(null, FontWeight.BOLD, 12));
-                        sensesList.add(label);
+                        label.setFont(Font.font(null, FontWeight.BOLD, LATIN_SIZE));
+                        GridPane.setMargin(label, posInsets);
+                        GridPane.setColumnSpan(label, 2);
+                        senses.add(label, 0, row++);
                     }
-                    for (final Map.Entry<Locale, CharSequence> localized : senses.getValue().entrySet()) {
-                        final Label label = new Label(localized.getValue().toString(), getFlag(localized.getKey().getLanguage()));
+                    for (final Map.Entry<Locale, CharSequence> localized : byPos.getValue().entrySet()) {
+                        final Node  flag  = getFlag(localized.getKey().getLanguage());
+                        final Label label = new Label(localized.getValue().toString());
                         label.setWrapText(true);
-                        sensesList.add(label);
+                        GridPane.setHgrow(label, Priority.ALWAYS);
+                        GridPane.setValignment(flag, VPos.TOP);
+                        GridPane.setMargin(flag, flagInsets);
+                        senses.add(flag,  0, row);
+                        senses.add(label, 1, row++);
                     }
                 }
             }

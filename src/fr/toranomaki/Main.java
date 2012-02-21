@@ -25,10 +25,15 @@ import org.apache.derby.jdbc.EmbeddedDataSource;
 
 import javafx.stage.Stage;
 import javafx.scene.Scene;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
+import javafx.scene.Node;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.input.KeyCombination;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.application.Application;
-import javafx.geometry.Side;
 
 import fr.toranomaki.edict.JMdict;
 
@@ -156,6 +161,23 @@ public final class Main extends Application {
     }
 
     /**
+     * The action executed when the user switch window.
+     */
+    private static final class ShowWindow implements EventHandler<ActionEvent> {
+        final BorderPane pane;
+        final Node view;
+
+        ShowWindow(final BorderPane pane, final Node view) {
+            this.pane = pane;
+            this.view = view;
+        }
+
+        @Override public void handle(final ActionEvent e) {
+            pane.setCenter(view);
+        }
+    }
+
+    /**
      * Creates and show the Graphical User Interface (GUI).
      *
      * @param stage The window where to display the GUI.
@@ -163,19 +185,26 @@ public final class Main extends Application {
     @Override
     public void start(final Stage stage) {
         stage.setTitle("Toranomaki");
-        final TabPane tabs = new TabPane();
-        tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabs.setSide(Side.LEFT);
+        final Node initial = training.createPane();
+        final BorderPane pane = new BorderPane();
+        pane.setCenter(initial);
 
-        Tab tab = new Tab("Vocabulary");
-        tab.setContent(training.createPane());
-        tabs.getTabs().add(tab);
+        final MenuBar bar = new MenuBar();
+        final Menu menu   = new Menu("Window");
+        MenuItem menuItem = new MenuItem("Vocabulary");
+        menuItem.setOnAction(new ShowWindow(pane, initial));
+        menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+L"));
+        menu.getItems().add(menuItem);
 
-        tab = new Tab("Editor");
-        tab.setContent(editor.createPane());
-        tabs.getTabs().add(tab);
+        menuItem = new MenuItem("Editor");
+        menuItem.setOnAction(new ShowWindow(pane, editor.createPane()));
+        menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+E"));
+        menu.getItems().add(menuItem);
+        bar.getMenus().add(menu);
+        bar.setUseSystemMenuBar(true);
+        pane.setTop(bar);
 
-        stage.setScene(new Scene(tabs, 800, 600));
+        stage.setScene(new Scene(pane, 800, 600));
         stage.show();
     }
 }
