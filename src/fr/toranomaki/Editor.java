@@ -17,6 +17,8 @@ package fr.toranomaki;
 import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.io.InputStream;
 import javafx.scene.Node;
@@ -53,6 +55,16 @@ final class Editor {
      * For size for Latin, Hiragana or Kanji characters.
      */
     private static final int LATIN_SIZE=12, HIRAGANA_SIZE=16, KANJI_SIZE=24;
+
+    /**
+     * Identifiers associated to {@linkplain #cachedNodes cached nodes}. Those identifiers are
+     * used for distinguish <cite>Part of Speech</cite> and <cite>glossary</cite> from other
+     * kind of nodes. The other kind of nodes are flag, which uses the 3 letters language code
+     * as their identifier.
+     *
+     * @see Node#id
+     */
+    private static final String POS = "POS", GLOSS = "GLOSS";
 
     /**
      * The editor area.
@@ -97,17 +109,25 @@ final class Editor {
     private final Insets posInsets, flagInsets;
 
     /**
+     * A cache of nodes, used when there is frequent addition and removal of elements.
+     * This is used for updating the content of the {@link #senses} pane. This cache
+     * should never grow very big. It typically contains less than 20 elements.
+     */
+    private final List<Node> cachedNodes;
+
+    /**
      * Creates a new instance using the given dictionary for searching words.
      */
     Editor(final JMdict dictionary) {
-        posInsets  = new Insets(/*top*/ 6, /*right*/ 0, /*bottom*/ 0, /*left*/  6);
-        flagInsets = new Insets(/*top*/ 4, /*right*/ 6, /*bottom*/ 0, /*left*/ 18);
-        flags      = new HashMap<>();
-        text       = new TextArea();
-        table      = new WordTable(this, dictionary);
-        hiragana   = new Label();
-        reading    = new Label();
-        senses     = new GridPane();
+        posInsets   = new Insets(/*top*/ 6, /*right*/ 0, /*bottom*/ 0, /*left*/  6);
+        flagInsets  = new Insets(/*top*/ 4, /*right*/ 6, /*bottom*/ 0, /*left*/ 18);
+        flags       = new HashMap<>();
+        text        = new TextArea();
+        table       = new WordTable(this, dictionary);
+        hiragana    = new Label();
+        reading     = new Label();
+        senses      = new GridPane();
+        cachedNodes = new ArrayList<>();
         hiragana.setAlignment(Pos.BASELINE_CENTER);
         reading .setAlignment(Pos.TOP_CENTER);
         senses  .setAlignment(Pos.TOP_LEFT);
@@ -143,21 +163,44 @@ final class Editor {
     }
 
     /**
-     * Returns the flag for the given language, or {@code null} if none.
+     * Returns a cached nodes for the given ID. The returned node is removed from the cache.
      */
-    private Node getFlag(final String language) {
-        Image flag = flags.get(language);
-        if (flag == null) {
-            final InputStream in = Editor.class.getResourceAsStream(language + ".png");
-            if (in != null) {
-                flag = new Image(in);
-                flags.put(language, flag);
+    private Node getCachedNode(final String id) {
+        for (int i=cachedNodes.size(); --i>=0;) {
+            final Node node = cachedNodes.get(i);
+            if (id.equals(node.getId())) {
+                cachedNodes.remove(i);
+                return node;
             }
         }
-        if (flag != null) {
-            return new ImageView(flag);
-        }
         return null;
+    }
+
+    /**
+     * Returns the flag for the given language, or {@code null} if none. This method will try to
+     * return a cached node if possible. If a new node needs to be created, its layout constraint
+     * (except position) will be set. Those constraints are defined in order to simulate the
+     * bullets in a list.
+     */
+    private Node getFlag(final String language) {
+        Node node = getCachedNode(language);
+        if (node == null) {
+            Image flag = flags.get(language);
+            if (flag == null) {
+                final InputStream in = Editor.class.getResourceAsStream(language + ".png");
+                if (in != null) {
+                    flag = new Image(in);
+                    flags.put(language, flag);
+                }
+            }
+            if (flag != null) {
+                node = new ImageView(flag);
+                GridPane.setValignment(node, VPos.TOP);
+                GridPane.setMargin(node, flagInsets);
+                node.setId(language);
+            }
+        }
+        return node;
     }
 
     /**
@@ -167,9 +210,12 @@ final class Editor {
      */
     final void setSelected(final WordElement word) {
         if (word != currentElement) {
+            final List<Node> children = senses.getChildren();
+            cachedNodes.addAll(children);
+            children.clear();
+
             String readingText  = null;
             String hiraganaText = null;
-            senses.getChildren().clear();
             if (word != null) {
                 final Entry entry = word.entry;
                 hiraganaText = entry.getWord(false, WordElement.WORD_INDEX);
@@ -184,19 +230,30 @@ final class Editor {
                 for (final Map.Entry<Set<PartOfSpeech>, Map<Locale, CharSequence>> byPos : word.getSenses().entrySet()) {
                     final String partOfSpeech = PartOfSpeech.getDescriptions(byPos.getKey());
                     if (partOfSpeech != null) {
-                        final Label label = new Label(partOfSpeech);
-                        label.setFont(Font.font(null, FontWeight.BOLD, LATIN_SIZE));
-                        GridPane.setMargin(label, posInsets);
-                        GridPane.setColumnSpan(label, 2);
+                        Label label = (Label) getCachedNode(POS);
+                        if (label != null) {
+                            label.setText(partOfSpeech);
+                        } else {
+                            label = new Label(partOfSpeech);
+                            label.setFont(Font.font(null, FontWeight.BOLD, LATIN_SIZE));
+                            GridPane.setMargin(label, posInsets);
+                            GridPane.setColumnSpan(label, 2);
+                            label.setId(POS);
+                        }
                         senses.add(label, 0, row++);
                     }
                     for (final Map.Entry<Locale, CharSequence> localized : byPos.getValue().entrySet()) {
-                        final Node  flag  = getFlag(localized.getKey().getISO3Language());
-                        final Label label = new Label(localized.getValue().toString());
-                        label.setWrapText(true);
-                        GridPane.setHgrow(label, Priority.ALWAYS);
-                        GridPane.setValignment(flag, VPos.TOP);
-                        GridPane.setMargin(flag, flagInsets);
+                        final Node   flag = getFlag(localized.getKey().getISO3Language());
+                        final String text = localized.getValue().toString();
+                        Label label = (Label) getCachedNode(GLOSS);
+                        if (label != null) {
+                            label.setText(text);
+                        } else {
+                            label = new Label(text);
+                            label.setWrapText(true);
+                            GridPane.setHgrow(label, Priority.ALWAYS);
+                            label.setId(GLOSS);
+                        }
                         senses.add(flag,  0, row);
                         senses.add(label, 1, row++);
                     }
