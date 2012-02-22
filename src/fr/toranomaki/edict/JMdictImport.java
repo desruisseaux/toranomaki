@@ -316,6 +316,7 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
                     // Replace EDICT codes by ISO 639-2 codes.
                     switch (language) {
                         case "fre": language = "fra"; break;
+                        case "ger": language = "deu"; break;
                     }
                 }
                 break;

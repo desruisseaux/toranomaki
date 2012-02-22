@@ -191,7 +191,7 @@ final class Editor {
                         senses.add(label, 0, row++);
                     }
                     for (final Map.Entry<Locale, CharSequence> localized : byPos.getValue().entrySet()) {
-                        final Node  flag  = getFlag(localized.getKey().getLanguage());
+                        final Node  flag  = getFlag(localized.getKey().getISO3Language());
                         final Label label = new Label(localized.getValue().toString());
                         label.setWrapText(true);
                         GridPane.setHgrow(label, Priority.ALWAYS);
