@@ -39,7 +39,10 @@ import fr.toranomaki.edict.JMdict;
 
 
 /**
- * The main application window.
+ * The main application entry point. This is the entry point we would use if the
+ * application was a pure JavaFX application. However for now, we have to use the
+ * {@link SwingMain} workaround because the JavaFX text area does not yet support
+ * input methods (at least on MacOS).
  *
  * @author Martin Desruisseaux
  */
@@ -60,7 +63,7 @@ public final class Main extends Application {
     private Editor editor;
 
     /**
-     * Launch the Toranomaki application.
+     * Launches the Toranomaki application.
      *
      * @param args the command line arguments.
      */
@@ -185,26 +188,44 @@ public final class Main extends Application {
     @Override
     public void start(final Stage stage) {
         stage.setTitle("Toranomaki");
+        stage.setScene(createScene(null));
+        stage.show();
+    }
+
+    /**
+     * Creates the Graphical User Interface (GUI).
+     * It is caller's responsibility to show the returned scene.
+     *
+     * @param showSwingEditor The event handler for showing Swing editor, or {@code null} if none.
+     */
+    final Scene createScene(final EventHandler<ActionEvent> showSwingEditor) {
         final Node initial = training.createPane();
         final BorderPane pane = new BorderPane();
         pane.setCenter(initial);
 
         final MenuBar bar = new MenuBar();
         final Menu menu   = new Menu("Window");
-        MenuItem menuItem = new MenuItem("Vocabulary");
+        MenuItem menuItem = new MenuItem("Training");
         menuItem.setOnAction(new ShowWindow(pane, initial));
-        menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+L"));
+        menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+T"));
         menu.getItems().add(menuItem);
 
         menuItem = new MenuItem("Editor");
         menuItem.setOnAction(new ShowWindow(pane, editor.createPane()));
         menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+E"));
         menu.getItems().add(menuItem);
+
+        if (showSwingEditor != null) {
+            menuItem = new MenuItem("Swing editor");
+            menuItem.setOnAction(showSwingEditor);
+            menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+S"));
+            menu.getItems().add(menuItem);
+        }
+
         bar.getMenus().add(menu);
         bar.setUseSystemMenuBar(true);
         pane.setTop(bar);
 
-        stage.setScene(new Scene(pane, 800, 600));
-        stage.show();
+        return new Scene(pane, 800, 600);
     }
 }
