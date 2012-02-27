@@ -59,10 +59,8 @@ public final class Main extends Application {
 
     /**
      * Controls the editor pane.
-     *
-     * @todo Make private after we removed the {@link SwingEditor} hack.
      */
-    Editor editor;
+    private Editor editor;
 
     /**
      * Launches the Toranomaki application.
@@ -156,7 +154,7 @@ public final class Main extends Application {
      */
     @Override
     public void stop() throws SQLException {
-        editor.table.close();
+        editor.close();
         dataSource.setShutdownDatabase("shutdown");
         try {
             dataSource.getConnection().close();
@@ -190,17 +188,6 @@ public final class Main extends Application {
     @Override
     public void start(final Stage stage) {
         stage.setTitle("Toranomaki");
-        stage.setScene(createScene(null));
-        stage.show();
-    }
-
-    /**
-     * Creates the Graphical User Interface (GUI).
-     * It is caller's responsibility to show the returned scene.
-     *
-     * @param showSwingEditor The event handler for showing Swing editor, or {@code null} if none.
-     */
-    final Scene createScene(final EventHandler<ActionEvent> showSwingEditor) {
         final Node initial = training.createPane();
         final BorderPane pane = new BorderPane();
         pane.setCenter(initial);
@@ -217,17 +204,11 @@ public final class Main extends Application {
         menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+E"));
         menu.getItems().add(menuItem);
 
-        if (showSwingEditor != null) {
-            menuItem = new MenuItem("Swing editor");
-            menuItem.setOnAction(showSwingEditor);
-            menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+S"));
-            menu.getItems().add(menuItem);
-        }
-
         bar.getMenus().add(menu);
         bar.setUseSystemMenuBar(true);
         pane.setTop(bar);
 
-        return new Scene(pane, 800, 600);
+        stage.setScene(new Scene(pane, 800, 600));
+        stage.show();
     }
 }

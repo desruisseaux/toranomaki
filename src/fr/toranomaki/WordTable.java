@@ -66,15 +66,15 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
     private final ExecutorService executor;
 
     /**
-     * The editor to notify when a new word is selected in the table.
+     * The panel to notify when a new word is selected in the table.
      */
-    private final Editor owner;
+    private final WordPanel description;
 
     /**
      * Creates a new instance using the given dictionary for searching words.
      */
-    WordTable(final Editor owner, final JMdict dictionary) {
-        this.owner = owner;
+    WordTable(final WordPanel description, final JMdict dictionary) {
+        this.description = description;
         this.dictionary = dictionary;
         executor = Executors.newSingleThreadExecutor();
         entries = FXCollections.observableArrayList();
@@ -199,6 +199,6 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
                 }
             }
         }
-        owner.setSelected(selected);
+        description.setSelected(selected);
     }
 }

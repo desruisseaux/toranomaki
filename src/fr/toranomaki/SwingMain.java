@@ -16,13 +16,21 @@ package fr.toranomaki;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.util.concurrent.CountDownLatch;
+import org.apache.derby.jdbc.EmbeddedDataSource;
+
 import javax.swing.JFrame;
+import javax.swing.JComponent;
+import javax.swing.JSplitPane;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowAdapter;
+
 import javafx.embed.swing.JFXPanel;
 import javafx.application.Platform;
-import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
+import javafx.scene.Scene;
+import javafx.scene.layout.StackPane;
+
+import fr.toranomaki.edict.JMdict;
 
 
 /**
@@ -32,24 +40,16 @@ import javafx.event.EventHandler;
  *
  * @author Martin Desruisseaux
  */
-public final class SwingMain extends WindowAdapter implements Runnable, EventHandler<ActionEvent> {
+public final class SwingMain extends WindowAdapter {
     /**
-     * The JavaFX application.
+     * The result of word search.
      */
-    private final Main application;
+    private final WordTable table;
 
     /**
-     * The panel to construct in the {@link #run()} method.
+     * The object used for waiting the application termination.
      */
-    private final JFXPanel fxPanel;
-
-    /**
-     * For internal usage by {@link #main(String[])} only.
-     */
-    private SwingMain() {
-        application = new Main();
-        fxPanel     = new JFXPanel();
-    }
+    private final CountDownLatch monitor = new CountDownLatch(1);
 
     /**
      * Launches the Toranomaki application.
@@ -59,34 +59,56 @@ public final class SwingMain extends WindowAdapter implements Runnable, EventHan
      * @throws SQLException If an error occurred while connecting to the database.
      */
     public static void main(final String[] args) throws IOException, SQLException {
-        final JFrame    frame   = new JFrame("Toranomaki");
-        final SwingMain main    = new SwingMain();
-        frame.addWindowListener(main);
-        frame.add(main.fxPanel);
+        final JFrame frame = new JFrame("Toranomaki");
+        final EmbeddedDataSource dataSource = Main.getDataSource();
+        try {
+            final SwingMain main = new SwingMain(frame, dataSource);
+            try {
+                main.monitor.await();
+            } finally {
+                main.table.close();
+            }
+        } catch (Throwable e) {
+            e.printStackTrace(); // For debugging purpose only.
+        } finally {
+            dataSource.setShutdownDatabase("shutdown");
+            try {
+                dataSource.getConnection().close();
+            } catch (SQLException e) {
+                // This is the expected exception.
+            }
+            frame.dispose();
+        }
+    }
+
+    /**
+     * Creates a new application.
+     */
+    private SwingMain(final JFrame frame, final EmbeddedDataSource dataSource) throws IOException, SQLException {
+        final JMdict      dictionary  = new JMdict(dataSource);
+        final WordPanel   description = new WordPanel(dictionary);
+                          table       = new WordTable(description, dictionary);
+        final JComponent  editor      = new SwingEditor(table).createPane();
+        final JFXPanel    fxDesc      = new JFXPanel();
+        final JFXPanel    fxTable     = new JFXPanel();
+        final JSplitPane  split1      = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editor, fxTable);
+        final JSplitPane  split2      = new JSplitPane(JSplitPane.VERTICAL_SPLIT, fxDesc, split1);
+        split1.setResizeWeight(1);
+        split1.setDividerLocation(300);
+        split2.setDividerLocation(100);
         frame.setSize(800, 600);
+        frame.add(split2);
+        frame.addWindowListener(this);
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
-        main.application.init();
-        Platform.runLater(main);
-    }
-
-    /**
-     * Invoked in the JavaFX thread for building the JavaFX components.
-     * This method is public as an implementation side-effect and should be ignored.
-     */
-    @Override
-    public void run() {
-        fxPanel.setScene(application.createScene(this));
-    }
-
-    /**
-     * Invoked in the JavaFX thread when the user asked to Swing editor window.
-     *
-     * @param event The JavaFX event (ignored).
-     */
-    @Override
-    public void handle(final ActionEvent event) {
-        SwingEditor.show(application.editor.table);
+        Platform.runLater(new Runnable() {
+            @Override public void run() {
+                final StackPane stack = new StackPane();
+                stack.getChildren().add(description.createPane());
+                fxDesc.setScene(new Scene(stack));
+                fxTable.setScene(new Scene(table.createPane()));
+            }
+        });
     }
 
     /**
@@ -96,12 +118,6 @@ public final class SwingMain extends WindowAdapter implements Runnable, EventHan
      */
     @Override
     public void windowClosing(final WindowEvent event) {
-        try {
-            application.stop();
-        } catch (SQLException e) {
-            Logging.recoverableException(Main.class, "stop", e);
-        }
-        ((JFrame) event.getSource()).dispose();
-        System.exit(0);
+        monitor.countDown();
     }
 }

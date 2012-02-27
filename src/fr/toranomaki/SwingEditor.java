@@ -36,7 +36,7 @@ import static fr.toranomaki.edict.JMdict.MINIMAL_SEARCH_LENGTH;
  * @author Martin Desruisseaux
  */
 @SuppressWarnings("serial")
-final class SwingEditor extends WindowAdapter implements KeyListener, UndoableEditListener, CaretListener, Runnable {
+final class SwingEditor implements KeyListener, UndoableEditListener, CaretListener, Runnable {
     /**
      * The encoding of the file to be saved.
      */
@@ -102,7 +102,7 @@ final class SwingEditor extends WindowAdapter implements KeyListener, UndoableEd
     /**
      * Creates a new editor.
      */
-    private SwingEditor(final WordTable wordTable) {
+    SwingEditor(final WordTable wordTable) {
         this.wordTable = wordTable;
         textPane = new JEditorPane();
         textPane.setContentType("text/plain");
@@ -133,52 +133,12 @@ final class SwingEditor extends WindowAdapter implements KeyListener, UndoableEd
     }
 
     /**
-     * Invoked when the editor window is in the process of being closed.
-     * This method saves the editor content.
-     *
-     * @todo This method is unreliable, since it is not invoked if the user close the
-     *       application without closing the editor window first. We do not bother to
-     *       fix this issue for now, since this class is a temporary hack to be removed
-     *       when the JavaFX TextArea component will be more usable for our needs.
-     *
-     * @param event Ignored.
+     * Creates the swing panel.
      */
-    @Override
-    public void windowClosing(final WindowEvent event) {
-        try {
-            save();
-        } catch (IOException | BadLocationException e) {
-            Logging.recoverableException(SwingEditor.class, "save", e);
-            // DANGER - editor content is lost. Continue closing anyway.
-            // We may revisit this behavior later if we have some widget
-            // for reporting errors.
-        }
-    }
-
-    /**
-     * Shows this widget.
-     */
-    static void show(final WordTable wordTable) {
-        EventQueue.invokeLater(new Runnable() {
-            @Override public void run() {
-                for (final Window window : Window.getWindows()) {
-                    if ("Toranomaki".equals(window.getName())) {
-                        window.setVisible(true);
-                        return;
-                    }
-                }
-                final SwingEditor editor = new SwingEditor(wordTable);
-                final JFrame frame = new JFrame("Toranomaki editor");
-                frame.add(new JScrollPane(editor.textPane,
-                        JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-                        JScrollPane.HORIZONTAL_SCROLLBAR_NEVER));
-                frame.addWindowListener(editor);
-                frame.setName("Toranomaki");
-                frame.setSize(800, 600);
-                frame.setLocationByPlatform(true);
-                frame.setVisible(true);
-            }
-        });
+    final JComponent createPane() {
+        return new JScrollPane(textPane,
+                JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
     }
 
     /**
