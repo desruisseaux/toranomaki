@@ -86,7 +86,7 @@ public final class SwingMain extends WindowAdapter implements Runnable, EventHan
      */
     @Override
     public void handle(final ActionEvent event) {
-        SwingEditor.show();
+        SwingEditor.show(application.editor.table);
     }
 
     /**

@@ -180,17 +180,6 @@ public final class Entry implements Comparable<Entry> {
     }
 
     /**
-     * Returns the defining element, which is the Kanji if present or the reading element otherwise.
-     *
-     * @param  index The index of the element for which to get the defining word.
-     * @return The Kanji or reading elements, or {@code null} if the index is out of bounds.
-     */
-    public String getDefiningWord(final int index) {
-        final String kanji = getWord(true, index);
-        return (kanji != null) ? kanji : getWord(false, index);
-    }
-
-    /**
      * Returns the Kanji or reading elements at the given index, or {@code null} if none.
      * This method does not thrown an exception for non-negative index out of bounds.
      *
@@ -257,6 +246,8 @@ public final class Entry implements Comparable<Entry> {
 
     /**
      * Returns a single priority value used for sorting entries.
+     *
+     * @see #compareTo(Entry)
      */
     private short getPriority() {
         short priority = Short.MAX_VALUE;
@@ -272,6 +263,8 @@ public final class Entry implements Comparable<Entry> {
 
     /**
      * Returns the length of the shortest word. This is used for sorting entries.
+     *
+     * @see #compareTo(Entry)
      */
     private int getSmallestLength(final boolean isKanji) {
         int length = Short.MAX_VALUE;
@@ -413,6 +406,16 @@ public final class Entry implements Comparable<Entry> {
     }
 
     /**
+     * Returns the derived words, or null if it doesn't apply to this kind of word.
+     *
+     * @return The derived words, or an empty array if none. <strong>Do not modify</strong>
+     *         the array content, since this method does not clone the array.
+     */
+    final String[] getDerivedWords(final boolean isKanji) {
+        return null; // TODO
+    }
+
+    /**
      * Compares this entry with the given object in order to sort preferred entries first.
      * If two entry has the same priority, select the shortest word.
      *
@@ -429,5 +432,38 @@ public final class Entry implements Comparable<Entry> {
             }
         }
         return c;
+    }
+
+    /**
+     * Returns a string representation for debugging purpose.
+     */
+    @Override
+    public String toString() {
+        final StringBuilder buffer = new StringBuilder("Entry[");
+        String word = getWord(true, 0);
+        if (word == null) {
+            word = getWord(false, 0);
+        }
+        buffer.append('"').append(word).append('"');
+        final Sense[] senses = getSenses();
+        if (senses.length != 0) {
+            buffer.append(" (").append(senses[0].meaning).append(')');
+        }
+        String separator = ": ";
+        for (int i=0; i<=2; i++) {
+            final int n;
+            final String label;
+            switch (i) {
+                case 0: n = getCount(true);  label = "Kanji";   break;
+                case 1: n = getCount(false); label = "reading"; break;
+                case 2: n = senses.length;   label = "senses";  break;
+                default: throw new AssertionError(i);
+            }
+            if (n != 0) {
+                buffer.append(separator).append(n).append(' ').append(label);
+                separator = ", ";
+            }
+        }
+        return buffer.append(']').toString();
     }
 }

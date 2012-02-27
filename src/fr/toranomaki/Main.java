@@ -59,8 +59,10 @@ public final class Main extends Application {
 
     /**
      * Controls the editor pane.
+     *
+     * @todo Make private after we removed the {@link SwingEditor} hack.
      */
-    private Editor editor;
+    Editor editor;
 
     /**
      * Launches the Toranomaki application.
@@ -144,7 +146,7 @@ public final class Main extends Application {
         dataSource = getDataSource();
         final JMdict dictionary = new JMdict(dataSource);
         training = new Training(dictionary);
-        editor = new Editor(dictionary);
+        editor   = new Editor  (dictionary);
     }
 
     /**

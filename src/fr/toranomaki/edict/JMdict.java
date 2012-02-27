@@ -48,11 +48,26 @@ public final class JMdict implements AutoCloseable {
     public static final Logger LOGGER = Logger.getLogger("fr.toranomaki.edict");
 
     /**
+     * The array to returns from the search method when no matching entry has been found.
+     */
+    private static final Entry[] EMPTY_RESULT = new Entry[0];
+
+    /**
      * When searching for a words using the {@code LIKE} clause, maximal number of characters
      * allowed after the shortest word in order to accept an entry. This is used as an heuristic
      * filter for reducing the amount of irrelevant search results.
+     *
+     * @see #search(String)
      */
     private static final int MAXIMUM_EXTRA_CHARACTERS = 3;
+
+    /**
+     * The suggested minimal length of words to give to the search methods. We suggest a
+     * minimal length in order to avoid returning too many results from search methods.
+     *
+     * @see #searchBest(String)
+     */
+    public static final int MINIMAL_SEARCH_LENGTH = 2;
 
     /**
      * A cache of most recently used entries. The cache capacity is arbitrary, but we are
@@ -324,19 +339,50 @@ public final class JMdict implements AutoCloseable {
      * @return All entries for the given words.
      * @throws SQLException If an error occurred while querying the database.
      */
-    public synchronized Entry[] search(final String word) throws SQLException {
+    public Entry[] search(final String word) throws SQLException {
         if (word == null || word.isEmpty()) {
-            return new Entry[0];
+            return EMPTY_RESULT;
         }
-        final Boolean isKanji;
+        return search(word, CharacterType.forWord(word));
+    }
+
+    /**
+     * Searches the best entry matching the given text, or {@code null} if none.
+     *
+     * @param toSearch   The word to search.
+     * @return The search result, or {@code null} if none.
+     * @throws SQLException If an error occurred while querying the database.
+     */
+    public SearchResult searchBest(final String toSearch) throws SQLException {
+        if (toSearch == null || toSearch.isEmpty()) {
+            return null;
+        }
+        SearchResult result;
+        final CharacterType type = CharacterType.forWord(toSearch);
+        // TODO: current algorithm is inefficient, and the 2 : 4 numbers are empirical.
+        String prefix = toSearch.substring(0, Math.min(toSearch.length(), type.isKanji ? 2 : 4));
+        while ((result = SearchResult.search(search(prefix, type), toSearch, type.isKanji)) == null) {
+            int length = prefix.length();
+            if (length < MINIMAL_SEARCH_LENGTH) {
+                break;
+            }
+            prefix = prefix.substring(0, length-1);
+        }
+        return result;
+    }
+
+    /**
+     * Implementation of word search. The type given in argument must be
+     * {@code CharacterType.forWord(word)}.
+     */
+    private synchronized Entry[] search(final String word, final CharacterType type) throws SQLException {
         final String[] searchLocales;
         final PreparedStatement stmt;
-        final CharacterType type = CharacterType.forWord(word);
         switch (type) {
-            case JOYO_KANJI: case KANJI:    isKanji = true;  stmt = searchKanji;   searchLocales = null;        break;
-            case KATAKANA:   case HIRAGANA: isKanji = false; stmt = searchReading; searchLocales = null;        break;
-            case ALPHABETIC:                isKanji = null;  stmt = searchMeaning; searchLocales = localeCodes; break;
-            default: return new Entry[0];
+            case JOYO_KANJI: case KANJI:    stmt = searchKanji;   searchLocales = null;        break;
+            case KATAKANA:   case HIRAGANA: stmt = searchReading; searchLocales = null;        break;
+            case ALPHABETIC:                stmt = searchMeaning; searchLocales = localeCodes; break;
+            default:                        return EMPTY_RESULT;
         }
         int minimalLength = Short.MAX_VALUE;
         stmt.setString(1, exactMatch ? word : word + '%');

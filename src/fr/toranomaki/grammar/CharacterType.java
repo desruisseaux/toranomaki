@@ -36,37 +36,43 @@ public enum CharacterType {
      * character, and all those characters are Jōyō Kanji. The word may also contains other
      * kind of characters in addition of the ideographic ones.
      */
-    JOYO_KANJI,
+    JOYO_KANJI(true),
 
     /**
      * The word contains at least one {@linkplain Character#isIdeographic(int) ideographic}
      * character. It may also contains other kind of characters in addition of the ideographic
      * ones.
      */
-    KANJI,
+    KANJI(true),
 
     /**
      * The word does not contain any ideographic character, but contains at least one katakana
      * character. Hiragana or alphabetic characters may also be present.
      */
-    KATAKANA,
+    KATAKANA(false),
 
     /**
      * The word does not contain any ideographic character or katakana, but contains at least
      * one hiragana character. Alphabetic characters may also be present.
      */
-    HIRAGANA,
+    HIRAGANA(false),
 
     /**
      * The word does not contain any ideographic character, katakana or hiragana, but contains
      * at least one {@linkplain Character#isAlphabetic(int) alphabetic} character.
      */
-    ALPHABETIC,
+    ALPHABETIC(false),
 
     /**
      * If the word does not contains any of the above characters.
      */
-    OTHER;
+    OTHER(false);
+
+    /**
+     * Convenience flag set to {@code true} for {@link #JOYO_KANJI} and {@link #KANJI},
+     * and {@code false} for all other enums.
+     */
+    public final boolean isKanji;
 
     /**
      * The Jōyō Kanji, loaded from the {@code "Joyo.txt"} file at class-initialization time.
@@ -112,6 +118,13 @@ public enum CharacterType {
             Arrays.sort(kanji);
         }
         JOYO_LIST = kanji;
+    }
+
+    /**
+     * Creates a new enum.
+     */
+    private CharacterType(final boolean isKanji) {
+        this.isKanji = isKanji;
     }
 
     /**

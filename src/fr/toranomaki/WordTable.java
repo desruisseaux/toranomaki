@@ -48,7 +48,7 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
     /**
      * The dictionary to use for searching words.
      */
-    private final JMdict dictionary;
+    final JMdict dictionary;
 
     /**
      * The entries to show in the table.
@@ -131,7 +131,14 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
      */
     @Override
     public void handle(final ActionEvent event) {
-        final String word = search.getText().trim();
+        setContent(search.getText().trim());
+        event.consume();
+    }
+
+    /**
+     * Sets the table content to the result of the search for the given word.
+     */
+    final void setContent(final String word) {
         final Task<WordElement[]> task = new Task<WordElement[]>() {
             @Override @SuppressWarnings("unchecked")
             protected WordElement[] call() throws SQLException {
@@ -155,7 +162,6 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
             }
         };
         executor.execute(task);
-        event.consume();
     }
 
     /**
@@ -186,8 +192,11 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
         WordElement selected = null;
         while (change.next()) {
             if (change.wasAdded()) {
-                selected = entries.get(change.getList().get(change.getFrom()).getRow());
-                break;
+                final int index = change.getFrom();
+                if (index >= 0) {
+                    selected = entries.get(change.getList().get(index).getRow());
+                    break;
+                }
             }
         }
         owner.setSelected(selected);
