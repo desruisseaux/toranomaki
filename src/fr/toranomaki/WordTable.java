@@ -63,7 +63,7 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
     /**
      * The executor for search services.
      */
-    private final ExecutorService executor;
+    final ExecutorService executor;
 
     /**
      * The panel to notify when a new word is selected in the table.
@@ -137,6 +137,7 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
 
     /**
      * Sets the table content to the result of the search for the given word.
+     * This method can be invoked from any thread.
      */
     final void setContent(final String word) {
         final Task<WordElement[]> task = new Task<WordElement[]>() {

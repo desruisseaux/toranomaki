@@ -35,6 +35,13 @@ public final class SearchResult {
     public final String word;
 
     /**
+     * Index of the first character of the given word in the document.
+     * This information is not used by the {@code SearchResult} class,
+     * but is often useful to the caller.
+     */
+    public final int documentOffset;
+
+    /**
      * Number of characters recognized in the string given to the search method.
      */
     public final int matchLength;
@@ -60,26 +67,32 @@ public final class SearchResult {
     /**
      * Creates a new result of word search.
      */
-    private SearchResult(final Entry entry, final String word, final int matchLength,
-            final boolean isFullMatch, final boolean isDerivedWord)
+    private SearchResult(final Entry entry, final String word, final int documentOffset,
+            final int matchLength, final boolean isFullMatch, final boolean isDerivedWord)
     {
-        this.entry         = entry;
-        this.word          = word;
-        this.matchLength   = matchLength;
-        this.isFullMatch   = isFullMatch;
-        this.isDerivedWord = isDerivedWord;
+        this.entry          = entry;
+        this.word           = word;
+        this.documentOffset = documentOffset;
+        this.matchLength    = matchLength;
+        this.isFullMatch    = isFullMatch;
+        this.isDerivedWord  = isDerivedWord;
     }
 
     /**
      * Searches the best entry matching the given text, or {@code null} if none.
      *
-     * @param entries  An array of entries to consider for the search.
-     * @param toSearch The word to search.
-     * @param isKanji  {@code true} for searching in Kanji elements, or {@code false}
-     *                 for searching in reading elements.
+     * @param entries        An array of entries to consider for the search.
+     * @param toSearch       The word to search.
+     * @param isKanji        {@code true} for searching in Kanji elements, or {@code false}
+     *                       for searching in reading elements.
+     * @param documentOffset Index of the first character of the given word in the document.
+     *                       This information is not used by this method. This value is simply
+     *                       stored in the {@link #documentOffset} field for caller convenience.
      * @return The search result, or {@code null} if none.
      */
-    static SearchResult search(final Entry[] entries, final String toSearch, final boolean isKanji) {
+    static SearchResult search(final Entry[] entries, final String toSearch, final boolean isKanji,
+            final int documentOffset)
+    {
         int     matchLength    = 0;
         int     wordLength     = Integer.MAX_VALUE;
         Entry   best           = null;
@@ -132,7 +145,7 @@ public final class SearchResult {
                 isDerivedWord = (variant >= 0);
             }
         }
-        return (best != null) ? new SearchResult(best, word, matchLength, isFullMatch, isDerivedWord) : null;
+        return (best != null) ? new SearchResult(best, word, documentOffset, matchLength, isFullMatch, isDerivedWord) : null;
     }
 
     /**

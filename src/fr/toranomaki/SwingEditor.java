@@ -21,9 +21,7 @@ import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.text.*;
 import javax.swing.undo.*;
-import java.sql.SQLException;
 
-import fr.toranomaki.edict.JMdict;
 import fr.toranomaki.edict.SearchResult;
 import static fr.toranomaki.edict.JMdict.MINIMAL_SEARCH_LENGTH;
 
@@ -35,23 +33,7 @@ import static fr.toranomaki.edict.JMdict.MINIMAL_SEARCH_LENGTH;
  *
  * @author Martin Desruisseaux
  */
-@SuppressWarnings("serial")
-final class SwingEditor implements KeyListener, UndoableEditListener, CaretListener, Runnable {
-    /**
-     * The encoding of the file to be saved.
-     */
-    private static final String FILE_ENCODING = "UTF-8";
-
-    /**
-     * The approximative length of the longest entry in Kanji characters.
-     */
-    private static final int LONGUEST_KANJI_WORD = 16;
-
-    /**
-     * The table of selected words. Also used in order to get a reference to the dictionary.
-     */
-    private final WordTable wordTable;
-
+final class SwingEditor extends EditorTextArea implements KeyListener, UndoableEditListener, CaretListener {
     /**
      * The editor component.
      */
@@ -84,12 +66,6 @@ final class SwingEditor implements KeyListener, UndoableEditListener, CaretListe
     private final Highlighter.HighlightPainter emphase, emphaseComplete, emphaseDerived;
 
     /**
-     * {@code true} if the current edit operation should not be saved in the list
-     * of undoable edit operations.
-     */
-    private transient boolean isInternalEdit;
-
-    /**
      * {@code true} if a key from the keyboard is pressed and not yet released.
      */
     private transient boolean isKeyPressed;
@@ -103,7 +79,7 @@ final class SwingEditor implements KeyListener, UndoableEditListener, CaretListe
      * Creates a new editor.
      */
     SwingEditor(final WordTable wordTable) {
-        this.wordTable = wordTable;
+        super(wordTable);
         textPane = new JEditorPane();
         textPane.setContentType("text/plain");
         textPane.setFont(Font.decode("SansSerif-18"));
@@ -125,7 +101,10 @@ final class SwingEditor implements KeyListener, UndoableEditListener, CaretListe
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, Event.META_MASK), "redo");
         actionMap.put("redo", new UndoAction(true));
         try {
-            load();
+            final String text = load();
+            if (text != null) {
+                document.insertString(0, text, null);
+            }
         } catch (IOException | BadLocationException e) {
             Logging.recoverableException(SwingEditor.class, "load", e);
             // We can continue - the editor will just be initially empty.
@@ -142,41 +121,10 @@ final class SwingEditor implements KeyListener, UndoableEditListener, CaretListe
     }
 
     /**
-     * Returns the file in which to save the editor content.
-     */
-    private File getFile() throws IOException {
-        return new File(Main.getDirectory(), "Editor.txt");
-    }
-
-    /**
-     * Loads the editor content.
-     */
-    private void load() throws IOException, BadLocationException {
-        final File file = getFile();
-        if (file.isFile()) {
-            final StringBuilder buffer = new StringBuilder();
-            try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(file), FILE_ENCODING))) {
-                String line; while ((line = in.readLine()) != null) {
-                    buffer.append(line).append('\n');
-                }
-            }
-            document.insertString(0, buffer.toString(), null);
-        }
-    }
-
-    /**
      * Saves the editor content.
      */
     private void save() throws IOException, BadLocationException {
-        final String content = document.getText(0, document.getLength());
-        final File file = getFile();
-        if (content.trim().length() == 0) {
-            file.delete();
-        } else {
-            try (Writer out = new OutputStreamWriter(new FileOutputStream(file), FILE_ENCODING)) {
-                out.write(content);
-            }
-        }
+        save(document.getText(0, document.getLength()));
     }
 
     /**
@@ -204,9 +152,7 @@ final class SwingEditor implements KeyListener, UndoableEditListener, CaretListe
      */
     @Override
     public void undoableEditHappened(final UndoableEditEvent event) {
-        if (!isInternalEdit) {
-            undo.addEdit(event.getEdit());
-        }
+        undo.addEdit(event.getEdit());
     }
 
     /**
@@ -232,7 +178,7 @@ final class SwingEditor implements KeyListener, UndoableEditListener, CaretListe
     @Override
     public void keyReleased(final KeyEvent event) {
         isKeyPressed = false;
-        EventQueue.invokeLater(this);
+        searchWordAtCaret();
     }
 
     /**
@@ -243,63 +189,61 @@ final class SwingEditor implements KeyListener, UndoableEditListener, CaretListe
     public void caretUpdate(final CaretEvent event) {
         caretPosition = Math.min(event.getMark(), event.getDot());
         if (!isKeyPressed) {
-            EventQueue.invokeLater(this);
+            searchWordAtCaret();
         }
     }
 
     /**
-     * Searches for a entry now. This method must be run in the Swing thread.
-     *
-     * @todo Needs to move the database operation outside from the Swing thread.
+     * Searches the word at the caret position.
+     * This method must be invoked from the Swing thread.
      */
-    @Override
-    public void run() {
+    private void searchWordAtCaret() {
         final int position = caretPosition;
         if (position >= 0) {
             caretPosition = -1;
-            isInternalEdit = true;
             final int docLength = document.getLength();
-            try {
-                // If a entry was highlighted, make it appears as a normal text.
-                SearchResult search = previousSearch;
-                if (search != null) {
-                    previousSearch = null;
-                    highlighter.removeHighlight(search.highlighterKey);
-                }
-                // Now get the text, and looks for it in the dictionary.
-                final int length = Math.min(docLength - position, LONGUEST_KANJI_WORD);
-                if (length >= MINIMAL_SEARCH_LENGTH) try {
-                    final String part = document.getText(position, length);
-                    final int stop = part.length();
-                    int lower = 0;
-                    while (lower < stop) { // Skip leading spaces.
-                        final int c = part.codePointAt(lower);
-                        if (!Character.isWhitespace(c)) break;
-                        lower += Character.charCount(c);
-                    }
-                    int upper = lower;
-                    while (upper < stop) { // Stop at the first space.
-                        final int c = part.codePointAt(upper);
-                        if (Character.isWhitespace(c)) break;
-                        upper += Character.charCount(c);
-                    }
-                    if (upper - lower >= MINIMAL_SEARCH_LENGTH) {
-                        search = wordTable.dictionary.searchBest(part.substring(lower, upper));
-                        if (search != null) {
-                            final int base = position + lower;
-                            search.highlighterKey = highlighter.addHighlight(base, base + search.matchLength,
-                                    search.isFullMatch ? (search.isDerivedWord ? emphaseDerived : emphaseComplete) : emphase);
-                            previousSearch = search;
-                            wordTable.setContent(search.word);
-                        }
-                    }
-                } catch (SQLException | BadLocationException e) {
-                    // TODO: We need a better handling, maybe with a widget for bug reports.
-                    // For now, we let the search result to null.
-                    Logging.recoverableException(JMdict.class, "searchBest", e);
-                }
-            } finally {
-                isInternalEdit = false;
+            final int length = Math.min(docLength - position, LONGUEST_KANJI_WORD);
+            if (length >= MINIMAL_SEARCH_LENGTH) try {
+                search(document.getText(position, length), position);
+            } catch (BadLocationException e) {
+                // TODO: We need a better handling, maybe with a widget for bug reports.
+                // For now, we let the search result to null.
+                Logging.recoverableException(SwingEditor.class, "run", e);
+            }
+        }
+    }
+
+    /**
+     * Invoked when a search has been successfully completed.
+     */
+    @Override
+    void searchCompleted(final SearchResult result) {
+        super.searchCompleted(result);
+        EventQueue.invokeLater(new Runnable() {
+            @Override public void run() {
+                setSearchResult(result);
+            }
+        });
+    }
+
+    /**
+     * Sets the search result.
+     * Must be invoked in the Swing thread.
+     */
+    final void setSearchResult(final SearchResult result) {
+        if (result != previousSearch) {
+            if (previousSearch != null) {
+                highlighter.removeHighlight(previousSearch.highlighterKey);
+            }
+            previousSearch = result;
+            if (result != null) try {
+                final int base = result.documentOffset;
+                result.highlighterKey = highlighter.addHighlight(base, base + result.matchLength,
+                        result.isFullMatch ? (result.isDerivedWord ? emphaseDerived : emphaseComplete) : emphase);
+            } catch (BadLocationException e) {
+                // TODO: We need a better handling, maybe with a widget for bug reports.
+                // For now, we let the search result to null.
+                Logging.recoverableException(SwingEditor.class, "setSearchResult", e);
             }
         }
     }

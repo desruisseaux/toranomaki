@@ -76,7 +76,7 @@ public final class JMdict implements AutoCloseable {
     @SuppressWarnings("serial")
     private final Map<Integer,Entry> entries = new LinkedHashMap<Integer,Entry>(1024, 0.75f, true) {
         @Override protected boolean removeEldestEntry(final Map.Entry eldest) {
-            return size() > 6100; // Arbitrary cache capacity (see javadoc).
+            return size() > 12000; // Arbitrary cache capacity (see javadoc).
         }
     };
 
@@ -349,11 +349,14 @@ public final class JMdict implements AutoCloseable {
     /**
      * Searches the best entry matching the given text, or {@code null} if none.
      *
-     * @param toSearch   The word to search.
+     * @param toSearch       The word to search.
+     * @param documentOffset Index of the first character of the given word in the document.
+     *                       This information is not used by this method. This value is simply
+     *                       stored in the {@link #documentOffset} field for caller convenience.
      * @return The search result, or {@code null} if none.
      * @throws SQLException If an error occurred while querying the database.
      */
-    public SearchResult searchBest(final String toSearch) throws SQLException {
+    public SearchResult searchBest(final String toSearch, final int documentOffset) throws SQLException {
         if (toSearch == null || toSearch.isEmpty()) {
             return null;
         }
@@ -361,7 +364,7 @@ public final class JMdict implements AutoCloseable {
         final CharacterType type = CharacterType.forWord(toSearch);
         // TODO: current algorithm is inefficient, and the 2 : 4 numbers are empirical.
         String prefix = toSearch.substring(0, Math.min(toSearch.length(), type.isKanji ? 2 : 4));
-        while ((result = SearchResult.search(search(prefix, type), toSearch, type.isKanji)) == null) {
+        while ((result = SearchResult.search(search(prefix, type), toSearch, type.isKanji, documentOffset)) == null) {
             int length = prefix.length();
             if (length < MINIMAL_SEARCH_LENGTH) {
                 break;
