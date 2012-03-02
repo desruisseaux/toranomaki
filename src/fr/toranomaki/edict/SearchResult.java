@@ -108,7 +108,7 @@ public final class SearchResult {
                  * dictionary. Next, searches among all derived elements (if any). The JMdict
                  * elements have negative variant index, while derived elements have positive
                  * variant index. The conversion from negative to positive index is performed
-                 * using the ~ (not minus) operation. Remainer: ~x = -x+1.
+                 * using the ~ (not minus) operation. Remainder: ~x = -x+1.
                  */
                 final String toVerify = (variant < 0) ? candidate.getWord(isKanji, ~variant): derivedWords[variant];
                 int si = 0; // toSearch index.

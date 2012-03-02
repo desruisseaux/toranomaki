@@ -17,11 +17,10 @@ package fr.toranomaki.edict;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.EnumSet;
-import java.util.List;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -53,21 +52,11 @@ public final class JMdict implements AutoCloseable {
     private static final Entry[] EMPTY_RESULT = new Entry[0];
 
     /**
-     * When searching for a words using the {@code LIKE} clause, maximal number of characters
-     * allowed after the shortest word in order to accept an entry. This is used as an heuristic
-     * filter for reducing the amount of irrelevant search results.
-     *
-     * @see #search(String)
+     * Maximal number of rows to consider before and after the word to search. The number of
+     * search results should typically be reasonable (e.g. 20 entries). Nevertheless we put
+     * an arbitrary limit as a safety.
      */
-    private static final int MAXIMUM_EXTRA_CHARACTERS = 3;
-
-    /**
-     * The suggested minimal length of words to give to the search methods. We suggest a
-     * minimal length in order to avoid returning too many results from search methods.
-     *
-     * @see #searchBest(String)
-     */
-    public static final int MINIMAL_SEARCH_LENGTH = 2;
+    private static final int MAXIMUM_ROWS = 100;
 
     /**
      * A cache of most recently used entries. The cache capacity is arbitrary, but we are
@@ -119,45 +108,72 @@ public final class JMdict implements AutoCloseable {
     private final boolean exactMatch;
 
     /**
-     * The connection to the SQL database to be closed by the {@link #close()} method,
-     * or {@code null} if this class doesn't own the connection.
+     * {@code true} if the {@linkplain #connection} should be closed by the {@link #close()} method.
+     * If {@code false}, only the {@linkplain #statements} will be closed.
      */
-    private final Connection toClose;
+    private final boolean closeConnection;
 
     /**
-     * The statement for reading an entry for a given {@code seq_ent} key;
+     * The connection to the SQL database.
      */
-    private final PreparedStatement selectEntry;
+    private final Connection connection;
+
+    /*
+     * The following static constants are index in the 'statements' array. Some values are
+     * derived arithmetically, and no value shall overlap. This class contains a 'switch'
+     * statement using all constant values, including the value derived arithmetically.
+     * We rely on 'javac' for producing a compilation error if some values overlap.
+     */
 
     /**
-     * The statement for reading the priority of a word.
+     * Index of the statement for reading an entry for a given {@code seq_ent} key;
      */
-    private final PreparedStatement selectPriority;
+    private static final int SELECT_ENTRY = 0;
 
     /**
-     * The statement for reading the <cite>Part Of Speech</cite> (POS) information about a word.
+     * Index of the statement for reading the priority of a word.
      */
-    private final PreparedStatement selectPOS;
+    private static final int SELECT_PRIORITY = 1;
 
     /**
-     * The statement for reading the meaning for an entry.
+     * Index of the statement for reading the <cite>Part Of Speech</cite> (POS) information about a word.
      */
-    private final PreparedStatement selectMeaning;
+    private static final int SELECT_POS = 2;
 
     /**
-     * The statement for searching the meaning.
+     * Index of the statement for reading the meaning for an entry.
      */
-    private final PreparedStatement searchMeaning;
+    private static final int SELECT_MEANING = 3;
 
     /**
-     * The statement for searching a reading element.
+     * Index of the statement for searching the meaning.
+     * The statement at the index+1 search in descending order.
      */
-    private final PreparedStatement searchReading;
+    private static final int SEARCH_MEANING = 4;
+
+    /**
+     * Index of the statement for searching a reading element.
+     * The statement at the index+1 search in descending order.
+     */
+    private static final int SEARCH_READING = 6;
 
     /**
      * The statement for searching a Kanji element.
+     * The statement at the index+1 search in descending order.
      */
-    private final PreparedStatement searchKanji;
+    private static final int SEARCH_KANJI = 8;
+
+    /**
+     * The prepared statements, created when first needed.
+     * The length must be equals to the last of the above-cited index + 2.
+     */
+    private final PreparedStatement[] statements = new PreparedStatement[10];
+
+    /**
+     * A temporary set used by {@link #search(String)} only. Its content is cleared after
+     * every search operations.
+     */
+    private final Set<Integer> matchingEntryID = new LinkedHashSet<>();
 
     /**
      * Creates a new connection to the dictionary.
@@ -177,6 +193,9 @@ public final class JMdict implements AutoCloseable {
      * @throws SQLException If an error occurred while preparing the statements.
      */
     JMdict(final Connection connection, final boolean exact) throws SQLException {
+        exactMatch      = exact;
+        closeConnection = !exact; // For now, close only if invoked from the public constructor.
+        this.connection = connection;
         final Locale locale = Locale.getDefault();
         if (locale.getLanguage().equals(Locale.ENGLISH.getLanguage())) {
             locales = new Locale[] {locale};
@@ -187,82 +206,116 @@ public final class JMdict implements AutoCloseable {
         for (int i=0; i<localeCodes.length; i++) {
             localeCodes[i] = locales[i].getISO3Language();
         }
-        exactMatch     = exact;
-        toClose        = exact ? null : connection; // For now, close only if invoked from the public constructor.
-        selectEntry    = prepareSelect(connection, TableOrColumn.entries,    false, ElementType.ent_seq, true, null);
-        selectPriority = prepareSelect(connection, TableOrColumn.priorities, false, TableOrColumn.id,    true, null);
-        selectPOS      = prepareSelect(connection, TableOrColumn.pos,        false, TableOrColumn.id,    true, null);
-        selectMeaning  = prepareSelect(connection, TableOrColumn.senses,     false, ElementType.ent_seq, true, localeCodes);
-        searchMeaning  = prepareSelect(connection, TableOrColumn.senses,     true,  ElementType.gloss,  exact, new String[] {"?"});
-        searchReading  = prepareSelect(connection, TableOrColumn.entries,    true,  ElementType.reb,    exact, null);
-        searchKanji    = prepareSelect(connection, TableOrColumn.entries,    true,  ElementType.keb,    exact, null);
     }
 
     /**
-     * Creates a {@code SELECT} statement into the given table.
+     * Returns the prepared statement at the given index. The index must be one of the
+     * {@code SELECT_*} or {@code SEARCH_*} constant.
+     * <p>
+     * This method creates the statement only when first needed, then stores it for reuse.
      * The statement created by this method looks like below:
      *
      * <blockquote><code>
-     * SELECT keb, reb, ke_pri, re_pri FROM entries WHERE ent_seq = ?;
+     * SELECT ent_seq, keb, reb, ke_pri, re_pri FROM entries WHERE ent_seq = ?;
      * </code></blockquote>
-     *
-     * @param  connection  The connection to the SQL database.
-     * @param  table       The table where to search.
-     * @param  distinctID  {@code true} if only distinct values from the first column are wanted.
-     * @param  toSearch    The column where to search a value. This column will be excluded from the result.
-     * @param  exactMatch  {@code true} if the search methods should look for exact matches.
-     * @param  languages   If non-null, add {@code "WHERE lang="} clauses.
-     * @return The prepared statement.
-     * @throws SQLException If an error occurred while preparing the statement.
      */
-    private static PreparedStatement prepareSelect(final Connection connection,
-            final TableOrColumn table, final boolean distinctID,
-            final Enum<?> toSearch,    final boolean exactMatch,
-            final String[] languages) throws SQLException
-    {
-        final StringBuilder sql = new StringBuilder();
-        String separator = distinctID ? "SELECT DISTINCT " : "SELECT ";
-        for (final Enum<?> column : table.columns) {
-            if (column != toSearch) {
-                sql.append(separator).append(column);
-                if (distinctID) break;
-                separator = ", ";
+    private PreparedStatement getStatement(final int index) throws SQLException {
+        assert Thread.holdsLock(this);
+        PreparedStatement stmt = statements[index];
+        if (stmt == null) {
+            final TableOrColumn table;  // The table where to search.
+            final Enum<?> toSearch;     // The column where to search a value.
+            final boolean exact;        // Whatever to perform an exact search.
+            String[] lang = null;       // If non-null, add "WHERE lang=" clauses.
+            switch (index) {            // We rely on this switch for ensuring non-overlapping constants!
+                case SELECT_ENTRY:     table=TableOrColumn.entries;    toSearch=ElementType.ent_seq; exact=true;  break;
+                case SELECT_PRIORITY:  table=TableOrColumn.priorities; toSearch=TableOrColumn.id;    exact=true;  break;
+                case SELECT_POS:       table=TableOrColumn.pos;        toSearch=TableOrColumn.id;    exact=true;  break;
+                case SELECT_MEANING:   table=TableOrColumn.senses;     toSearch=ElementType.ent_seq; exact=true;  lang=localeCodes; break;
+                case SEARCH_MEANING:   // Search in (ascending|descending) order.
+                case SEARCH_MEANING|1: table=TableOrColumn.senses;     toSearch=ElementType.gloss;   exact=false; lang=localeCodes; break;
+                case SEARCH_READING:   // Search in (ascending|descending) order.
+                case SEARCH_READING|1: table=TableOrColumn.entries;    toSearch=ElementType.reb;     exact=false; break;
+                case SEARCH_KANJI:     // Search in (ascending|descending) order.
+                case SEARCH_KANJI|1:   table=TableOrColumn.entries;    toSearch=ElementType.keb;     exact=false; break;
+                default: throw new AssertionError(index);
             }
-        }
-        sql.append(" FROM ").append(table).append(" WHERE ").append(toSearch)
-                .append(exactMatch ? " = " : " LIKE ").append('?');
-        if (languages != null) {
+            // Control the comparator to use: -1 for "<", +1 for ">=" or 0 for "=".
+            final int order = (exact | exactMatch) ? 0 : (index & 1) != 0 ? -1 : +1;
+            final StringBuilder sql = new StringBuilder();
             /*
-             * Restrict the search to the user language.
+             * Create the "SELECT columns" part of the SQL statement.   We do not include
+             * the column to search if an exact match were required, since the content of
+             * that column is already known.  Additionally we will include only the first
+             * column (which is the identifier) and the search column if a non-exact match
+             * were required, since we will need to perform a separate search for entries
+             * by identifier.
              */
-            separator = " AND (";
-            for (final String lang : languages) {
-                sql.append(separator).append("lang=");
-                if (!lang.equals("?")) sql.append('\'');
-                sql.append(lang);
-                if (!lang.equals("?")) sql.append('\'');
-                separator = " OR ";
+            if (exact) {
+                String separator = "SELECT ";
+                for (final Enum<?> column : table.columns) {
+                    if (column != toSearch) {
+                        sql.append(separator).append(column);
+                        separator = ", ";
+                    }
+                }
+            } else {
+                sql.append("SELECT ").append(table.columns[0]).append(", ").append(toSearch);
             }
-            sql.append(')');
+            /*
+             * Appends the "FROM table WHERE condition" part of the SQL statement.
+             * The conditions will restrict the search to the user preferred languages
+             * if the 'lang' array is non-null.
+             */
+            sql.append(" FROM ").append(table).append(" WHERE ").append(toSearch).append(operator(order)).append('?');
+            if (order != 0) {
+                sql.append(" AND ").append(toSearch).append(operator(-order)).append('?');
+            }
+            if (lang != null) {
+                String separator = " AND (";
+                for (final String lg : lang) {
+                    sql.append(separator).append("lang=").append('\'').append(lg).append('\'');
+                    separator = " OR ";
+                }
+                sql.append(')');
+            }
+            /*
+             * Complete the last part of the SQL statement if needed, put a limit
+             * on the number of rows as a safety and cache the new prepared statement.
+             */
+            if (order != 0) {
+                sql.append(" ORDER BY ").append(toSearch).append(order >= 0 ? " ASC" : " DESC");
+            }
+            stmt = connection.prepareStatement(sql.toString());
+            stmt.setMaxRows(MAXIMUM_ROWS);
+            statements[index] = stmt;
         }
-        return connection.prepareStatement(sql.toString());
+        return stmt;
+    }
+
+    /**
+     * Returns the SQL comparison order for the given order code.
+     */
+    private static String operator(final int order) {
+        return (order == 0) ? " = " : (order >= 0 ? " >= " : " < ");
     }
 
     /**
      * Returns the entry for the given {@code ent_seq} numeric identifier.
      *
-     * @param  ent_seq The key of the entry to search for.
+     * @param  id The identifier of the entry to search for.
      * @return The entry for the given key.
      * @throws SQLException If an error occurred while querying the database.
      */
-    private Entry getEntry(final int ent_seq) throws SQLException {
+    private Entry getEntry(final Integer id) throws SQLException {
         assert Thread.holdsLock(this);
-        final Integer key = ent_seq;
-        Entry entry = entries.get(key);
+        final int ent_seq = id;
+        Entry entry = entries.get(id);
         if (entry == null) {
             entry = new Entry(ent_seq);
-            selectEntry.setInt(1, ent_seq);
-            try (final ResultSet rs = selectEntry.executeQuery()) {
+            PreparedStatement stmt = getStatement(SELECT_ENTRY);
+            stmt.setInt(1, ent_seq);
+            try (final ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     boolean isKanjiResult = true;
                     do { // This loop is executed twice: once for Kanji and once for reading element.
@@ -278,12 +331,13 @@ public final class JMdict implements AutoCloseable {
                 }
             }
             /*
-             * Finds the meanings for the given entry. The length of the 'senses' array
+             * Find the meanings for the given entry. The length of the 'senses' array
              * is the number of languages (typically 2). Each entry is a comma-separated
              * list of senses in one language.
              */
-            selectMeaning.setInt(1, ent_seq);
-            try (final ResultSet rs = selectMeaning.executeQuery()) {
+            stmt = getStatement(SELECT_MEANING);
+            stmt.setInt(1, ent_seq);
+            try (final ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     final Set<PartOfSpeech> pos = getPartOfSpeech(rs.getShort(1));
                     final String lang  = rs.getString(2);
@@ -298,7 +352,7 @@ public final class JMdict implements AutoCloseable {
                 }
             }
             entry.addSenseSummary(locales);
-            entries.put(key, entry);
+            entries.put(id, entry);
         }
         return entry;
     }
@@ -316,8 +370,9 @@ public final class JMdict implements AutoCloseable {
         if (pos == null) {
             pos = EnumSet.noneOf(PartOfSpeech.class);
             final boolean isCompound = (id >= PartOfSpeech.FIRST_AVAILABLE_ID);
-            selectPOS.setShort(1, id);
-            try (final ResultSet rs = selectPOS.executeQuery()) {
+            final PreparedStatement stmt = getStatement(SELECT_POS);
+            stmt.setShort(1, id);
+            try (final ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     final String description = rs.getString(1).trim();
                     if (!isCompound) {
@@ -360,18 +415,8 @@ public final class JMdict implements AutoCloseable {
         if (toSearch == null || toSearch.isEmpty()) {
             return null;
         }
-        SearchResult result;
         final CharacterType type = CharacterType.forWord(toSearch);
-        // TODO: current algorithm is inefficient, and the 2 : 4 numbers are empirical.
-        String prefix = toSearch.substring(0, Math.min(toSearch.length(), type.isKanji ? 2 : 4));
-        while ((result = SearchResult.search(search(prefix, type), toSearch, type.isKanji, documentOffset)) == null) {
-            int length = prefix.length();
-            if (length < MINIMAL_SEARCH_LENGTH) {
-                break;
-            }
-            prefix = prefix.substring(0, length-1);
-        }
-        return result;
+        return SearchResult.search(search(toSearch, type), toSearch, type.isKanji, documentOffset);
     }
 
     /**
@@ -379,58 +424,135 @@ public final class JMdict implements AutoCloseable {
      * {@code CharacterType.forWord(word)}.
      */
     private synchronized Entry[] search(final String word, final CharacterType type) throws SQLException {
-        final String[] searchLocales;
-        final PreparedStatement stmt;
+        matchingEntryID.clear(); // Safety in case a previous call failed before completion.
+        final int index;
         switch (type) {
-            case JOYO_KANJI: case KANJI:    stmt = searchKanji;   searchLocales = null;        break;
-            case KATAKANA:   case HIRAGANA: stmt = searchReading; searchLocales = null;        break;
-            case ALPHABETIC:                stmt = searchMeaning; searchLocales = localeCodes; break;
-            default:                        return EMPTY_RESULT;
+            case JOYO_KANJI: case KANJI:    index = SEARCH_KANJI;   break;
+            case KATAKANA:   case HIRAGANA: index = SEARCH_READING; break;
+            case ALPHABETIC:                index = SEARCH_MEANING; break;
+            default: return EMPTY_RESULT;
         }
-        int minimalLength = Short.MAX_VALUE;
-        stmt.setString(1, exactMatch ? word : word + '%');
-        final List<Entry> entries = new ArrayList<>();
-        final List<Integer> matchLengths = !exactMatch ? new ArrayList<Integer>() : null;
-        for (int i=(searchLocales!=null) ? searchLocales.length : 1; --i>=0;) {
-            if (searchLocales != null) {
-                stmt.setString(2, searchLocales[i]);
-            }
-            try (final ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    final Entry entry = getEntry(rs.getInt(1));
-                    if (matchLengths != null) {
-                        final int length = entry.getShortestWord(type, word).length();
-                        final int delta = length - minimalLength;
-                        if (delta < 0) {
-                            minimalLength = length;
-                        } else if (delta > MAXIMUM_EXTRA_CHARACTERS) {
-                            continue; // Word is too long, so skip it.
-                        }
-                        matchLengths.add(length);
+        final PreparedStatement stmt1 = getStatement(index); // Search in ascending order.
+        stmt1.setString(1, word);
+        if (!exactMatch) {
+            // Create a single character to be used as an upper bound.
+            stmt1.setString(2, String.valueOf(Character.toChars(word.codePointAt(0) + 1)));
+        }
+        PreparedStatement stmt2 = null; // To be created only if needed.
+        /*
+         * Search matching words in ascending order first. If the very first record begin
+         * with all of the 'word' character, there is no need to execute the search in
+         * descending order. Otherwise, get the first record of the search in descending
+         * order before to continue the search in ascending order, in order to known how
+         * many common characters to look for.
+         *
+         * Example: If we search for "ABCD" in a dictionary containing only "ABCC" and "ABDD",
+         * then the "entry >= 'ABCD'" condition while returns "ABDD". But the previous entry,
+         * "ABCC" was a better march, so we need to check for it.
+         */
+        try (final ResultSet rs1 = stmt1.executeQuery()) {
+            int commonLength = collectFirstID(rs1, word);
+            if (commonLength < word.length()) {
+                /*
+                 * If we enter in this block, we have determined that the search in ascending
+                 * order will not be suffisient (it would have been suffisient if the begining
+                 * of our first entry contained all the characters of the word to search). So
+                 * we need to run a search in descending order.
+                 */
+                if (stmt2 == null) {
+                    stmt2 = getStatement(index | 1);
+                    stmt2.setString(1, word);
+                    if (!exactMatch) {
+                        // We will want at least the number of characters matching so far.
+                        stmt2.setString(2, word.substring(0, Math.max(commonLength, Character.charCount(word.codePointAt(0)))));
                     }
-                    entries.add(entry);
+                }
+                try (final ResultSet rs2 = stmt2.executeQuery()) {
+                    final int n = collectFirstID(rs2, word);
+                    if (n != 0 && n >= commonLength) {
+                        if (commonLength != n) {
+                            commonLength = n;
+                            rs1.close();
+                            matchingEntryID.clear(); // Remove the entry collected by the ascending search.
+                        }
+                        collectEntryID(rs2, word, commonLength);
+                    }
                 }
             }
-            // If we found entries in the preferred locale,
-            // do not search in the fallback locale.
-            if (!entries.isEmpty()) {
-                break;
+            if (!rs1.isClosed()) {
+                collectEntryID(rs1, word, commonLength);
             }
         }
         /*
-         * Before to returns the array, removes the elements which are too long
-         * compared to the search criterion.
+         * At this point, we have the identifier of all entries.
+         * Now get the actual Entry instances.
          */
-        if (matchLengths != null) {
-            for (int i=matchLengths.size(); --i>=0;) {
-                if (matchLengths.get(i) - minimalLength > MAXIMUM_EXTRA_CHARACTERS) {
-                    entries.remove(i); // Word is too long, so remove it.
-                }
-            }
+        int i = 0;
+        final Entry[] array = new Entry[matchingEntryID.size()];
+        for (final Integer id : matchingEntryID) {
+            array[i++] = getEntry(id);
         }
-        final Entry[] array = entries.toArray(new Entry[entries.size()]);
+        matchingEntryID.clear();
+        assert i == array.length;
         Arrays.sort(array); // Sort by priority.
         return array;
+    }
+
+    /**
+     * Fetches only the first entry from the given result set and stores its identifier
+     * in the {@link #matchingEntryID} set. If no record is found, this method closes the
+     * result set and returns 0.
+     *
+     * @param  rs   The result set from which to perform the search.
+     * @param  word The word to search.
+     * @return The length of the common prefix, or 0 if none.
+     * @throws SQLException If an error occurred while querying the database.
+     */
+    private int collectFirstID(final ResultSet rs, final String word) throws SQLException {
+        if (rs.next()) {
+            final int commonLength = commonPrefixLength(word, rs.getString(2));
+            if (commonLength != 0) {
+                matchingEntryID.add(rs.getInt(1));
+                return commonLength;
+            }
+        }
+        rs.close();
+        return 0;
+    }
+
+    /**
+     * Fetches all remaining entries from the given result set and stores their identifiers
+     * in the {@link #matchingEntryID} set.
+     *
+     * @param  rs   The result set from which to perform the search.
+     * @param  word The word to search.
+     * @throws SQLException If an error occurred while querying the database.
+     */
+    private void collectEntryID(final ResultSet rs,
+            final String word, final int prefixLength) throws SQLException
+    {
+        while (rs.next()) {
+            final int n = commonPrefixLength(word, rs.getString(2));
+            if (n < prefixLength) break;
+            matchingEntryID.add(rs.getInt(1));
+        }
+    }
+
+    /**
+     * Returns the length of the prefix which is common to the two given string.
+     * The comparison is case-sensitive.
+     */
+    private static int commonPrefixLength(final String s1, final String s2) {
+        final int length = Math.min(s1.length(), s2.length());
+        int i = 0;
+        while (i < length) {
+            // No need to use the codePointAt API, since we are looking for exact match.
+            if (s1.charAt(i) != s2.charAt(i)) {
+                break;
+            }
+            i++;
+        }
+        return i;
     }
 
     /**
@@ -446,9 +568,10 @@ public final class JMdict implements AutoCloseable {
     public synchronized Set<Priority> getPriority(final Short id) throws SQLException {
         Set<Priority> result = priorities.get(id);
         if (result == null) {
-            selectPriority.setShort(1, id);
+            final PreparedStatement stmt = getStatement(SELECT_PRIORITY);
+            stmt.setShort(1, id);
             final Enum<?>[] columns = TableOrColumn.priorities.columns;
-            try (final ResultSet rs = selectPriority.executeQuery()) {
+            try (final ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     // columns[0] is the id, which we skip.
                     for (int i=1; i<columns.length; i++) {
@@ -509,15 +632,15 @@ public final class JMdict implements AutoCloseable {
     @Override
     public synchronized void close() throws SQLException {
         entries.clear();
-        searchKanji   .close();
-        searchReading .close();
-        searchMeaning .close();
-        selectMeaning .close();
-        selectPOS     .close();
-        selectPriority.close();
-        selectEntry   .close();
-        if (toClose != null) {
-            toClose.close();
+        for (int i=0; i<statements.length; i++) {
+            final PreparedStatement stmt = statements[i];
+            if (stmt != null) {
+                stmt.close();
+                statements[i] = null;
+            }
+        }
+        if (closeConnection) {
+            connection.close();
         }
     }
 }

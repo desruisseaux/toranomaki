@@ -23,7 +23,6 @@ import javax.swing.text.*;
 import javax.swing.undo.*;
 
 import fr.toranomaki.edict.SearchResult;
-import static fr.toranomaki.edict.JMdict.MINIMAL_SEARCH_LENGTH;
 
 
 /**
@@ -203,7 +202,7 @@ final class SwingEditor extends EditorTextArea implements KeyListener, UndoableE
             caretPosition = -1;
             final int docLength = document.getLength();
             final int length = Math.min(docLength - position, LONGUEST_KANJI_WORD);
-            if (length >= MINIMAL_SEARCH_LENGTH) try {
+            if (length > 0) try {
                 search(document.getText(position, length), position);
             } catch (BadLocationException e) {
                 // TODO: We need a better handling, maybe with a widget for bug reports.

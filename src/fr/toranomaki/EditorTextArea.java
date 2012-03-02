@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.sql.SQLException;
 
 import fr.toranomaki.edict.SearchResult;
-import static fr.toranomaki.edict.JMdict.MINIMAL_SEARCH_LENGTH;
 
 
 /**
@@ -127,7 +126,7 @@ class EditorTextArea {
                     if (!Character.isAlphabetic(c)) break;
                     upper += Character.charCount(c);
                 }
-                if (upper - lower >= MINIMAL_SEARCH_LENGTH) try {
+                if (upper > lower) try {
                     final SearchResult search = wordTable.dictionary.searchBest(part.substring(lower, upper), documentOffset + lower);
                     if (search != null) {
                         searchCompleted(search);
