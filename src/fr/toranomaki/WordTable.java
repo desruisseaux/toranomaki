@@ -137,32 +137,47 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
 
     /**
      * Sets the table content to the result of the search for the given word.
-     * This method can be invoked from any thread.
+     * This method should be invoked from a background thread.
+     *
+     * @param word The word to search.
      */
     final void setContent(final String word) {
         final Task<WordElement[]> task = new Task<WordElement[]>() {
-            @Override @SuppressWarnings("unchecked")
+            @Override
             protected WordElement[] call() throws SQLException {
                 final WordElement[] selected;
                 try {
-                    final Entry[] entries = dictionary.search(word);
-                    selected = new WordElement[entries.length];
-                    for (int i=0; i<entries.length; i++) {
-                        selected[i] = new WordElement(dictionary, entries[i]);
-                    }
+                    selected = setContent(dictionary.search(word), -1);
                 } catch (Throwable e) {
-                    Logging.recoverableException(WordTable.class, "handle", e);
+                    Logging.recoverableException(WordTable.class, "setContent", e);
                     return null;
                 }
-                Platform.runLater(new Runnable() {
-                    @Override public void run() {
-                        entries.setAll(selected);
-                    }
-                });
                 return selected;
             }
         };
         executor.execute(task);
+    }
+
+    /**
+     * Sets the table content to the given entries.
+     * This method should be invoked from a background thread.
+     *
+     * @param tableEntries The entries to show in the table.
+     * @param selectedIndex The index of the entry to show in the description area, or -1 if none.
+     */
+    final WordElement[] setContent(final Entry[] tableEntries, final int selectedIndex) throws SQLException {
+        final WordElement[] elements = new WordElement[tableEntries.length];
+        for (int i=0; i<tableEntries.length; i++) {
+            elements[i] = new WordElement(dictionary, tableEntries[i]);
+        }
+        final WordElement selected = (selectedIndex >= 0) ? elements[selectedIndex] : null;
+        Platform.runLater(new Runnable() {
+            @Override public void run() {
+                entries.setAll(elements);
+                description.setSelected(selected);
+            }
+        });
+        return elements;
     }
 
     /**

@@ -451,7 +451,7 @@ public final class JMdict implements AutoCloseable {
          * "ABCC" was a better march, so we need to check for it.
          */
         try (final ResultSet rs1 = stmt1.executeQuery()) {
-            int commonLength = collectFirstID(rs1, word);
+            int commonLength = collectFirstID(rs1, word, 1);
             if (commonLength < word.length()) {
                 /*
                  * If we enter in this block, we have determined that the search in ascending
@@ -459,21 +459,21 @@ public final class JMdict implements AutoCloseable {
                  * of our first entry contained all the characters of the word to search). So
                  * we need to run a search in descending order.
                  */
+                final int minLength = Math.max(commonLength, Character.charCount(word.codePointAt(0)));
                 if (stmt2 == null) {
                     stmt2 = getStatement(index | 1);
                     stmt2.setString(1, word);
                     if (!exactMatch) {
                         // We will want at least the number of characters matching so far.
-                        stmt2.setString(2, word.substring(0, Math.max(commonLength, Character.charCount(word.codePointAt(0)))));
+                        stmt2.setString(2, word.substring(0, minLength));
                     }
                 }
                 try (final ResultSet rs2 = stmt2.executeQuery()) {
-                    final int n = collectFirstID(rs2, word);
-                    if (n != 0 && n >= commonLength) {
+                    final int n = collectFirstID(rs2, word, minLength);
+                    if (n >= minLength) { // Implies >= commonLength
                         if (commonLength != n) {
                             commonLength = n;
                             rs1.close();
-                            matchingEntryID.clear(); // Remove the entry collected by the ascending search.
                         }
                         collectEntryID(rs2, word, commonLength);
                     }
@@ -505,13 +505,17 @@ public final class JMdict implements AutoCloseable {
      *
      * @param  rs   The result set from which to perform the search.
      * @param  word The word to search.
+     * @param  minLength The minimal common prefix length for accepting the entry.
      * @return The length of the common prefix, or 0 if none.
      * @throws SQLException If an error occurred while querying the database.
      */
-    private int collectFirstID(final ResultSet rs, final String word) throws SQLException {
+    private int collectFirstID(final ResultSet rs, final String word, final int minLength) throws SQLException {
         if (rs.next()) {
             final int commonLength = commonPrefixLength(word, rs.getString(2));
-            if (commonLength != 0) {
+            if (commonLength >= minLength) {
+                if (commonLength != minLength) {
+                    matchingEntryID.clear(); // Remove the entry collected by the ascending search.
+                }
                 matchingEntryID.add(rs.getInt(1));
                 return commonLength;
             }

@@ -25,9 +25,14 @@ import static java.lang.Character.*;
  */
 public final class SearchResult {
     /**
-     * The entry which has been found.
+     * The entries which which were examined for the search.
      */
-    public final Entry entry;
+    public final Entry[] entries;
+
+    /**
+     * Index of the selected entry in the {@link #entries} array.
+     */
+    public final int selectedIndex;
 
     /**
      * The word which seems to be matching the search.
@@ -67,10 +72,12 @@ public final class SearchResult {
     /**
      * Creates a new result of word search.
      */
-    private SearchResult(final Entry entry, final String word, final int documentOffset,
-            final int matchLength, final boolean isFullMatch, final boolean isDerivedWord)
+    private SearchResult(final Entry[] entries, final int selectedIndex, final String word,
+            final int documentOffset, final int matchLength, final boolean isFullMatch,
+            final boolean isDerivedWord)
     {
-        this.entry          = entry;
+        this.entries        = entries;
+        this.selectedIndex  = selectedIndex;
         this.word           = word;
         this.documentOffset = documentOffset;
         this.matchLength    = matchLength;
@@ -95,11 +102,12 @@ public final class SearchResult {
     {
         int     matchLength    = 0;
         int     wordLength     = Integer.MAX_VALUE;
-        Entry   best           = null;
+        int     indexBest      = -1;
         String  word           = null;
         boolean isFullMatch    = false;
         boolean isDerivedWord  = false;
-        for (final Entry candidate : entries) {
+        for (int i=0; i<entries.length; i++) {
+            final Entry candidate = entries[i];
             final String[] derivedWords = candidate.getDerivedWords(isKanji);
             final int numDerived = (derivedWords != null) ? derivedWords.length : 0;
             for (int variant=-candidate.getCount(isKanji); variant<numDerived; variant++) {
@@ -137,7 +145,7 @@ public final class SearchResult {
                         continue;
                     }
                 }
-                best          = candidate;
+                indexBest     = i;
                 word          = toVerify;
                 matchLength   = si;
                 wordLength    = toVerify.length();
@@ -145,7 +153,8 @@ public final class SearchResult {
                 isDerivedWord = (variant >= 0);
             }
         }
-        return (best != null) ? new SearchResult(best, word, documentOffset, matchLength, isFullMatch, isDerivedWord) : null;
+        return (indexBest >= 0) ? new SearchResult(entries, indexBest, word,
+                documentOffset, matchLength, isFullMatch, isDerivedWord) : null;
     }
 
     /**

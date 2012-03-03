@@ -145,6 +145,10 @@ class EditorTextArea {
      * The default implementation update the table view.
      */
     void searchCompleted(final SearchResult result) {
-        wordTable.setContent(result.word);
+        try {
+            wordTable.setContent(result.entries, result.selectedIndex);
+        } catch (Throwable e) {
+            Logging.recoverableException(WordTable.class, "setContent", e);
+        }
     }
 }
