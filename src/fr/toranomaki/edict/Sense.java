@@ -74,30 +74,44 @@ public class Sense {
     /**
      * Creates a new sense which summarize all other senses.
      *
-     * @param  locale The locale for this sense.
-     * @param  senses The other senses to summarize.
+     * @param  locales The locales in <em>reverse</em> of preference order.
+     * @param  senses  The other senses to summarize.
      * @return The summarized sense, or {@code null} if not needed.
      */
-    static Sense summarize(final Locale locale, final Sense[] senses) {
+    static Sense summarize(final Locale[] locales, final Sense[] senses) {
         String            first   = null;
         StringBuilder     buffer  = null;
         Set<PartOfSpeech> largest = Collections.emptySet();
-        for (final Sense candidate : senses) {
-            if (locale.equals(candidate.locale)) {
-                if (candidate.partOfSpeech.contains(largest)) {
-                    largest = candidate.partOfSpeech;
-                }
-                if (first == null) {
-                    first = candidate.meaning;
-                } else {
-                    if (buffer == null) {
-                        buffer = new StringBuilder(first);
+        for (int i=locales.length; --i>=0;) {
+            final Locale locale = locales[i];
+            for (final Sense candidate : senses) {
+                if (locale.equals(candidate.locale)) {
+                    if (candidate.partOfSpeech.containsAll(largest)) {
+                        largest = candidate.partOfSpeech;
                     }
-                    buffer.append(", ").append(candidate.meaning);
+                    if (first == null) {
+                        first = candidate.meaning;
+                    } else {
+                        if (buffer == null) {
+                            buffer = new StringBuilder(first);
+                        }
+                        buffer.append(", ").append(candidate.meaning);
+                    }
                 }
             }
+            /*
+             * The 'first' variable will be non-null if we have found at least one entry for
+             * the current locale. In such case, we want to stop the search now. However we
+             * will return a non-null value only if we found at least 2 entries.
+             */
+            if (first != null) {
+                if (buffer != null) {
+                    return new Summary(locale, buffer.toString(), largest);
+                }
+                break; // Stop the search since there is one entry in the preferred locale.
+            }
         }
-        return (buffer != null) ? new Summary(locale, buffer.toString(), largest) : null;
+        return null;
     }
 
     /**

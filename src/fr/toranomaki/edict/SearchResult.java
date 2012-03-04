@@ -108,15 +108,37 @@ public final class SearchResult {
         boolean isDerivedWord  = false;
         for (int i=0; i<entries.length; i++) {
             final Entry candidate = entries[i];
-            final String[] derivedWords = candidate.getDerivedWords(isKanji);
-            final int numDerived = (derivedWords != null) ? derivedWords.length : 0;
+            String[] derivedWords = null; // Computed only when first needed.
+            int numDerived = 1; // Temporary value, to be adjusted after 'derivedWords' computation.
+            /*
+             * First, searches among all Kanji or reading elements declared in the JMdict
+             * dictionary. Next, searches among all derived elements (if any). The JMdict
+             * elements have negative variant index, while derived elements have positive
+             * variant index. The conversion from negative to positive index is performed
+             * using the ~ (not minus) operation. Remainder: ~x = -x+1.
+             */
             for (int variant=-candidate.getCount(isKanji); variant<numDerived; variant++) {
                 /*
-                 * First, searches among all Kanji or reading elements declared in the JMdict
-                 * dictionary. Next, searches among all derived elements (if any). The JMdict
-                 * elements have negative variant index, while derived elements have positive
-                 * variant index. The conversion from negative to positive index is performed
-                 * using the ~ (not minus) operation. Remainder: ~x = -x+1.
+                 * Following block is executed only the first time the "derived" words are
+                 * requested. We tried to delay the call to candidate.getDerivedWords(...)
+                 * as much as possible in order to reduce the amount of String[] arrays to
+                 * be created and cached by the numerous Entry instances.
+                 */
+                if (variant == 0) {
+                    if (isFullMatch) {
+                        // If a full match has been found in the JMdict words,
+                        // don't look for derivated words - stop the search now.
+                        break;
+                    }
+                    derivedWords = candidate.getDerivedWords(isKanji);
+                    numDerived = derivedWords.length;
+                    if (numDerived == 0) break;
+                }
+                /*
+                 * For each candidate words, count the number of matching characters. We will
+                 * select the entry having the greatest amount of matching characters. If many
+                 * entries have the same amount of matching characters, then we will select the
+                 * shortest one, with JMdict words having precedence over derived words.
                  */
                 final String toVerify = (variant < 0) ? candidate.getWord(isKanji, ~variant): derivedWords[variant];
                 int si = 0; // toSearch index.
@@ -130,17 +152,16 @@ public final class SearchResult {
                     si += charCount(sc);
                     vi += charCount(vc);
                 }
-                /*
-                 * Found the matching portion. Now check if it is
-                 * any better than the best one found up to date.
-                 */
+                // If there is less matching characters than our best match, reject.
                 if (si < matchLength) {
                     continue;
                 }
                 if (si == matchLength) {
+                    // If the candidate is longer than our best match, reject.
                     if (toVerify.length() > wordLength) {
                         continue;
                     }
+                    // If the candidate is a derived word while our best match was a JMdict word, reject.
                     if (!isDerivedWord && variant >= 0) {
                         continue;
                     }

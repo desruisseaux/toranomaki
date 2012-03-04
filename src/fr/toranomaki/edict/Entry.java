@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
+import fr.toranomaki.grammar.Grammar;
 
 
 /**
@@ -81,6 +82,13 @@ public final class Entry implements Comparable<Entry> {
      * for more locales or if there is many meanings.
      */
     private Object senses;
+
+    /**
+     * The derived Kanji or reading words, computed only when first needed.
+     *
+     * @see #getDerivedWords(boolean)
+     */
+    private transient String[] derivedKanji, derivedReading;
 
     /**
      * Creates an initially empty entry.
@@ -302,22 +310,20 @@ public final class Entry implements Comparable<Entry> {
     final void addSenseSummary(final Locale[] locales) {
         if (senses instanceof Sense[]) {
             Sense[] array = (Sense[]) senses;
-            for (final Locale locale : locales) {
-                final Sense summary = Sense.summarize(locale, array);
-                if (summary != null) {
-                    final int length = array.length;
-                    array = new Sense[length + 1];
-                    array[0] = summary;
-                    System.arraycopy(senses, 0, array, 1, length);
-                    senses = array;
-                }
-            }
             // Sort in user language order preference.
             Arrays.sort(array, new Comparator<Sense>() {
                 @Override public int compare(final Sense o1, final Sense o2) {
                     return o2.indexOf(locales) - o1.indexOf(locales);
                 }
             });
+            final Sense summary = Sense.summarize(locales, array);
+            if (summary != null) {
+                final int length = array.length;
+                array = new Sense[length + 1];
+                array[0] = summary;
+                System.arraycopy(senses, 0, array, 1, length);
+                senses = array;
+            }
         }
     }
 
@@ -355,24 +361,27 @@ public final class Entry implements Comparable<Entry> {
      */
     public Sense getSenseSummmary() {
         final Object senses = this.senses; // Protect from changes.
-        if (senses != null) {
-            if (senses instanceof Sense[]) {
-                return ((Sense[]) senses)[0];
-            } else {
-                return (Sense) senses;
-            }
+        if (senses instanceof Sense[]) {
+            return ((Sense[]) senses)[0];
+        } else {
+            return (Sense) senses;
         }
-        return null;
     }
 
     /**
-     * Returns the derived words, or null if it doesn't apply to this kind of word.
+     * Returns the derived words, or an empty array if it doesn't apply to this kind of word.
      *
      * @return The derived words, or an empty array if none. <strong>Do not modify</strong>
      *         the array content, since this method does not clone the array.
      */
-    final String[] getDerivedWords(final boolean isKanji) {
-        return null; // TODO
+    synchronized final String[] getDerivedWords(final boolean isKanji) {
+        String[] derived = isKanji ? derivedKanji : derivedReading;
+        if (derived == null) {
+            derived = Grammar.DEFAULT.getDerivedWords(this, isKanji);
+            if (isKanji) derivedKanji = derived;
+            else       derivedReading = derived;
+        }
+        return derived;
     }
 
     /**
