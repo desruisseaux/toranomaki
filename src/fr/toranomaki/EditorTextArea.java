@@ -40,6 +40,18 @@ class EditorTextArea {
     private static final String FILE_ENCODING = "UTF-8";
 
     /**
+     * The <cite>byte order mark</cite> used to signal endianness of UTF-8 text files. This mark
+     * is also used for indicating to softwares (Notepad on Windows, TextEdit of MacOS) that the
+     * file is encoded in UTF-8.
+     * <p>
+     * The Unicode value is {@value}. The corresponding bytes sequence is
+     * {@code 0xEF}, {@code 0xBB}, {@code 0xBF}.
+     *
+     * @see <a href="http://en.wikipedia.org/wiki/Byte_order_mark">Byte order mark on Wikipedia</a>
+     */
+    private static final char BYTE_ORDER_MARK = '\uFEFF';
+
+    /**
      * The approximative length of the longest entry in Kanji characters.
      */
     static final int LONGUEST_KANJI_WORD = 16;
@@ -64,7 +76,7 @@ class EditorTextArea {
     }
 
     /**
-     * Loads the editor content from the last saved cession.
+     * Loads the editor content from the last saved session.
      *
      * @return The text, or {@code null} if none.
      * @throws IOException If an error occurred while loading the text.
@@ -77,6 +89,9 @@ class EditorTextArea {
                 String line; while ((line = in.readLine()) != null) {
                     buffer.append(line).append('\n');
                 }
+            }
+            if (buffer.length() != 0 && buffer.charAt(0) == BYTE_ORDER_MARK) {
+                return buffer.substring(1);
             }
             return buffer.toString();
         }
@@ -95,6 +110,7 @@ class EditorTextArea {
             file.delete();
         } else {
             try (Writer out = new OutputStreamWriter(new FileOutputStream(file), FILE_ENCODING)) {
+                out.write(BYTE_ORDER_MARK);
                 out.write(text);
             }
         }

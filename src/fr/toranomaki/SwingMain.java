@@ -42,6 +42,11 @@ import fr.toranomaki.edict.JMdict;
  */
 public final class SwingMain extends WindowAdapter {
     /**
+     * The text editor.
+     */
+    private final SwingEditor editor;
+
+    /**
      * The result of word search.
      */
     private final WordTable table;
@@ -63,10 +68,12 @@ public final class SwingMain extends WindowAdapter {
         final EmbeddedDataSource dataSource = Main.getDataSource();
         try {
             final SwingMain main = new SwingMain(frame, dataSource);
-            try {
-                main.monitor.await();
-            } finally {
-                main.table.close();
+            try (WordTable table = main.table) {
+                try {
+                    main.monitor.await();
+                } finally {
+                    main.editor.save();
+                }
             }
         } catch (Throwable e) {
             e.printStackTrace(); // For debugging purpose only.
@@ -88,10 +95,10 @@ public final class SwingMain extends WindowAdapter {
         final JMdict      dictionary  = new JMdict(dataSource);
         final WordPanel   description = new WordPanel(dictionary);
                           table       = new WordTable(description, dictionary);
-        final JComponent  editor      = new SwingEditor(table).createPane();
+                          editor      = new SwingEditor(table);
         final JFXPanel    fxDesc      = new JFXPanel();
         final JFXPanel    fxTable     = new JFXPanel();
-        final JSplitPane  split1      = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editor, fxTable);
+        final JSplitPane  split1      = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editor.createPane(), fxTable);
         final JSplitPane  split2      = new JSplitPane(JSplitPane.VERTICAL_SPLIT, fxDesc, split1);
         split1.setResizeWeight(1);
         split1.setDividerLocation(300);

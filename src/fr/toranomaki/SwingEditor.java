@@ -21,6 +21,7 @@ import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.text.*;
 import javax.swing.undo.*;
+import java.lang.reflect.InvocationTargetException;
 
 import fr.toranomaki.edict.SearchResult;
 
@@ -120,10 +121,32 @@ final class SwingEditor extends EditorTextArea implements KeyListener, UndoableE
     }
 
     /**
-     * Saves the editor content.
+     * Saves the editor content. This method can be invoked from any thread. The text will be
+     * fetched from the Swing thread, but writing to the file will be done in the caller thread.
      */
-    private void save() throws IOException, BadLocationException {
-        save(document.getText(0, document.getLength()));
+    final void save() throws Throwable {
+        final Document document = this.document;
+        final class Getter implements Runnable {
+            volatile Object result;
+            @Override public void run() {
+                try {
+                    result = document.getText(0, document.getLength());
+                } catch (BadLocationException e) {
+                    result = e;
+                }
+            }
+        }
+        final Getter getter = new Getter();
+        try {
+            EventQueue.invokeAndWait(getter);
+        } catch (InvocationTargetException e) {
+            throw e.getTargetException();
+        }
+        final Object result = getter.result;
+        if (result instanceof Throwable) {
+            throw (Throwable) result;
+        }
+        save((String) result);
     }
 
     /**

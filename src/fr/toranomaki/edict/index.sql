@@ -6,7 +6,9 @@ ALTER TABLE priorities ADD CONSTRAINT priorities_pkey PRIMARY KEY (id);
 ALTER TABLE xref       ADD CONSTRAINT references_pkey PRIMARY KEY (ent_seq, xref);
 
 CREATE INDEX entries_keb_idx     ON entries     (keb);
+CREATE INDEX entries_keb_dsc     ON entries     (keb DESC);
 CREATE INDEX entries_reb_idx     ON entries     (reb);
+CREATE INDEX entries_reb_dsc     ON entries     (reb DESC);
 CREATE INDEX entries_seq_idx     ON entries     (ent_seq);
 CREATE INDEX information_seq_idx ON information (ent_seq);
 CREATE INDEX senses_seq_idx      ON senses      (ent_seq);
