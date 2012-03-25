@@ -108,8 +108,7 @@ public final class SearchResult {
         boolean isDerivedWord  = false;
         for (int i=0; i<entries.length; i++) {
             final Entry candidate = entries[i];
-            String[] derivedWords = null; // Computed only when first needed.
-            int numDerived = 1; // Temporary value, to be adjusted after 'derivedWords' computation.
+            final String[] derivedWords = candidate.getDerivedWords(isKanji);
             /*
              * First, searches among all Kanji or reading elements declared in the JMdict
              * dictionary. Next, searches among all derived elements (if any). The JMdict
@@ -117,23 +116,7 @@ public final class SearchResult {
              * variant index. The conversion from negative to positive index is performed
              * using the ~ (not minus) operation. Remainder: ~x = -x+1.
              */
-            for (int variant=-candidate.getCount(isKanji); variant<numDerived; variant++) {
-                /*
-                 * Following block is executed only the first time the "derived" words are
-                 * requested. We tried to delay the call to candidate.getDerivedWords(...)
-                 * as much as possible in order to reduce the amount of String[] arrays to
-                 * be created and cached by the numerous Entry instances.
-                 */
-                if (variant == 0) {
-                    if (isFullMatch) {
-                        // If a full match has been found in the JMdict words,
-                        // don't look for derivated words - stop the search now.
-                        break;
-                    }
-                    derivedWords = candidate.getDerivedWords(isKanji);
-                    numDerived = derivedWords.length;
-                    if (numDerived == 0) break;
-                }
+            for (int variant=-candidate.getCount(isKanji); variant<derivedWords.length; variant++) {
                 /*
                  * For each candidate words, count the number of matching characters. We will
                  * select the entry having the greatest amount of matching characters. If many
@@ -152,25 +135,34 @@ public final class SearchResult {
                     si += charCount(sc);
                     vi += charCount(vc);
                 }
-                // If there is less matching characters than our best match, reject.
-                if (si < matchLength) {
+                final int     candidateLength    = toVerify.length();
+                final boolean candidateFullMatch = (vi == candidateLength);
+                if (isFullMatch && !candidateFullMatch) {
+                    // If our best word is fully matched by the begining of the word to search but
+                    // the current candidate word is not fully matched, discart the candidate.
                     continue;
                 }
-                if (si == matchLength) {
-                    // If the candidate is longer than our best match, reject.
-                    if (toVerify.length() > wordLength) {
+                if (isFullMatch || !candidateFullMatch) {
+                    if (si < matchLength) {
+                        // If there is less matching characters than our best match, reject.
                         continue;
                     }
-                    // If the candidate is a derived word while our best match was a JMdict word, reject.
-                    if (!isDerivedWord && variant >= 0) {
-                        continue;
+                    if (si == matchLength) {
+                        // If the candidate is longer than our best match, reject.
+                        if (candidateLength > wordLength) {
+                            continue;
+                        }
+                        // If the candidate is a derived word while our best match was a JMdict word, reject.
+                        if (!isDerivedWord && variant >= 0) {
+                            continue;
+                        }
                     }
                 }
                 indexBest     = i;
                 word          = toVerify;
                 matchLength   = si;
-                wordLength    = toVerify.length();
-                isFullMatch   = (vi == wordLength);
+                wordLength    = candidateLength;
+                isFullMatch   = candidateFullMatch;
                 isDerivedWord = (variant >= 0);
             }
         }

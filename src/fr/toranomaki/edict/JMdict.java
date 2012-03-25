@@ -56,7 +56,7 @@ public final class JMdict implements AutoCloseable {
      * search results should typically be reasonable (e.g. 20 entries). Nevertheless we put
      * an arbitrary limit as a safety.
      */
-    private static final int MAXIMUM_ROWS = 100;
+    private static final int MAXIMUM_ROWS = 300;
 
     /**
      * A cache of most recently used entries. The cache capacity is arbitrary, but we are
@@ -415,8 +415,25 @@ public final class JMdict implements AutoCloseable {
         if (toSearch == null || toSearch.isEmpty()) {
             return null;
         }
+        String racine = toSearch;
         final CharacterType type = CharacterType.forWord(toSearch);
-        return SearchResult.search(search(toSearch, type), toSearch, type.isKanji, documentOffset);
+        if (type.isKanji) {
+            final int length = toSearch.length();
+            for (int i=0; i<length;) {
+                final int c = toSearch.codePointAt(i);
+                if (Character.isIdeographic(c)) {
+                    i += Character.charCount(c);
+                    continue;
+                }
+                // Found the first non-ideographic character. If we have at least one
+                // ideographic character, we will use is as the root of the words to search.
+                if (i != 0) {
+                    racine = toSearch.substring(0, i);
+                }
+                break;
+            }
+        }
+        return SearchResult.search(search(racine, type), toSearch, type.isKanji, documentOffset);
     }
 
     /**
@@ -455,7 +472,7 @@ public final class JMdict implements AutoCloseable {
             if (commonLength < word.length()) {
                 /*
                  * If we enter in this block, we have determined that the search in ascending
-                 * order will not be suffisient (it would have been suffisient if the begining
+                 * order will not be sufficient (it would have been sufficient if the begining
                  * of our first entry contained all the characters of the word to search). So
                  * we need to run a search in descending order.
                  */
