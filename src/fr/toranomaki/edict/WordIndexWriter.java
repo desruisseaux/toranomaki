@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.SortedMap;
 import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.Arrays;
 import java.io.IOException;
 import java.io.CharConversionException;
@@ -191,7 +192,7 @@ final class WordIndexWriter extends LengthyProcess {
         isAddingJapanese = japanese;
         encoder          = Charset.forName(japanese ? JAPAN_ENCODING : LATIN_ENCODING).newEncoder();
         charBuffer       = CharBuffer.allocate(1 << NUM_BITS_FOR_LENGTH);
-        buffer           = ByteBuffer.allocate(1024 * Integer.SIZE / Byte.SIZE);
+        buffer           = ByteBuffer.allocate(1024 * ELEMENT_SIZE);
         encodedWords     = new LinkedHashMap<>(numEntries + (numEntries / 4));
         wordFragments    = new TreeMap<>();
     }
@@ -317,7 +318,7 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
         Result(final Set<String> words) {
             this.words = words.toArray(new String[words.size()]);
             positions = new int[this.words.length];
-            Arrays.sort(this.words);
+            Arrays.sort(this.words, WordComparator.INSTANCE);
         }
     }
 
@@ -328,8 +329,7 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
      * <ol>
      *   <li>The {@linkplain #MAGIC_NUMBER magic number}, as a {@code long}.</li>
      *   <li>Number of words, as an {@code int}.</li>
-     *   <li>The end (exclusive) of the file portion to map, as an {@code int}.
-     *       This is the same value than the file length for now.</li>
+     *   <li>The length of the pool of bytes, as an {@code int}.</li>
      *   <li>Packed references to the encoded words are {@code int} numbers where the first bits are
      *       the index of the first byte to use in the pool (0 is the first byte after all packed
      *       references), and the last {@value #NUM_BITS_FOR_LENGTH} bits are the number of bytes
@@ -337,7 +337,8 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
      *   <li>A pool of bytes which represent the encoded words.</li>
      * </ol>
      *
-     * @param file The output file.
+     * @param  file The output file.
+     * @return A map of words associated with their position in the file.
      */
     public Result write(final Path file) throws IOException {
         setProgressLabel("Saving index");
@@ -408,6 +409,7 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
             writeFully(buffer, out);
         }
         assert encodedWords.isEmpty() : encodedWords;
+        verify(file, result.words);
         return result;
     }
 
@@ -420,6 +422,27 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
         do out.write(buffer);
         while (buffer.hasRemaining());
         buffer.clear();
+    }
+
+    /**
+     * Creates a new reader, and verify every words that we wrote. This method is invoked
+     * after the index creation in order to make sure that we can read fully what we just
+     * wrote.
+     */
+    private void verify(final Path file, String[] words) throws IOException {
+        setProgressLabel("Verifying");
+        words = words.clone();
+        Collections.shuffle(Arrays.asList(words));
+        final double progressScale = 1.0 / words.length;
+        final WordIndexReader reader = new WordIndexReader(file, isAddingJapanese);
+        for (int i=0; i<words.length; i++) {
+            final String word = words[i];
+            final Entry entry = reader.search(word);
+            if (!word.equals(entry.getWord(false, 0))) {
+                throw new IOException("Verification failed for word \"" + word + "\" at index " + i);
+            }
+            progress(i, progressScale);
+        }
     }
 
     /**

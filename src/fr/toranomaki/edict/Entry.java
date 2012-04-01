@@ -347,7 +347,7 @@ public final class Entry implements Comparable<Entry> {
             if (count != copy.length) {
                 copy = Arrays.copyOf(copy, count);
             }
-        } else {
+        } else if (copy.length != 0) {
             copy[0] = (Sense) senses;
         }
         return copy;
