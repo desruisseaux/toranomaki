@@ -51,7 +51,7 @@ final class WordIndexReader {
     /**
      * The encoding used for Latin characters.
      */
-    static final String LATIN_ENCODING = "ISO-8859-1";
+    static final String LATIN_ENCODING = "UTF-8";
 
     /**
      * The encoding used for Japanese characters.

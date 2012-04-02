@@ -136,6 +136,14 @@ final class WordIndexWriter {
         }
 
         /**
+         * Returns the first valid byte. This is always zero, except for the instances
+         * which have been processed by {@link WordIndexWriter#shareCommonBytes()}.
+         */
+        int offset() {
+            return isSubstringOf.length - bytes.length;
+        }
+
+        /**
          * Compares for order. The {@code EncodedWord} instances must be sorted by this criterion
          * before to be saved on the file, in order to allow the binary search to work.
          *
@@ -273,8 +281,6 @@ final class WordIndexWriter {
      * The {@link #add(Entry)} method already handled the cases where a word is identical to
      * the beginning of another word. This method handles the cases where a word is identical
      * to the ending of another word.
-     *
-     * @todo Doesn't seem to work.
      */
     private void shareCommonBytes() {
         for (EncodedWord encoded : encodedWords.values()) {
@@ -334,6 +340,7 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
      * @return A map of words associated with their position in the file.
      */
     public Result write(final Path file) throws IOException {
+        shareCommonBytes();
         /*
          * Determine what would be the position of each words and write every words to the file.
          * The words must be sorted by alphebetical order in order to allow the index to work.
@@ -366,10 +373,12 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
                 // Get the expected position in the file, taking in account the
                 // case where this word is a substring of an existing word.
                 final int length = encoded.length;
+                int offset = 0;
                 while (encoded.isSubstringOf != null) {
+                    offset += encoded.offset();
                     encoded = encoded.isSubstringOf;
                 }
-                position = encoded.position;
+                position = encoded.position + offset;
                 // Check against overflow.
                 if (position >= (1 << (Integer.SIZE - NUM_BITS_FOR_LENGTH))) {
                     throw new IOException("Too many bytes: " + position);
