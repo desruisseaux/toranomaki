@@ -33,8 +33,6 @@ import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CoderResult;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import javafx.beans.property.DoubleProperty;
-import javafx.beans.property.StringProperty;
 
 import static fr.toranomaki.edict.WordIndexReader.*;
 
@@ -50,7 +48,7 @@ import static fr.toranomaki.edict.WordIndexReader.*;
  *
  * @author Martin Desruisseaux
  */
-final class WordIndexWriter extends LengthyProcess {
+final class WordIndexWriter {
     /**
      * {@code true} for adding Japanese words, or {@code false} for adding senses.
      */
@@ -180,15 +178,10 @@ final class WordIndexWriter extends LengthyProcess {
     /**
      * Creates a new writer which will create the dictionary files for a list of words.
      *
-     * @param progressLabel Where to write a description of the operation in progress.
-     * @param progress      Where to write progress indicator, ranging from 0 to 1 inclusive.
      * @param japanese      {@code true} for adding Japanese words, or {@code false} for adding senses.
      * @param numEntries    Expected number of words (can be approximative).
      */
-    public WordIndexWriter(final StringProperty progressLabel, final DoubleProperty progress,
-            final boolean japanese, final int numEntries)
-    {
-        super(progressLabel, progress);
+    public WordIndexWriter(final boolean japanese, final int numEntries) {
         isAddingJapanese = japanese;
         encoder          = Charset.forName(japanese ? JAPAN_ENCODING : LATIN_ENCODING).newEncoder();
         charBuffer       = CharBuffer.allocate(1 << NUM_BITS_FOR_LENGTH);
@@ -341,8 +334,6 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
      * @return A map of words associated with their position in the file.
      */
     public Result write(final Path file) throws IOException {
-        setProgressLabel("Saving index");
-        final double progressScale = 1.0 / encodedWords.size();
         /*
          * Determine what would be the position of each words and write every words to the file.
          * The words must be sorted by alphebetical order in order to allow the index to work.
@@ -392,10 +383,8 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
                 if (!buffer.putInt(packed).hasRemaining()) {
                     writeFully(buffer, out);
                 }
-                progress(i, progressScale/2);
             }
             // After the index, write the actual encoded words.
-            int progress = result.words.length;
             for (final String word : result.words) {
                 final EncodedWord encoded = encodedWords.remove(word);
                 if (encoded.isSubstringOf == null) {
@@ -404,7 +393,6 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
                     }
                     buffer.put(encoded.bytes);
                 }
-                progress(++progress, progressScale/2);
             }
             writeFully(buffer, out);
         }
@@ -430,10 +418,8 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
      * wrote.
      */
     private void verify(final Path file, String[] words) throws IOException {
-        setProgressLabel("Verifying");
         words = words.clone();
         Collections.shuffle(Arrays.asList(words));
-        final double progressScale = 1.0 / words.length;
         final WordIndexReader reader = new WordIndexReader(file, isAddingJapanese);
         for (int i=0; i<words.length; i++) {
             final String word = words[i];
@@ -441,7 +427,6 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
             if (!word.equals(entry.getWord(false, 0))) {
                 throw new IOException("Verification failed for word \"" + word + "\" at index " + i);
             }
-            progress(i, progressScale);
         }
     }
 
