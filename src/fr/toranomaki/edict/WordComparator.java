@@ -23,11 +23,11 @@ import java.util.Comparator;
  *
  * @author Martin desruisseaux
  */
-final class WordComparator implements Comparator<String> {
+public final class WordComparator implements Comparator<String> {
     /**
      * The unique instance.
      */
-    static final Comparator<String> INSTANCE = new WordComparator();
+    public static final Comparator<String> INSTANCE = new WordComparator();
 
     /**
      * Do not allows other instances than {@link #INSTANCE}.
@@ -37,6 +37,9 @@ final class WordComparator implements Comparator<String> {
 
     /**
      * Compares the given strings as indicated in the class-javadoc.
+     *
+     * @param s1 The first string to compare.
+     * @param s2 The second string to compare.
      */
     @Override
     public int compare(final String s1, final String s2) {

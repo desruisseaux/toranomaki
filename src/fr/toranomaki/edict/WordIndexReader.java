@@ -35,34 +35,34 @@ import java.nio.file.StandardOpenOption;
  *
  * @author Martin Desruisseaux
  */
-final class WordIndexReader {
+public final class WordIndexReader {
     /**
      * The cache capacity. This value is arbitrary, but we are better to use a value
      * not greater than a power of 2 time the load factor (0.75).
      */
-    static final int CACHE_SIZE = 3000;
+    private static final int CACHE_SIZE = 3000;
 
     /**
      * Arbitrary magic number. The value on the right side of {@code +} is the version number,
      * to be incremented every time we apply an incompatible change in the file format.
      */
-    static final long MAGIC_NUMBER = 8798890475810241902L + 0;
+    public static final long MAGIC_NUMBER = 8798890475810241902L + 0;
 
     /**
      * The encoding used for Latin characters.
      */
-    static final String LATIN_ENCODING = "UTF-8";
+    public static final String LATIN_ENCODING = "UTF-8";
 
     /**
      * The encoding used for Japanese characters.
      */
-    static final String JAPAN_ENCODING = "UTF-16";
+    public static final String JAPAN_ENCODING = "UTF-16";
 
     /**
      * Number of bits to use for storing the word length in a {@code int} reference value.
      * The remaining number of bits will be used for storing the word start position.
      */
-    static final int NUM_BITS_FOR_LENGTH = 9;
+    public static final int NUM_BITS_FOR_LENGTH = 9;
 
     /**
      * Size in bytes of one index value in the index array, which is the size of the {@code int} type.
@@ -70,7 +70,7 @@ final class WordIndexReader {
      * <p>Note: if this value is changed, we recommend to perform a search for {@code Integer.SIZE}
      * on the code base, especially in {@code WordIndexReader} and {@code WordIndexWriter}.</p>
      */
-    static final int ELEMENT_SIZE = Integer.SIZE / Byte.SIZE;
+    public static final int ELEMENT_SIZE = Integer.SIZE / Byte.SIZE;
 
     /**
      * Number of words in the mapped index.
@@ -111,7 +111,7 @@ final class WordIndexReader {
     /**
      * Creates a new index reader.
      *
-     * @param  path The file to open.
+     * @param  file The file to open.
      * @param  isReadingJapanese {@code true} if the dictionary is for Japanese words,
      *         or {@code false} for senses.
      * @throws IOException If an error occurred while reading the file.
@@ -177,6 +177,9 @@ final class WordIndexReader {
     /**
      * Searches the entry for the given word. If no exact match is found,
      * returns the first entry right after the given word.
+     *
+     * @param  word The word to search.
+     * @return A partially created entry for the given word.
      */
     public Entry search(final String word) {
         int low  = 0;

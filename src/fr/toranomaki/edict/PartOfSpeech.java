@@ -162,7 +162,7 @@ public enum PartOfSpeech {
      * @return The <cite>Part Of Speech</cite> (never null).
      * @throws DictionaryException If no single <cite>Part Of Speech</cite> can match.
      */
-    static PartOfSpeech parseEDICT(final String description) throws DictionaryException {
+    public static PartOfSpeech parseEDICT(final String description) throws DictionaryException {
         PartOfSpeech pos = null;
         for (final PartOfSpeech candidate : values()) {
             Pattern pattern = candidate.pattern;

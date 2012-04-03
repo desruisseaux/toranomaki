@@ -29,6 +29,11 @@ import fr.toranomaki.grammar.GrammaticalClass;
  */
 public class Sense {
     /**
+     * The locale for the Russian language.
+     */
+    public static final Locale RUSSIAN = new Locale("ru");
+
+    /**
      * The locale for this sense.
      */
     public final Locale locale;
@@ -52,8 +57,13 @@ public class Sense {
 
     /**
      * Creates a new sense.
+     *
+     * @param locale  The locale for the new sense.
+     * @param meaning Target-language words or phrases which are equivalents to the Japanese word.
+     * @param partOfSpeech The <cite>Part Of Speech</cite> (POS) for this sense. This set shall
+     *        not be modified, since many senses will share the same set.
      */
-    Sense(final Locale locale, final String meaning, final Set<PartOfSpeech> partOfSpeech) {
+    public Sense(final Locale locale, final String meaning, final Set<PartOfSpeech> partOfSpeech) {
         this.locale       = locale;
         this.meaning      = meaning;
         this.partOfSpeech = partOfSpeech;

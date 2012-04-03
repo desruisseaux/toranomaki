@@ -94,8 +94,11 @@ public final class Priority implements Comparable<Priority> {
 
         /**
          * The weight of the given rank when computing the primary key value.
+         *
+         * @param  rank The rank given to this priority type, or {@code null}.
+         * @return The value to add to the priority primary key.
          */
-        final int weight(final Short rank) {
+        public int weight(final Short rank) {
             return ((rank != null) ? rank : max+1) << shift;
         }
     }

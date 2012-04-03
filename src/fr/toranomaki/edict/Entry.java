@@ -95,7 +95,7 @@ public final class Entry implements Comparable<Entry> {
      *
      * @param ent_seq A unique numeric sequence number for each entry.
      */
-    Entry(final int ent_seq) {
+    public Entry(final int ent_seq) {
         this.identifier = ent_seq;
     }
 
@@ -106,7 +106,7 @@ public final class Entry implements Comparable<Entry> {
      * @param word     The Kanji or reading element to add. Can not be {@code null}.
      * @param priority The priority of the word being added, or 0 if none.
      */
-    final void add(final boolean isKanji, final String word, final short priority) {
+    public void add(final boolean isKanji, final String word, final short priority) {
         Objects.requireNonNull(word);
         Object words = isKanji ? kanji : reading;
         final int count; // Number of Kanji or reading elements after this method.
@@ -287,8 +287,10 @@ public final class Entry implements Comparable<Entry> {
 
     /**
      * Adds a sense to the list of existing senses.
+     *
+     * @param sense The sense to add (can not be null).
      */
-    final void addSense(final Sense sense) {
+    public void addSense(final Sense sense) {
         if (senses == null) {
             senses = sense;
         } else if (senses instanceof Sense) {

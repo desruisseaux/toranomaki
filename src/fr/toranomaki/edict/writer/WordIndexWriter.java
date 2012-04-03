@@ -12,7 +12,7 @@
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  *    Lesser General Public License for more details.
  */
-package fr.toranomaki.edict;
+package fr.toranomaki.edict.writer;
 
 import java.util.Map;
 import java.util.Set;
@@ -34,30 +34,47 @@ import java.nio.charset.CoderResult;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
+import fr.toranomaki.edict.Entry;
+import fr.toranomaki.edict.Sense;
+import fr.toranomaki.edict.WordComparator;
+import fr.toranomaki.edict.WordIndexReader;
+
 import static fr.toranomaki.edict.WordIndexReader.*;
 
 
 /**
- * Writes an array of {@link String} instances in a binary format, together with an index file.
+ * Writes an array of {@link String} instances in a binary format, together with an index.
  * The methods in this class shall be invoked in the following order:
  * <p>
  * <ol>
+ *   <li>{@link #initialize(boolean)}</li>
  *   <li>{@link #add(Entry)} for every entries to add.</li>
  *   <li>{@link #write(Path)} for creating the binary file.</li>
  * </ol>
+ * <p>
+ * The file created by this object can be read with {@link WordIndexReader}.
  *
  * @author Martin Desruisseaux
  */
 final class WordIndexWriter {
     /**
-     * {@code true} for adding Japanese words, or {@code false} for adding senses.
+     * Set to {@code true} for verifying the binary file after writing.
      */
-    private final boolean isAddingJapanese;
+    private static final boolean VERIFY = false;
+
+    /**
+     * {@code true} for adding Japanese words, or {@code false} for adding senses.
+     *
+     * @see #initialize(boolean)
+     */
+    private boolean isAddingJapanese;
 
     /**
      * The encoder to use for creating the sequence of bytes from a word.
+     *
+     * @see #initialize(boolean)
      */
-    private final CharsetEncoder encoder;
+    private CharsetEncoder encoder;
 
     /**
      * The buffer where to put a word before to encode it.
@@ -185,17 +202,24 @@ final class WordIndexWriter {
 
     /**
      * Creates a new writer which will create the dictionary files for a list of words.
-     *
-     * @param japanese      {@code true} for adding Japanese words, or {@code false} for adding senses.
-     * @param numEntries    Expected number of words (can be approximative).
+     * The {@link #initialize(boolean)} method must be invoked before this writer can be used.
      */
-    public WordIndexWriter(final boolean japanese, final int numEntries) {
+    public WordIndexWriter(final int numEntries) {
+        charBuffer    = CharBuffer.allocate(1 << NUM_BITS_FOR_LENGTH);
+        buffer        = ByteBuffer.allocate(1024 * ELEMENT_SIZE);
+        encodedWords  = new LinkedHashMap<>(numEntries + (numEntries / 4));
+        wordFragments = new TreeMap<>();
+    }
+
+    /**
+     * Prepares this writer for the addition of words in the given language.
+     *
+     * @param japanese {@code true} for adding Japanese words, or {@code false} for adding senses.
+     */
+    public void initialize(final boolean japanese) {
+        assert encodedWords.isEmpty() && wordFragments.isEmpty();
         isAddingJapanese = japanese;
-        encoder          = Charset.forName(japanese ? JAPAN_ENCODING : LATIN_ENCODING).newEncoder();
-        charBuffer       = CharBuffer.allocate(1 << NUM_BITS_FOR_LENGTH);
-        buffer           = ByteBuffer.allocate(1024 * ELEMENT_SIZE);
-        encodedWords     = new LinkedHashMap<>(numEntries + (numEntries / 4));
-        wordFragments    = new TreeMap<>();
+        encoder = Charset.forName(japanese ? JAPAN_ENCODING : LATIN_ENCODING).newEncoder();
     }
 
     /**
@@ -364,8 +388,8 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
         buffer.putLong(MAGIC_NUMBER);
         buffer.putInt(encodedWords.size());
         buffer.putInt(position);
-        countBytesActual = position;
-        try (FileChannel out = FileChannel.open(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+        countBytesActual += position;
+        try (FileChannel out = FileChannel.open(file, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
             for (int i=0; i<result.words.length; i++) {
                 final String word = result.words[i];
                 EncodedWord encoded = encodedWords.get(word);
@@ -406,7 +430,23 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
             writeFully(buffer, out);
         }
         assert encodedWords.isEmpty() : encodedWords;
-        verify(file, result.words);
+        /*
+         * At this point, we are done.  If verification is enabled, create a new reader and
+         * verify every words that we wrote. This is executed in testing phase to make sure
+         * that we can read fully what we just wrote.
+         */
+        if (VERIFY) {
+            final String[] words = result.words.clone();
+            Collections.shuffle(Arrays.asList(words));
+            final WordIndexReader reader = new WordIndexReader(file, isAddingJapanese);
+            for (int i=0; i<words.length; i++) {
+                final String word = words[i];
+                final Entry entry = reader.search(word);
+                if (!word.equals(entry.getWord(false, 0))) {
+                    throw new IOException("Verification failed for word \"" + word + "\" at index " + i);
+                }
+            }
+        }
         return result;
     }
 
@@ -419,24 +459,6 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
         do out.write(buffer);
         while (buffer.hasRemaining());
         buffer.clear();
-    }
-
-    /**
-     * Creates a new reader, and verify every words that we wrote. This method is invoked
-     * after the index creation in order to make sure that we can read fully what we just
-     * wrote.
-     */
-    private void verify(final Path file, String[] words) throws IOException {
-        words = words.clone();
-        Collections.shuffle(Arrays.asList(words));
-        final WordIndexReader reader = new WordIndexReader(file, isAddingJapanese);
-        for (int i=0; i<words.length; i++) {
-            final String word = words[i];
-            final Entry entry = reader.search(word);
-            if (!word.equals(entry.getWord(false, 0))) {
-                throw new IOException("Verification failed for word \"" + word + "\" at index " + i);
-            }
-        }
     }
 
     /**

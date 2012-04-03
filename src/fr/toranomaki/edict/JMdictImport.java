@@ -50,7 +50,10 @@ import fr.toranomaki.Main;
  * To start the import, run the {@link #main(String[])} method.
  *
  * @author Martin Desruisseaux
+ *
+ * @deprecated We are in process of replacing the database by a binary file.
  */
+@Deprecated
 final class JMdictImport extends DefaultHandler implements AutoCloseable {
     /**
      * The XML element which is in process of being parsed. This field is modified every time a XML
