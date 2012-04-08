@@ -59,10 +59,21 @@ public final class WordIndexReader {
     public static final String JAPAN_ENCODING = "UTF-16";
 
     /**
+     * The byte order used in the dictionary files.
+     * This is fixed to the byte order used by Intel processors for now.
+     */
+    public static final ByteOrder BYTE_ORDER = ByteOrder.LITTLE_ENDIAN;
+
+    /**
+     * Number of bits to use for storing the character sequence length.
+     */
+    public static final int NUM_BITS_FOR_CHAR_LENGTH = 2;
+
+    /**
      * Number of bits to use for storing the word length in a {@code int} reference value.
      * The remaining number of bits will be used for storing the word start position.
      */
-    public static final int NUM_BITS_FOR_LENGTH = 9;
+    public static final int NUM_BITS_FOR_WORD_LENGTH = 9;
 
     /**
      * Size in bytes of one index value in the index array, which is the size of the {@code int} type.
@@ -118,9 +129,9 @@ public final class WordIndexReader {
      */
     public WordIndexReader(final Path file, final boolean isReadingJapanese) throws IOException {
         decoder = Charset.forName(isReadingJapanese ? JAPAN_ENCODING : LATIN_ENCODING).newDecoder();
-        charBuffer = CharBuffer.allocate(1 << NUM_BITS_FOR_LENGTH);
+        charBuffer = CharBuffer.allocate(1 << NUM_BITS_FOR_WORD_LENGTH);
         final ByteBuffer header = ByteBuffer.allocate(4 * ELEMENT_SIZE);
-        header.order(ByteOrder.nativeOrder());
+        header.order(BYTE_ORDER);
         try (FileChannel in = FileChannel.open(file, StandardOpenOption.READ)) {
             readFully(in, header);
             header.flip();
@@ -132,7 +143,7 @@ public final class WordIndexReader {
             assert !header.hasRemaining() : header;
             buffer = in.map(FileChannel.MapMode.READ_ONLY, header.position(),
                     ((long) numberOfWords) * ELEMENT_SIZE + poolLength);
-            buffer.order(ByteOrder.nativeOrder());
+            buffer.order(BYTE_ORDER);
         }
     }
 
@@ -156,8 +167,8 @@ public final class WordIndexReader {
             return word;
         }
         // Read from disk, then cache the result.
-        final int position = (packed >>> NUM_BITS_FOR_LENGTH) + numberOfWords*ELEMENT_SIZE;
-        final int length = packed & ((1 << NUM_BITS_FOR_LENGTH) - 1);
+        final int position = (packed >>> NUM_BITS_FOR_WORD_LENGTH) + numberOfWords*ELEMENT_SIZE;
+        final int length = packed & ((1 << NUM_BITS_FOR_WORD_LENGTH) - 1);
         buffer.limit(position + length).position(position);
         charBuffer.clear();
         decoder.reset();

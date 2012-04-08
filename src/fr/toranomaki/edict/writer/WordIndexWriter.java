@@ -22,23 +22,16 @@ import java.util.LinkedHashMap;
 import java.util.Collections;
 import java.util.Arrays;
 import java.io.IOException;
-import java.io.CharConversionException;
-import java.nio.ByteOrder;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetEncoder;
-import java.nio.charset.CoderResult;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
 import fr.toranomaki.edict.WordComparator;
 import fr.toranomaki.edict.WordIndexReader;
 
+import static java.nio.file.StandardOpenOption.*;
 import static fr.toranomaki.edict.WordIndexReader.*;
 
 
@@ -47,8 +40,7 @@ import static fr.toranomaki.edict.WordIndexReader.*;
  * The methods in this class shall be invoked in the following order:
  * <p>
  * <ol>
- *   <li>{@link #initialize(boolean)}</li>
- *   <li>{@link #add(Entry)} for every entries to add.</li>
+ *   <li>{@link #setEntries(Iterable,boolean)} for the entries to add.</li>
  *   <li>{@link #write(Path)} for creating the binary file.</li>
  * </ol>
  * <p>
@@ -56,30 +48,16 @@ import static fr.toranomaki.edict.WordIndexReader.*;
  *
  * @author Martin Desruisseaux
  */
-final class WordIndexWriter {
+final class WordIndexWriter extends SectionWriter {
     /**
      * Set to {@code true} for verifying the binary file after writing.
      */
     private static final boolean VERIFY = false;
 
     /**
-     * {@code true} for adding Japanese words, or {@code false} for adding senses.
-     *
-     * @see #initialize(boolean)
-     */
-    private boolean isAddingJapanese;
-
-    /**
      * The encoder to use for creating the sequence of bytes from a word.
-     *
-     * @see #initialize(boolean)
      */
-    private CharsetEncoder encoder;
-
-    /**
-     * The buffer where to put a word before to encode it.
-     */
-    private final CharBuffer charBuffer;
+    private final FrequencyAnalyzer encoder;
 
     /**
      * The buffer containing encoded bytes. Will also be used as a buffer for writing
@@ -205,41 +183,37 @@ final class WordIndexWriter {
      * The {@link #initialize(boolean)} method must be invoked before this writer can be used.
      */
     public WordIndexWriter(final int numEntries) {
-        charBuffer    = CharBuffer.allocate(1 << NUM_BITS_FOR_LENGTH);
+        encoder       = new FrequencyAnalyzer(numEntries);
         buffer        = ByteBuffer.allocate(1024 * ELEMENT_SIZE);
         encodedWords  = new LinkedHashMap<>(numEntries + (numEntries / 4));
         wordFragments = new TreeMap<>();
     }
 
     /**
-     * Prepares this writer for the addition of words in the given language.
+     * Sets the entries to write.
      *
      * @param japanese {@code true} for adding Japanese words, or {@code false} for adding senses.
      */
-    public void initialize(final boolean japanese) {
-        assert encodedWords.isEmpty() && wordFragments.isEmpty();
+    public void setEntries(final Iterable<Entry> entries, final boolean japanese) {
         isAddingJapanese = japanese;
-        encoder = Charset.forName(japanese ? JAPAN_ENCODING : LATIN_ENCODING).newEncoder();
-    }
-
-    /**
-     * Adds the given entry in the list of entries to write.
-     *
-     * @param  entry The entry to write.
-     * @throws CharConversionException If the given word can not be encoded.
-     */
-    public void add(final Entry entry) throws CharConversionException {
-        if (isAddingJapanese) {
-            boolean isKanji = false;
-            do {
-                final int count = entry.getCount(isKanji);
-                for (int i=0; i<count; i++) {
-                    addWord(entry.getWord(isKanji, i));
+        encodedWords.clear();
+        wordFragments.clear();
+        encoder.clear();
+        encoder.addEntries(entries, japanese);
+        encoder.computeEncoding();
+        for (final Entry entry : entries) {
+            if (japanese) {
+                boolean isKanji = false;
+                do {
+                    final int count = entry.getCount(isKanji);
+                    for (int i=0; i<count; i++) {
+                        addWord(entry.getWord(isKanji, i));
+                    }
+                } while ((isKanji = !isKanji) == true);
+            } else {
+                for (final Sense sense : entry.getSenses()) {
+                    addWord(sense.meaning);
                 }
-            } while ((isKanji = !isKanji) == true);
-        } else {
-            for (final Sense sense : entry.getSenses()) {
-                addWord(sense.meaning);
             }
         }
     }
@@ -249,55 +223,45 @@ final class WordIndexWriter {
      * add all substrings beginning in the same way but ending at different lengths, in order
      * to allow us to detect later which words are substrings of other words.
      */
-    private void addWord(final String word) throws CharConversionException {
-        encoder.reset();
+    private void addWord(final String word) {
         buffer.clear();
-        charBuffer.clear();
-        charBuffer.put(word).flip();
-        CoderResult result = encoder.encode(charBuffer, buffer, true);
-        if (result == CoderResult.UNDERFLOW) {
-            result = encoder.flush(buffer);
-            if (result == CoderResult.UNDERFLOW) {
-                final EncodedWord encoded = new EncodedWord(word, Arrays.copyOf(buffer.array(), buffer.position()));
-                EncodedWord old = encodedWords.put(word, encoded);
-                countBytesTotal += encoded.length;
-                if (old != null) {
-                    // Restore the previous value and stop.
-                    encodedWords.put(word, old);
-                } else {
-                    countBytesDistinctWords += encoded.length;
-                    old = wordFragments.put(encoded, encoded);
-                    if (old != null) {
-                        // The word we just added is a substring of a previous word.
-                        // Restore the previous entry and keep the reference to the
-                        // enclosing word.
-                        if (old.word == null) {
-                            old.word = word;
-                        }
-                        wordFragments.put(old, old);
-                        encodedWords.put(word, old);
-                    } else {
-                        for (int i=encoded.bytes.length; --i>=1;) {
-                            // We overwrite any existing fragments, because the word that we
-                            // added is longer than any previously added word, otherwise the
-                            // wordFragments.put(...) call we did before the loop would have
-                            // returned a non-null value.
-                            final EncodedWord fragment = new EncodedWord(encoded, i);
-                            old = wordFragments.put(fragment, fragment);
-                            if (old != null && old.word != null) {
-                                fragment.word = old.word;
-                                encodedWords.put(old.word, fragment);
-                            }
-                        }
+        encoder.encode(word, buffer);
+        final EncodedWord encoded = new EncodedWord(word, Arrays.copyOf(buffer.array(), buffer.position()));
+        EncodedWord old = encodedWords.put(word, encoded);
+        countBytesTotal += encoded.length;
+        if (old != null) {
+            // Restore the previous value and stop.
+            encodedWords.put(word, old);
+        } else {
+            countBytesDistinctWords += encoded.length;
+            old = wordFragments.put(encoded, encoded);
+            if (old != null) {
+                // The word we just added is a substring of a previous word.
+                // Restore the previous entry and keep the reference to the
+                // enclosing word.
+                if (old.word == null) {
+                    old.word = word;
+                }
+                wordFragments.put(old, old);
+                encodedWords.put(word, old);
+            } else {
+                for (int i=encoded.bytes.length; --i>=1;) {
+                    // We overwrite any existing fragments, because the word that we
+                    // added is longer than any previously added word, otherwise the
+                    // wordFragments.put(...) call we did before the loop would have
+                    // returned a non-null value.
+                    final EncodedWord fragment = new EncodedWord(encoded, i);
+                    old = wordFragments.put(fragment, fragment);
+                    if (old != null && old.word != null) {
+                        fragment.word = old.word;
+                        encodedWords.put(old.word, fragment);
                     }
                 }
-                assert (old = encodedWords.get(word)) != null;
-                assert word.equals(old.word)       : old + " not equals to " + word;
-                assert old.compareTo(encoded) == 0 : old + " not equals to " + encoded;
-                return;
             }
         }
-        throw new CharConversionException("Encoding error: " + result);
+        assert (old = encodedWords.get(word)) != null;
+        assert word.equals(old.word)       : old + " not equals to " + word;
+        assert old.compareTo(encoded) == 0 : old + " not equals to " + encoded;
     }
 
     /**
@@ -353,9 +317,11 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
      *   <li>The {@linkplain #MAGIC_NUMBER magic number}, as a {@code long}.</li>
      *   <li>Number of words, as an {@code int}.</li>
      *   <li>The length of the pool of bytes, as an {@code int}.</li>
+     *   <li>The encoding used in the pool of bytes, as documented in
+     *       {@link FrequencyAnalyzer#writeEncodingTable(WritableByteChannel, ByteBuffer)}.</li>
      *   <li>Packed references to the encoded words are {@code int} numbers where the first bits are
      *       the index of the first byte to use in the pool (0 is the first byte after all packed
-     *       references), and the last {@value #NUM_BITS_FOR_LENGTH} bits are the number of bytes
+     *       references), and the last {@value #NUM_BITS_FOR_WORD_LENGTH} bits are the number of bytes
      *       to read from the pool.</li>
      *   <li>A pool of bytes which represent the encoded words.</li>
      * </ol>
@@ -384,12 +350,13 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
          * Now process to the actual writing. This method will also computes the final
          * "packed" position as a side-effect of this process.
          */
-        buffer.order(ByteOrder.nativeOrder()).clear();
+        buffer.order(BYTE_ORDER).clear();
         buffer.putLong(MAGIC_NUMBER);
         buffer.putInt(encodedWords.size());
         buffer.putInt(position);
         countBytesActual += position;
-        try (FileChannel out = FileChannel.open(file, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+        try (FileChannel out = FileChannel.open(file, WRITE, CREATE, TRUNCATE_EXISTING)) {
+            encoder.writeEncodingTable(out, buffer);
             for (int i=0; i<result.words.length; i++) {
                 final String word = result.words[i];
                 EncodedWord encoded = encodedWords.get(word);
@@ -404,14 +371,14 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
                 }
                 position = encoded.position + offset;
                 // Check against overflow.
-                if (position >= (1 << (Integer.SIZE - NUM_BITS_FOR_LENGTH))) {
+                if (position >= (1 << (Integer.SIZE - NUM_BITS_FOR_WORD_LENGTH))) {
                     throw new IOException("Too many bytes: " + position);
                 }
-                if (length >= (1 << NUM_BITS_FOR_LENGTH)) {
+                if (length >= (1 << NUM_BITS_FOR_WORD_LENGTH)) {
                     throw new IOException("String is too long: " + word + " (" + length + " bytes)");
                 }
                 // Save the packed value.
-                final int packed = (position << NUM_BITS_FOR_LENGTH) | length;
+                final int packed = (position << NUM_BITS_FOR_WORD_LENGTH) | length;
                 result.positions[i] = packed;
                 if (!buffer.putInt(packed).hasRemaining()) {
                     writeFully(buffer, out);
@@ -448,17 +415,6 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
             }
         }
         return result;
-    }
-
-    /**
-     * {@linkplain ByteBuffer#flip() Flips} the given buffer, then writes fully its content
-     * to the given channel. After the write operation, the buffer is cleared for reuse.
-     */
-    private static void writeFully(final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
-        buffer.flip();
-        do out.write(buffer);
-        while (buffer.hasRemaining());
-        buffer.clear();
     }
 
     /**
