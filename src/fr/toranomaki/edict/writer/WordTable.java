@@ -14,37 +14,35 @@
  */
 package fr.toranomaki.edict.writer;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
+import java.util.Set;
+import java.util.Arrays;
+import fr.toranomaki.edict.WordComparator;
 
 
 /**
- * Base class for writer of one section of the dictionary file.
+ * The words and their packed location calculated by {@link WordIndexWriter}
+ * See {@link WordIndexWriter#write(Path)} for an explanation of the packed
+ * {@linkplain #positions} format.
  *
  * @author Martin Desruisseaux
  */
-abstract class SectionWriter {
+final class WordTable {
     /**
-     * {@code true} for adding Japanese words, or {@code false} for adding senses.
+     * The words, sorted in alphabetical order.
      */
-    boolean isAddingJapanese;
+    final String[] words;
 
     /**
-     * Creates a new writer instance.
+     * The packed position of each words in the file.
      */
-    SectionWriter() {
+    final int[] positions;
+
+    /**
+     * Prepares a new result for the given collection of words.
+     */
+    WordTable(final Set<String> words) {
+        this.words = words.toArray(new String[words.size()]);
+        positions = new int[this.words.length];
+        Arrays.sort(this.words, WordComparator.INSTANCE);
     }
-
-    /**
-     * {@linkplain ByteBuffer#flip() Flips} the given buffer, then writes fully its content
-     * to the given channel. After the write operation, the buffer is cleared for reuse.
-     */
-    static void writeFully(final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
-        buffer.flip();
-        do out.write(buffer);
-        while (buffer.hasRemaining());
-        buffer.clear();
-    }
-
 }

@@ -15,12 +15,11 @@
 package fr.toranomaki.edict.writer;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.SortedMap;
 import java.util.LinkedHashMap;
-import java.util.Collections;
 import java.util.Arrays;
+import java.util.Collection;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -28,44 +27,17 @@ import java.nio.file.Path;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
-import fr.toranomaki.edict.WordComparator;
-import fr.toranomaki.edict.WordIndexReader;
 
 import static java.nio.file.StandardOpenOption.*;
-import static fr.toranomaki.edict.WordIndexReader.*;
 
 
 /**
  * Writes an array of {@link String} instances in a binary format, together with an index.
- * The methods in this class shall be invoked in the following order:
- * <p>
- * <ol>
- *   <li>{@link #setEntries(Iterable,boolean)} for the entries to add.</li>
- *   <li>{@link #write(Path)} for creating the binary file.</li>
- * </ol>
- * <p>
  * The file created by this object can be read with {@link WordIndexReader}.
  *
  * @author Martin Desruisseaux
  */
-final class WordIndexWriter extends SectionWriter {
-    /**
-     * Set to {@code true} for verifying the binary file after writing.
-     */
-    private static final boolean VERIFY = false;
-
-    /**
-     * The encoder to use for creating the sequence of bytes from a word.
-     */
-    private final FrequencyAnalyzer encoder;
-
-    /**
-     * The buffer containing encoded bytes. Will also be used as a buffer for writing
-     * to the byte channel. The buffer capacity most be a multiple of the {@code int}
-     * size.
-     */
-    private final ByteBuffer buffer;
-
+final class WordIndexWriter extends WordEncoder {
     /**
      * All words given to the constructor. The keys are the words to write in the file.
      * The values are packed index and length of byte sequences in the file written by
@@ -81,126 +53,27 @@ final class WordIndexWriter extends SectionWriter {
     private final SortedMap<EncodedWord,EncodedWord> wordFragments;
 
     /**
-     * For statistics purpose.
+     * The buffer containing encoded bytes. Will also be used as a buffer for writing
+     * to the byte channel. The buffer capacity most be a multiple of the {@code int}
+     * size.
      */
-    private int countBytesTotal, countBytesDistinctWords, countBytesActual;
-
-    /**
-     * The encoded representation of a word. The natural ordering is determined by the
-     * bytes sequence, by iterating over the bytes <strong>in reverse order</strong>
-     * (from the last bytes to the first one). We use reverse order because we will
-     * store in the {@link WordIndexWriter#wordFragments} map the same bytes with
-     * more and more tail bytes omitted. So the map will contains many words with the
-     * same prefix, which is conform to the practice found in many language where many
-     * words have the same prefix but different suffixes.
-     */
-    private static final class EncodedWord implements Comparable<EncodedWord> {
-        /** The original word, or {@code null} if this object is for a substring. */
-        String word;
-
-        /** The encoded word. */
-        final byte[] bytes;
-
-        /** Number of valid bytes in the {@link #bytes} array. Extra bytes are ignored. */
-        final short length;
-
-        /** Non-null if an other instance contains the same bytes sequence. */
-        EncodedWord isSubstringOf;
-
-        /** Position in the file, for {@link WordIndexWriter#write(Path)} internal usage. */
-        int position;
-
-        /**
-         * Creates a new instance for the given encoded word.
-         */
-        EncodedWord(final String word, final byte[] bytes) {
-            this.word     = word;
-            this.bytes    = bytes;
-            this.length   = (short) bytes.length;
-            isSubstringOf = null;
-        }
-
-        /**
-         * Creates a new instance which is a substring of the given instance.
-         */
-        EncodedWord(final EncodedWord enclosing, final int length) {
-            this.word     = null;
-            this.bytes    = enclosing.bytes;
-            this.length   = (short) length;
-            isSubstringOf = enclosing;
-        }
-
-        /**
-         * Returns the first valid byte. This is always zero, except for the instances
-         * which have been processed by {@link WordIndexWriter#shareCommonBytes()}.
-         */
-        int offset() {
-            return isSubstringOf.length - bytes.length;
-        }
-
-        /**
-         * Compares for order. The {@code EncodedWord} instances must be sorted by this criterion
-         * before to be saved on the file, in order to allow the binary search to work.
-         *
-         * @return 0 if the arrays are equal;
-         *         -1 or +1 if all bytes match but one array is shorter than the other;
-         *         -2 or +2 if at least one byte is different.
-         */
-        @Override
-        public int compareTo(final EncodedWord other) {
-            final byte[] tb = this .bytes; int ti = this .length;
-            final byte[] ob = other.bytes; int oi = other.length;
-            while ((--ti >= 0) & (--oi >= 0)) { // Really &, not &&
-                final int c = tb[ti] - ob[oi];
-                if (c != 0) {
-                    return (c < 0) ? -2 : 2;
-                }
-            }
-            if (ti == oi) return 0;
-            return (ti < oi) ? -1 : 1;
-        }
-
-        /**
-         * Returns a string representation for debugging purpose.
-         */
-        @Override
-        public String toString() {
-            final StringBuilder buffer = new StringBuilder(20);
-            buffer.append('[');
-            if (word != null) {
-                buffer.append('"').append(word).append("\": ");
-            }
-            buffer.append(length).append(" bytes");
-            if (isSubstringOf != null) {
-                buffer.append(" of ").append(isSubstringOf);
-            }
-            return buffer.append(']').toString();
-        }
-    }
+    private final ByteBuffer buffer;
 
     /**
      * Creates a new writer which will create the dictionary files for a list of words.
-     * The {@link #initialize(boolean)} method must be invoked before this writer can be used.
-     */
-    public WordIndexWriter(final int numEntries) {
-        encoder       = new FrequencyAnalyzer(numEntries);
-        buffer        = ByteBuffer.allocate(1024 * ELEMENT_SIZE);
-        encodedWords  = new LinkedHashMap<>(numEntries + (numEntries / 4));
-        wordFragments = new TreeMap<>();
-    }
-
-    /**
-     * Sets the entries to write.
+     * This constructor will performs all needed computation immediately.
      *
+     * @param entries  The entries for which to create en encoder.
      * @param japanese {@code true} for adding Japanese words, or {@code false} for adding senses.
      */
-    public void setEntries(final Iterable<Entry> entries, final boolean japanese) {
-        isAddingJapanese = japanese;
-        encodedWords.clear();
-        wordFragments.clear();
-        encoder.clear();
-        encoder.addEntries(entries, japanese);
-        encoder.computeEncoding();
+    public WordIndexWriter(final Collection<Entry> entries, final boolean japanese) {
+        super(entries, japanese);
+        encodedWords  = new LinkedHashMap<>(entries.size());
+        wordFragments = new TreeMap<>();
+        buffer        = ByteBuffer.allocate(1024 * ELEMENT_SIZE);
+        /*
+         * Sets the entries to write.
+         */
         for (final Entry entry : entries) {
             if (japanese) {
                 boolean isKanji = false;
@@ -225,15 +98,13 @@ final class WordIndexWriter extends SectionWriter {
      */
     private void addWord(final String word) {
         buffer.clear();
-        encoder.encode(word, buffer);
+        encode(word, buffer);
         final EncodedWord encoded = new EncodedWord(word, Arrays.copyOf(buffer.array(), buffer.position()));
         EncodedWord old = encodedWords.put(word, encoded);
-        countBytesTotal += encoded.length;
         if (old != null) {
             // Restore the previous value and stop.
             encodedWords.put(word, old);
         } else {
-            countBytesDistinctWords += encoded.length;
             old = wordFragments.put(encoded, encoded);
             if (old != null) {
                 // The word we just added is a substring of a previous word.
@@ -290,26 +161,6 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
     }
 
     /**
-     * A map of words associated to their position in the binary file.
-     * See {@link WordIndexWriter#write(Path)} for an explanation of the
-     * packed {@linkplain #positions} format.
-     */
-    static final class Result {
-        /** The words, sorted in alphabetical order. */
-        final String[] words;
-
-        /** The packed position of each words in the file. */
-        final int[] positions;
-
-        /** Prepares a new result for the given collection of words. */
-        Result(final Set<String> words) {
-            this.words = words.toArray(new String[words.size()]);
-            positions = new int[this.words.length];
-            Arrays.sort(this.words, WordComparator.INSTANCE);
-        }
-    }
-
-    /**
      * Writes the pool of all possible sequences of characters in the given file.
      * The file format is:
      * <p>
@@ -329,14 +180,14 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
      * @param  file The output file.
      * @return A map of words associated with their position in the file.
      */
-    public Result write(final Path file) throws IOException {
+    public WordTable write(final Path file) throws IOException {
         shareCommonBytes();
         /*
          * Determine what would be the position of each words and write every words to the file.
          * The words must be sorted by alphebetical order in order to allow the index to work.
          */
         int position = 0;
-        final Result result = new Result(encodedWords.keySet());
+        final WordTable result = new WordTable(encodedWords.keySet());
         for (final String word : result.words) {
             final EncodedWord encoded = encodedWords.get(word);
             if (encoded.isSubstringOf == null) {
@@ -354,9 +205,8 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
         buffer.putLong(MAGIC_NUMBER);
         buffer.putInt(encodedWords.size());
         buffer.putInt(position);
-        countBytesActual += position;
         try (FileChannel out = FileChannel.open(file, WRITE, CREATE, TRUNCATE_EXISTING)) {
-            encoder.writeEncodingTable(out, buffer);
+            writeEncodingTable(out, buffer);
             for (int i=0; i<result.words.length; i++) {
                 final String word = result.words[i];
                 EncodedWord encoded = encodedWords.get(word);
@@ -397,32 +247,6 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
             writeFully(buffer, out);
         }
         assert encodedWords.isEmpty() : encodedWords;
-        /*
-         * At this point, we are done.  If verification is enabled, create a new reader and
-         * verify every words that we wrote. This is executed in testing phase to make sure
-         * that we can read fully what we just wrote.
-         */
-        if (VERIFY) {
-            final String[] words = result.words.clone();
-            Collections.shuffle(Arrays.asList(words));
-            final WordIndexReader reader = new WordIndexReader(file, isAddingJapanese);
-            for (int i=0; i<words.length; i++) {
-                final String word = words[i];
-                final Entry entry = reader.search(word);
-                if (!word.equals(entry.getWord(false, 0))) {
-                    throw new IOException("Verification failed for word \"" + word + "\" at index " + i);
-                }
-            }
-        }
         return result;
-    }
-
-    /**
-     * Prints a few statistics for debugging purpose.
-     */
-    public void printStatistics() {
-        System.out.println("Total number of bytes:  " + countBytesTotal          / (1024*1024f) + " Mb");
-        System.out.println("Distinct words only:    " + countBytesDistinctWords  / (1024*1024f) + " Mb");
-        System.out.println("Actual number of bytes: " + countBytesActual         / (1024*1024f) + " Mb");
     }
 }

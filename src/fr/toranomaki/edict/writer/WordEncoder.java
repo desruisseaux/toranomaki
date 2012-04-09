@@ -14,38 +14,37 @@
  */
 package fr.toranomaki.edict.writer;
 
+import java.util.Set;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.HashMap;
-import java.util.Comparator;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
-
-import static fr.toranomaki.edict.WordIndexReader.*;
+import fr.toranomaki.edict.DictionaryFile;
 
 
 /**
- * Determines the frequency of a few character sequences. This is used for computing
- * an encoding to use in the binary files to be written by {@link WordIndexWriter}.
+ * Character encoding determined from the frequencies of character sequences.
  *
  * @author Martin Desruisseaux
  */
-final class FrequencyAnalyzer extends SectionWriter implements Comparator<String> {
+class WordEncoder extends DictionaryFile {
     /**
      * Maximal length of character sequences to analyze. This is based on empirical trial.
      */
-    private static final int MAX_CHARACTERS = (1 << NUM_BITS_FOR_CHAR_LENGTH);
+    private static final int MAX_SEQUENCE_LENGTH = 4;
 
     /**
-     * The mask indicating that a character is stored on two bytes rather than one.
-     * We store the 128 most common characters on 1 byte, and the remaining on two
-     * bytes.
+     * {@code true} for adding Japanese words, or {@code false} for adding senses.
      */
-    private static final int MASK_TWO_BYTES = 0x80;
+    final boolean isAddingJapanese;
 
     /**
      * On construction, this will hold the frequencies of a few characters.
@@ -54,85 +53,47 @@ final class FrequencyAnalyzer extends SectionWriter implements Comparator<String
     private final Map<String,Integer> encodingMap;
 
     /**
-     * {@code true} if {@link #computeEncoding()} has been invoked.
+     * Creates a new encoder from the frequencies of character sequences in the given entries.
+     *
+     * @param entries  The entries for which to create en encoder.
+     * @param japanese {@code true} for adding Japanese words, or {@code false} for adding senses.
      */
-    private boolean encodingComputed;
-
-    /**
-     * Prepares the analyzing of frequencies of the given approximative amount of entries.
-     * The {@link #addEntries(Iterable, boolean)} method shall be invoked after this constructor.
-     */
-    FrequencyAnalyzer(final int count) {
-        encodingMap = new HashMap<>(count*2);
-    }
-
-    /**
-     * Analyzes the frequencies of the given collection of entries. This method can be
-     * invoked more than once. Statistics will accumulate, unless {@link #clear()} has
-     * been invoked.
-     */
-    public void addEntries(final Iterable<Entry> entries, final boolean japanese) {
-        if (encodingComputed) {
-            throw new IllegalStateException("Invoke clear() before to add new entries.");
-        }
+    public WordEncoder(final Collection<Entry> entries, final boolean japanese) {
         isAddingJapanese = japanese;
+        encodingMap      = new HashMap<>(entries.size());
+        /*
+         * Computes the frequencies of character sequences in the given entries.
+         */
         for (final Entry entry : entries) {
             if (japanese) {
                 boolean isKanji = false;
                 do {
                     final int count = entry.getCount(isKanji);
                     for (int i=0; i<count; i++) {
-                        addWord(entry.getWord(isKanji, i));
+                        countCharSequenceFrequencies(entry.getWord(isKanji, i));
                     }
                 } while ((isKanji = !isKanji) == true);
             } else {
                 for (final Sense sense : entry.getSenses()) {
-                    addWord(sense.meaning);
+                    countCharSequenceFrequencies(sense.meaning);
                 }
             }
         }
-    }
-
-    /**
-     * Adds the given words to the static computation.
-     */
-    private void addWord(final String word) {
-        final int length = word.length();
-        for (int j=1; j<=MAX_CHARACTERS; j++) {
-            for (int i=j; i<=length; i++) {
-                final String sequence = word.substring(i-j, i);
-                final Integer count = encodingMap.put(sequence, 1);
-                if (count != null) {
-                    encodingMap.put(sequence, count+1);
-                }
-            }
-        }
-    }
-
-    /**
-     * Compares the given words for cost benefit. The most interesting strings are sorted first.
-     * Note: current implementation is slightly inaccurate, as we don't take in account the fact
-     * that the 128 most frequent characters will be stored on a single bytes instead than 2. At
-     * this point, we don't know yet which characters will be on a single byte.
-     */
-    @Override
-    public int compare(final String o1, final String o2) {
-        return encodingMap.get(o2) * o2.length() -
-               encodingMap.get(o1) * o1.length();
-    }
-
-    /**
-     * Computes the encoding table. This method should be invoked after all entries
-     * have been {@linkplain #addEntries(Iterable, boolean) added}. No new entries
-     * can be added after this method call, unless {@link #clear()} has been invoked.
-     */
-    public void computeEncoding() {
-        if (encodingComputed) {
-            throw new IllegalStateException("computeEncoding() has already been invoked.");
-        }
-        encodingComputed = true;
+        /*
+         * Sorts all character sequences by decreasing frequencies.
+         * We compare the words for "cost" benefit. The most interesting strings are sorted first.
+         * Note: current implementation is slightly inaccurate, as we don't take in account the fact
+         * that the 128 most frequent characters will be stored on a single bytes instead than 2. At
+         * this point, we don't know yet which characters will be on a single byte.
+         */
+        final Map<String,Integer> encodingMap = this.encodingMap;
         final String[] sequences = encodingMap.keySet().toArray(new String[encodingMap.size()]);
-        Arrays.sort(sequences, this); // Still need the frequencies map at this point.
+        Arrays.sort(sequences, new Comparator<String>() {
+            @Override public final int compare(final String o1, final String o2) {
+                return encodingMap.get(o2) * o2.length() -
+                       encodingMap.get(o1) * o1.length();
+            }
+        });
         /*
          * First, make sure that every single character are unconditionnaly included,
          * no matter their rank. Their code will be determined later.
@@ -148,7 +109,7 @@ final class FrequencyAnalyzer extends SectionWriter implements Comparator<String
          * Note that some single characters may not be included in those preferred slots,
          * because they appear in very rare occasion.
          */
-        int index = Math.min(MASK_TWO_BYTES, sequences.length);
+        int index = Math.min(MASK_CODE_ON_TWO_BYTES, sequences.length);
         for (int i=0; i<index; i++) {
             final String sequence = sequences[i];
             if (encodingMap.put(sequence, i) != null) {
@@ -184,15 +145,32 @@ final class FrequencyAnalyzer extends SectionWriter implements Comparator<String
     }
 
     /**
+     * Adds the given words to the statistic computation.
+     * This method is invoked by the constructor only.
+     */
+    private void countCharSequenceFrequencies(final String word) {
+        final int length = word.length();
+        for (int j=1; j<=MAX_SEQUENCE_LENGTH; j++) {
+            for (int i=j; i<=length; i++) {
+                final String sequence = word.substring(i-j, i);
+                final Integer count = encodingMap.put(sequence, 1);
+                if (count != null) {
+                    encodingMap.put(sequence, count+1);
+                }
+            }
+        }
+    }
+
+    /**
      * Encodes the given index on two bytes. We "insert" the bit 1 at the MASK_TWO_BYTES location.
      * All bits ahead of that location are shifted to the left.
      */
     private static int encodeTwoBytes(final int index) {
-        int code = index & ~(MASK_TWO_BYTES - 1); // Higher bits.
+        int code = index & ~(MASK_CODE_ON_TWO_BYTES - 1); // Higher bits.
         code <<= 1;
-        code |= (index & (MASK_TWO_BYTES - 1)); // Lower bits
-        code |= MASK_TWO_BYTES;
-        assert (code > MASK_TWO_BYTES) && (code & 0xFFFF0000) == 0 : index;
+        code |= (index & (MASK_CODE_ON_TWO_BYTES - 1)); // Lower bits
+        code |= MASK_CODE_ON_TWO_BYTES;
+        assert (code > MASK_CODE_ON_TWO_BYTES) && (code & 0xFFFF0000) == 0 : index;
         assert decodeTwoBytes(code) == index : index;
         return code;
     }
@@ -201,8 +179,8 @@ final class FrequencyAnalyzer extends SectionWriter implements Comparator<String
      * The reverse of {@link #decodeTwoBytes(int)}.
      */
     private static int decodeTwoBytes(int code) {
-        final int index = code & (MASK_TWO_BYTES - 1); // Higher bits.
-        code = (code & ~((MASK_TWO_BYTES << 1) - 1)) >>> 1;
+        final int index = code & (MASK_CODE_ON_TWO_BYTES - 1); // Higher bits.
+        code = (code & ~((MASK_CODE_ON_TWO_BYTES << 1) - 1)) >>> 1;
         return index | code;
     }
 
@@ -213,9 +191,9 @@ final class FrequencyAnalyzer extends SectionWriter implements Comparator<String
     private boolean canEncodeOnTwoBytes(final String sequence) {
         for (int i=sequence.length(); --i>=1;) {
             Integer code = encodingMap.get(sequence.substring(0, i));
-            if (code != null && (code & MASK_TWO_BYTES) == 0) {
+            if (code != null && (code & MASK_CODE_ON_TWO_BYTES) == 0) {
                 code = encodingMap.get(sequence.substring(i));
-                if (code != null && (code & MASK_TWO_BYTES) == 0) {
+                if (code != null && (code & MASK_CODE_ON_TWO_BYTES) == 0) {
                     return true;
                 }
             }
@@ -226,17 +204,14 @@ final class FrequencyAnalyzer extends SectionWriter implements Comparator<String
     /**
      * Encodes the given word to the given buffer.
      */
-    public void encode(final String word, final ByteBuffer buffer) {
-        if (!encodingComputed) {
-            throw new IllegalStateException("Must invoke computeEncoding() first.");
-        }
+    public final void encode(final String word, final ByteBuffer buffer) {
         final int length = word.length();
 next:   for (int i=0; i<length;) {
-            for (int j=Math.min(MAX_CHARACTERS, length-i); j>=1; j--) {
+            for (int j=Math.min(MAX_SEQUENCE_LENGTH, length-i); j>=1; j--) {
                 final Integer code = encodingMap.get(word.substring(i, i+j));
                 if (code != null) {
                     final int n = code;
-                    if ((n & MASK_TWO_BYTES) == 0) {
+                    if ((n & MASK_CODE_ON_TWO_BYTES) == 0) {
                         buffer.put((byte) n);
                     } else {
                         buffer.putShort((short) n);
@@ -263,7 +238,10 @@ next:   for (int i=0; i<length;) {
      * @param out The channel where to write.
      * @param buffer A temporary buffer to use.
      */
-    public void writeEncodingTable(final WritableByteChannel out, final ByteBuffer buffer) throws IOException {
+    public final void writeEncodingTable(final WritableByteChannel out, final ByteBuffer buffer) throws IOException {
+        /*
+         * Get the list of all character sequences sorted by their index.
+         */
         final String[] sequences = new String[encodingMap.size()];
         for (final Map.Entry<String,Integer> entry : encodingMap.entrySet()) {
             final int index = decodeTwoBytes(entry.getValue());
@@ -273,53 +251,62 @@ next:   for (int i=0; i<length;) {
             sequences[index] = entry.getKey();
         }
         /*
-         * Write the number of character sequences.
+         * Creates a character pools containing only the sequences that are not
+         * substring of an other sequences.
+         */
+        final String pool;
+        if (true) {
+            final Set<String> substrings = new HashSet<>(sequences.length);
+            for (final String sequence : sequences) {
+                final int length = sequence.length();
+                for (int j=0; j<length; j++) {
+                    final int stop = (j == 0) ? length-1 : length;
+                    for (int k=j+1; k<=stop; k++) {
+                        substrings.add(sequence.substring(j,k));
+                    }
+                }
+            }
+            final StringBuilder builder = new StringBuilder();
+            for (final String sequence : sequences) {
+                if (!substrings.contains(sequence)) {
+                    builder.append(sequence);
+                }
+            }
+            pool = builder.toString();
+        }
+        /*
+         * Write the number of character sequences, then the position and length of each
+         * sequence (packed in a single 'int') in the character pool, then the character pool.
          */
         assert sequences.length <= 0xFFFF;
         buffer.putShort((short) sequences.length);
-        /*
-         * Write the length of each character sequence.
-         * Many lengths are packed in each 'long' value.
-         */
-        long packed = 0;
-        for (int i=0; i<sequences.length;) {
-            final int length = sequences[i].length();
-            packed = (packed << NUM_BITS_FOR_CHAR_LENGTH) | (length - 1);
-            assert ((length - 1) & ~(MAX_CHARACTERS - 1)) == 0 : length;
-            if (++i % (Long.SIZE / NUM_BITS_FOR_CHAR_LENGTH) == 0) {
-                buffer.putLong(packed);
-                packed = 0;
-                // Test after addition because we assume that the buffer was big enough
-                // for the first long, and we want to ensure that there is enough room
-                // for the long that may be added after this loop.
-                if (buffer.remaining() < Long.SIZE / Byte.SIZE) {
-                    writeFully(buffer, out);
-                }
+        for (final String sequence : sequences) {
+            int pos = pool.indexOf(sequence);
+            assert (pos >= 0) : sequence;
+            pos = (pos << Byte.SIZE) | sequence.length();
+            buffer.putInt(pos);
+            // Test after addition because we assume that the buffer was big enough
+            // for the first 'int', and we want to ensure that there is enough room
+            // for the 'int' that we will add after this loop.
+            if (buffer.remaining() < Integer.SIZE / Byte.SIZE) {
+                writeFully(buffer, out);
             }
         }
-        // Final packed length, if any.
-        if (sequences.length % (Long.SIZE / NUM_BITS_FOR_CHAR_LENGTH) != 0) {
-            buffer.putLong(packed);
-        }
-        /*
-         * Write all character sequences.
-         */
-        final StringBuilder string = new StringBuilder();
-        for (final String sequence : sequences) {
-            string.append(sequence);
-        }
-        final byte[] bytes = string.toString().getBytes(isAddingJapanese ? JAPAN_ENCODING : LATIN_ENCODING);
-        buffer.putInt(bytes.length);
+        final ByteBuffer bytes = ByteBuffer.wrap(pool.getBytes(isAddingJapanese ? JAPAN_ENCODING : LATIN_ENCODING));
+        buffer.putInt(bytes.limit());
         writeFully(buffer, out);
-        writeFully(ByteBuffer.wrap(bytes), out);
+        do out.write(bytes);
+        while (bytes.hasRemaining());
     }
 
     /**
-     * Clears the frequency table. This method should be invoked before to reuse
-     * this {@code FrequencyAnalyzer} object for a new language.
+     * {@linkplain ByteBuffer#flip() Flips} the given buffer, then writes fully its content
+     * to the given channel. After the write operation, the buffer is cleared for reuse.
      */
-    public void clear() {
-        encodingMap.clear();
-        encodingComputed = false;
+    static void writeFully(final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
+        buffer.flip();
+        do out.write(buffer);
+        while (buffer.hasRemaining());
+        buffer.clear();
     }
 }

@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.LinkedHashMap;
 import java.io.IOException;
 import java.io.EOFException;
-import java.nio.ByteOrder;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
@@ -31,57 +30,16 @@ import java.nio.file.StandardOpenOption;
 
 
 /**
- * Searches words in the file created by {@link WordIndexWriter}.
+ * Searches words in the file created by {@link fr.toranomaki.edict.writer.WordIndexWriter}.
  *
  * @author Martin Desruisseaux
  */
-public final class WordIndexReader {
+public final class WordIndexReader extends DictionaryFile {
     /**
      * The cache capacity. This value is arbitrary, but we are better to use a value
      * not greater than a power of 2 time the load factor (0.75).
      */
     private static final int CACHE_SIZE = 3000;
-
-    /**
-     * Arbitrary magic number. The value on the right side of {@code +} is the version number,
-     * to be incremented every time we apply an incompatible change in the file format.
-     */
-    public static final long MAGIC_NUMBER = 8798890475810241902L + 0;
-
-    /**
-     * The encoding used for Latin characters.
-     */
-    public static final String LATIN_ENCODING = "UTF-8";
-
-    /**
-     * The encoding used for Japanese characters.
-     */
-    public static final String JAPAN_ENCODING = "UTF-16";
-
-    /**
-     * The byte order used in the dictionary files.
-     * This is fixed to the byte order used by Intel processors for now.
-     */
-    public static final ByteOrder BYTE_ORDER = ByteOrder.LITTLE_ENDIAN;
-
-    /**
-     * Number of bits to use for storing the character sequence length.
-     */
-    public static final int NUM_BITS_FOR_CHAR_LENGTH = 2;
-
-    /**
-     * Number of bits to use for storing the word length in a {@code int} reference value.
-     * The remaining number of bits will be used for storing the word start position.
-     */
-    public static final int NUM_BITS_FOR_WORD_LENGTH = 9;
-
-    /**
-     * Size in bytes of one index value in the index array, which is the size of the {@code int} type.
-     *
-     * <p>Note: if this value is changed, we recommend to perform a search for {@code Integer.SIZE}
-     * on the code base, especially in {@code WordIndexReader} and {@code WordIndexWriter}.</p>
-     */
-    public static final int ELEMENT_SIZE = Integer.SIZE / Byte.SIZE;
 
     /**
      * Number of words in the mapped index.
