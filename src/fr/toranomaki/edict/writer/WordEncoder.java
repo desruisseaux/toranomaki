@@ -229,9 +229,9 @@ next:   for (int i=0; i<length;) {
      * the reader to decode the characters back to the original strings. The format is:
      * <p>
      * <ul>
-     *   <li>Number of character sequences, as an unsigned {@code short}.</li>
-     *   <li>Length of each character sequence, stored on {@value #NUM_BITS_FOR_CHAR_LENGTH} bits.</li>
      *   <li>Length of the character sequence pool, as an {@code int}.</li>
+     *   <li>Number of character sequences, as an unsigned {@code short}.</li>
+     *   <li>Position and length of each character sequence, packed in {@code int}.</li>
      *   <li>All character sequences encoded in UTF-8 or UTF-16.</li>
      * </ul>
      *
@@ -275,6 +275,11 @@ next:   for (int i=0; i<length;) {
             pool = builder.toString();
         }
         /*
+         * Computes the length of the character pool.
+         */
+        final ByteBuffer bytes = ByteBuffer.wrap(pool.getBytes(isAddingJapanese ? JAPAN_ENCODING : LATIN_ENCODING));
+        buffer.putInt(bytes.limit());
+        /*
          * Write the number of character sequences, then the position and length of each
          * sequence (packed in a single 'int') in the character pool, then the character pool.
          */
@@ -292,8 +297,6 @@ next:   for (int i=0; i<length;) {
                 writeFully(buffer, out);
             }
         }
-        final ByteBuffer bytes = ByteBuffer.wrap(pool.getBytes(isAddingJapanese ? JAPAN_ENCODING : LATIN_ENCODING));
-        buffer.putInt(bytes.limit());
         writeFully(buffer, out);
         do out.write(bytes);
         while (bytes.hasRemaining());

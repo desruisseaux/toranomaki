@@ -21,7 +21,7 @@ import fr.toranomaki.edict.WordComparator;
 
 /**
  * The words and their packed location calculated by {@link WordIndexWriter}
- * See {@link WordIndexWriter#write(Path)} for an explanation of the packed
+ * See {@link WordIndexWriter#writeIndex} for an explanation of the packed
  * {@linkplain #positions} format.
  *
  * @author Martin Desruisseaux

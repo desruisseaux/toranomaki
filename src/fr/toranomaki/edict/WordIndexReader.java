@@ -17,16 +17,8 @@ package fr.toranomaki.edict;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.io.IOException;
-import java.io.EOFException;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CoderResult;
-import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 
 
 /**
@@ -34,7 +26,7 @@ import java.nio.file.StandardOpenOption;
  *
  * @author Martin Desruisseaux
  */
-public final class WordIndexReader extends DictionaryFile {
+final class WordIndexReader extends DictionaryFile {
     /**
      * The cache capacity. This value is arbitrary, but we are better to use a value
      * not greater than a power of 2 time the load factor (0.75).
@@ -47,24 +39,40 @@ public final class WordIndexReader extends DictionaryFile {
     private final int numberOfWords;
 
     /**
+     * Number of bytes in the pool of words.
+     */
+    private final int poolSize;
+
+    /**
+     * The character sequences used for the words encoding.
+     */
+    private final String charSequences;
+
+    /**
+     * The position of each character sequences in the {@link #charSequences} string.
+     */
+    private final int[] encodingMap;
+
+    /**
+     * A temporary string builder used for decoding the words.
+     */
+    private final StringBuilder stringBuilder;
+
+    /**
      * A view over the content of the file created by {@link WordIndexWriter}.
      * The first part of this buffer contains the indexes, and the second part
      * contains the bytes from which to build the words. The separation between
      * those two parts is {@link #numberOfWords} multiplied by the size of the
      * {@code int} type.
      */
-    private final ByteBuffer buffer;
+    ByteBuffer buffer;
 
     /**
-     * The decoder to use for converting the bytes from the {@link #buffer} to
-     * {@link String} instances.
+     * Index of the first valid position for this index in the {@linkplain #buffer}.
+     *
+     * @see #bufferEndPosition()
      */
-    private final CharsetDecoder decoder;
-
-    /**
-     * The buffer where to put decoder words.
-     */
-    private final CharBuffer charBuffer;
+    private final int bufferStartPosition;
 
     /**
      * A cache of most recently used strings. The cache capacity is arbitrary, but we are
@@ -80,38 +88,46 @@ public final class WordIndexReader extends DictionaryFile {
     /**
      * Creates a new index reader.
      *
-     * @param  file The file to open.
+     * @param  in The file channel from which to read the header.
+     * @param  header A buffer containing the header bytes. Must contains 2 integers and one short.
      * @param  isReadingJapanese {@code true} if the dictionary is for Japanese words,
      *         or {@code false} for senses.
      * @throws IOException If an error occurred while reading the file.
      */
-    public WordIndexReader(final Path file, final boolean isReadingJapanese) throws IOException {
-        decoder = Charset.forName(isReadingJapanese ? JAPAN_ENCODING : LATIN_ENCODING).newDecoder();
-        charBuffer = CharBuffer.allocate(1 << NUM_BITS_FOR_WORD_LENGTH);
-        final ByteBuffer header = ByteBuffer.allocate(4 * ELEMENT_SIZE);
-        header.order(BYTE_ORDER);
-        try (FileChannel in = FileChannel.open(file, StandardOpenOption.READ)) {
-            readFully(in, header);
-            header.flip();
-            if (header.getLong() != MAGIC_NUMBER) {
-                throw new IOException(file + ": incompatible file format.");
-            }
-            numberOfWords = header.getInt();
-            final int poolLength = header.getInt();
-            assert !header.hasRemaining() : header;
-            buffer = in.map(FileChannel.MapMode.READ_ONLY, header.position(),
-                    ((long) numberOfWords) * ELEMENT_SIZE + poolLength);
-            buffer.order(BYTE_ORDER);
+    WordIndexReader(final ReadableByteChannel in, final ByteBuffer header,
+            final boolean isReadingJapanese, final long bufferStart) throws IOException
+    {
+        bufferStartPosition = (int) bufferStart;
+        if (bufferStartPosition != bufferStart) {
+            throw new IOException("Position out of bounds.");
         }
+        if (header.getInt() != MAGIC_NUMBER) {
+            throw new IOException("Incompatible file format.");
+        }
+        final int seqPoolSize;
+        numberOfWords = header.getInt();
+        poolSize      = header.getInt();
+        seqPoolSize   = header.getInt();
+        encodingMap   = new int[header.getShort() & 0xFFFF];
+        final int mapSize = encodingMap.length * (Integer.SIZE / Byte.SIZE);
+        ByteBuffer buffer = ByteBuffer.allocate(Math.max(mapSize, seqPoolSize));
+        buffer.order(BYTE_ORDER);
+        buffer.limit(mapSize);
+        readFully(in, buffer);
+        buffer.asIntBuffer().get(encodingMap);
+        buffer.clear().limit(seqPoolSize);
+        readFully(in, buffer);
+        charSequences = new String(buffer.array(), 0, seqPoolSize, isReadingJapanese ? JAPAN_ENCODING : LATIN_ENCODING);
+        stringBuilder = new StringBuilder();
     }
 
     /**
-     * Reads bytes from the given channel until the given buffer is full.
+     * Returns the end of the mapped portion of the file relevant to this index.
+     *
+     * @see #bufferStartPosition
      */
-    private static void readFully(final ReadableByteChannel in, final ByteBuffer buffer) throws IOException {
-        do if (in.read(buffer) < 0) {
-            throw new EOFException();
-        } while (buffer.hasRemaining());
+    final long bufferEndPosition() {
+        return ((long) numberOfWords)*ELEMENT_SIZE + poolSize + bufferStartPosition;
     }
 
     /**
@@ -126,21 +142,24 @@ public final class WordIndexReader extends DictionaryFile {
         }
         // Read from disk, then cache the result.
         final int position = (packed >>> NUM_BITS_FOR_WORD_LENGTH) + numberOfWords*ELEMENT_SIZE;
-        final int length = packed & ((1 << NUM_BITS_FOR_WORD_LENGTH) - 1);
-        buffer.limit(position + length).position(position);
-        charBuffer.clear();
-        decoder.reset();
-        CoderResult result = decoder.decode(buffer, charBuffer, true);
-        if (result == CoderResult.UNDERFLOW) {
-            result = decoder.flush(charBuffer);
-            if (result == CoderResult.UNDERFLOW) {
-                charBuffer.flip();
-                word = charBuffer.toString();
-                cache.put(key, word);
-                return word;
+        int remaining = packed & ((1 << NUM_BITS_FOR_WORD_LENGTH) - 1);
+        final ByteBuffer buffer = this.buffer;
+        buffer.position(bufferStartPosition + position);
+        stringBuilder.setLength(0);
+        while (--remaining >= 0) {
+            int code = buffer.get() & 0xFF;
+            if ((code & MASK_CODE_ON_TWO_BYTES) != 0) {
+                assert remaining != 0;
+                remaining--;
+                code = (code & ~MASK_CODE_ON_TWO_BYTES) | ((buffer.get() & 0xFF) << 7);
             }
+            code = encodingMap[code];
+            final int start = code >>> Byte.SIZE;
+            stringBuilder.append(charSequences, start, start + (code & 0xFF));
         }
-        throw new RuntimeException("Malformed input encoding: " + result);
+        word = stringBuilder.toString();
+        cache.put(key, word);
+        return word;
     }
 
     /**
@@ -150,12 +169,14 @@ public final class WordIndexReader extends DictionaryFile {
      * @param  word The word to search.
      * @return A partially created entry for the given word.
      */
-    public Entry search(final String word) {
+    final Entry search(final String word) {
+        final ByteBuffer buffer = this.buffer;
+        final int start = bufferStartPosition;
         int low  = 0;
         int high = numberOfWords - 1;
         while (low < high) {
             final int mid = (low + high) >>> 1;
-            final String midVal = getWordAt(buffer.getInt(mid * ELEMENT_SIZE));
+            final String midVal = getWordAt(buffer.getInt(mid*ELEMENT_SIZE + start));
             final int c = WordComparator.INSTANCE.compare(midVal, word);
             if (c == 0) {
                 return createEntry(mid, midVal);
@@ -163,7 +184,7 @@ public final class WordIndexReader extends DictionaryFile {
             if (c < 0) low = mid + 1;
             else      high = mid - 1;
         }
-        return createEntry(low, getWordAt(buffer.getInt(low * ELEMENT_SIZE)));
+        return createEntry(low, getWordAt(buffer.getInt(low*ELEMENT_SIZE + start)));
     }
 
     /**

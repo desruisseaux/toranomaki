@@ -14,7 +14,11 @@
  */
 package fr.toranomaki.edict;
 
+import java.io.IOException;
+import java.io.EOFException;
 import java.nio.ByteOrder;
+import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
 
 
 /**
@@ -29,7 +33,7 @@ public abstract class DictionaryFile {
      * Arbitrary magic number. The value on the right side of {@code +} is the version number,
      * to be incremented every time we apply an incompatible change in the file format.
      */
-    protected static final long MAGIC_NUMBER = 8798890475810241902L + 1;
+    protected static final int MAGIC_NUMBER = 810241902 + 1;
 
     /**
      * The byte order used in the dictionary files.
@@ -70,5 +74,15 @@ public abstract class DictionaryFile {
      * For subclass constructors only.
      */
     protected DictionaryFile() {
+    }
+
+    /**
+     * Reads bytes from the given channel until the given buffer is full, then flips the buffer.
+     */
+    static void readFully(final ReadableByteChannel in, final ByteBuffer buffer) throws IOException {
+        do if (in.read(buffer) < 0) {
+            throw new EOFException();
+        } while (buffer.hasRemaining());
+        buffer.flip();
     }
 }

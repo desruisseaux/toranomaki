@@ -22,13 +22,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Path;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
-
-import static java.nio.file.StandardOpenOption.*;
 
 
 /**
@@ -46,13 +44,6 @@ final class WordIndexWriter extends WordEncoder {
     private final Map<String,EncodedWord> encodedWords;
 
     /**
-     * Encoded words, or portion of encoded words. This is used in order to detect
-     * the words that can be encoded as substrings of an existing word. The values
-     * in this map are identical to the keys.
-     */
-    private final SortedMap<EncodedWord,EncodedWord> wordFragments;
-
-    /**
      * The buffer containing encoded bytes. Will also be used as a buffer for writing
      * to the byte channel. The buffer capacity most be a multiple of the {@code int}
      * size.
@@ -68,25 +59,49 @@ final class WordIndexWriter extends WordEncoder {
      */
     public WordIndexWriter(final Collection<Entry> entries, final boolean japanese) {
         super(entries, japanese);
-        encodedWords  = new LinkedHashMap<>(entries.size());
-        wordFragments = new TreeMap<>();
-        buffer        = ByteBuffer.allocate(1024 * ELEMENT_SIZE);
+        encodedWords = new LinkedHashMap<>(entries.size());
+        buffer       = ByteBuffer.allocate(1024 * ELEMENT_SIZE);
+        buffer.order(BYTE_ORDER);
         /*
-         * Sets the entries to write.
+         * Sets the entries to write. The 'wordFragments' map will contains portion of encoded
+         * words. This is used in order to detect the words that can be encoded as substrings
+         * of an existing word. The values in this map are identical to the keys.
          */
+        final SortedMap<EncodedWord,EncodedWord> wordFragments = new TreeMap<>();
         for (final Entry entry : entries) {
             if (japanese) {
                 boolean isKanji = false;
                 do {
                     final int count = entry.getCount(isKanji);
                     for (int i=0; i<count; i++) {
-                        addWord(entry.getWord(isKanji, i));
+                        addWord(entry.getWord(isKanji, i), wordFragments);
                     }
                 } while ((isKanji = !isKanji) == true);
             } else {
                 for (final Sense sense : entry.getSenses()) {
-                    addWord(sense.meaning);
+                    addWord(sense.meaning, wordFragments);
                 }
+            }
+        }
+        /*
+         * Searches for any byte sequences that are subarray of another byte sequence.
+         * The addWord(String, ...) method already handled the cases where a word is identical to
+         * the beginning of another word. This method handles the cases where a word is identical
+         * to the ending of another word.
+         */
+        for (EncodedWord encoded : encodedWords.values()) {
+            while (encoded.isSubstringOf != null) {
+                encoded = encoded.isSubstringOf;
+            }
+            EncodedWord candidate = encoded;
+search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values()) {
+                switch (next.compareTo(candidate)) {
+                    case 0:  continue;     // Look for the next word.
+                    case 1:  break;        // Found a longer word.
+                    case 2:  break search; // Bytes are different.
+                    default: throw new AssertionError(candidate);
+                }
+                encoded.isSubstringOf = candidate = next;
             }
         }
     }
@@ -96,7 +111,7 @@ final class WordIndexWriter extends WordEncoder {
      * add all substrings beginning in the same way but ending at different lengths, in order
      * to allow us to detect later which words are substrings of other words.
      */
-    private void addWord(final String word) {
+    private void addWord(final String word, final SortedMap<EncodedWord,EncodedWord> wordFragments) {
         buffer.clear();
         encode(word, buffer);
         final EncodedWord encoded = new EncodedWord(word, Arrays.copyOf(buffer.array(), buffer.position()));
@@ -136,52 +151,21 @@ final class WordIndexWriter extends WordEncoder {
     }
 
     /**
-     * Searches for any byte sequences that are subarray of another byte sequence.
-     * The {@link #add(Entry)} method already handled the cases where a word is identical to
-     * the beginning of another word. This method handles the cases where a word is identical
-     * to the ending of another word.
-     */
-    private void shareCommonBytes() {
-        for (EncodedWord encoded : encodedWords.values()) {
-            while (encoded.isSubstringOf != null) {
-                encoded = encoded.isSubstringOf;
-            }
-            EncodedWord candidate = encoded;
-search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values()) {
-                switch (next.compareTo(candidate)) {
-                    case 0:  continue;     // Look for the next word.
-                    case 1:  break;        // Found a longer word.
-                    case 2:  break search; // Bytes are different.
-                    default: throw new AssertionError(candidate);
-                }
-                encoded.isSubstringOf = candidate = next;
-            }
-        }
-        wordFragments.clear(); // Not needed anymore, so let GC do its work.
-    }
-
-    /**
-     * Writes the pool of all possible sequences of characters in the given file.
-     * The file format is:
+     * Writes the header to the given channel.
+     * This method writes:
      * <p>
-     * <ol>
-     *   <li>The {@linkplain #MAGIC_NUMBER magic number}, as a {@code long}.</li>
+     * <ul>
+     *   <li>The {@linkplain #MAGIC_NUMBER magic number} as a {@code int}.</li>
      *   <li>Number of words, as an {@code int}.</li>
      *   <li>The length of the pool of bytes, as an {@code int}.</li>
      *   <li>The encoding used in the pool of bytes, as documented in
-     *       {@link FrequencyAnalyzer#writeEncodingTable(WritableByteChannel, ByteBuffer)}.</li>
-     *   <li>Packed references to the encoded words are {@code int} numbers where the first bits are
-     *       the index of the first byte to use in the pool (0 is the first byte after all packed
-     *       references), and the last {@value #NUM_BITS_FOR_WORD_LENGTH} bits are the number of bytes
-     *       to read from the pool.</li>
-     *   <li>A pool of bytes which represent the encoded words.</li>
-     * </ol>
+     *       {@link #writeEncodingTable(WritableByteChannel, ByteBuffer)}.</li>
+     * </ul>
      *
-     * @param  file The output file.
+     * @param  out The output channel.
      * @return A map of words associated with their position in the file.
      */
-    public WordTable write(final Path file) throws IOException {
-        shareCommonBytes();
+    public WordTable writeHeader(final WritableByteChannel out) throws IOException {
         /*
          * Determine what would be the position of each words and write every words to the file.
          * The words must be sorted by alphebetical order in order to allow the index to work.
@@ -197,56 +181,73 @@ search:     for (final EncodedWord next : wordFragments.tailMap(encoded).values(
             // Do not update the (isSubstringOf != null) cases in this loop,
             // because we need all (isSubstringOf == null) cases to be resolved first.
         }
+        buffer.clear();
+        buffer.putInt(MAGIC_NUMBER);
+        buffer.putInt(encodedWords.size());
+        buffer.putInt(position);
+        writeEncodingTable(out, buffer);
+        return result;
+    }
+
+    /**
+     * Writes the index after the header. This method write the portion of the file which will
+     * be mapped by a direct NIO buffer at reading time.
+     * <p>
+     * This method writes:
+     * <ul>
+     *   <li>Packed references to the encoded words as {@code int} numbers where the first bits are
+     *       the index of the first byte to use in the pool (0 is the first byte after all packed
+     *       references), and the last {@value #NUM_BITS_FOR_WORD_LENGTH} bits are the number of bytes
+     *       to read from the pool.</li>
+     *   <li>A pool of bytes which represent the encoded words.</li>
+     * </ul>
+     *
+     * @param  wordTable The table produced by {@link #writeHeader(WritableByteChannel, boolean)}.
+     * @param  file The output channel.
+     */
+    public void writeIndex(final WordTable wordTable, final WritableByteChannel out) throws IOException {
         /*
          * Now process to the actual writing. This method will also computes the final
          * "packed" position as a side-effect of this process.
          */
-        buffer.order(BYTE_ORDER).clear();
-        buffer.putLong(MAGIC_NUMBER);
-        buffer.putInt(encodedWords.size());
-        buffer.putInt(position);
-        try (FileChannel out = FileChannel.open(file, WRITE, CREATE, TRUNCATE_EXISTING)) {
-            writeEncodingTable(out, buffer);
-            for (int i=0; i<result.words.length; i++) {
-                final String word = result.words[i];
-                EncodedWord encoded = encodedWords.get(word);
-                assert word.equals(encoded.word) : encoded;
-                // Get the expected position in the file, taking in account the
-                // case where this word is a substring of an existing word.
-                final int length = encoded.length;
-                int offset = 0;
-                while (encoded.isSubstringOf != null) {
-                    offset += encoded.offset();
-                    encoded = encoded.isSubstringOf;
-                }
-                position = encoded.position + offset;
-                // Check against overflow.
-                if (position >= (1 << (Integer.SIZE - NUM_BITS_FOR_WORD_LENGTH))) {
-                    throw new IOException("Too many bytes: " + position);
-                }
-                if (length >= (1 << NUM_BITS_FOR_WORD_LENGTH)) {
-                    throw new IOException("String is too long: " + word + " (" + length + " bytes)");
-                }
-                // Save the packed value.
-                final int packed = (position << NUM_BITS_FOR_WORD_LENGTH) | length;
-                result.positions[i] = packed;
-                if (!buffer.putInt(packed).hasRemaining()) {
+        for (int i=0; i<wordTable.words.length; i++) {
+            final String word = wordTable.words[i];
+            EncodedWord encoded = encodedWords.get(word);
+            assert word.equals(encoded.word) : encoded;
+            // Get the expected position in the file, taking in account the
+            // case where this word is a substring of an existing word.
+            final int length = encoded.length;
+            int offset = 0;
+            while (encoded.isSubstringOf != null) {
+                offset += encoded.offset();
+                encoded = encoded.isSubstringOf;
+            }
+            final int position = encoded.position + offset;
+            // Check against overflow.
+            if (position >= (1 << (Integer.SIZE - NUM_BITS_FOR_WORD_LENGTH))) {
+                throw new IOException("Too many bytes: " + position);
+            }
+            if (length >= (1 << NUM_BITS_FOR_WORD_LENGTH)) {
+                throw new IOException("String is too long: " + word + " (" + length + " bytes)");
+            }
+            // Save the packed value.
+            final int packed = (position << NUM_BITS_FOR_WORD_LENGTH) | length;
+            wordTable.positions[i] = packed;
+            if (!buffer.putInt(packed).hasRemaining()) {
+                writeFully(buffer, out);
+            }
+        }
+        // After the index, write the actual encoded words.
+        for (final String word : wordTable.words) {
+            final EncodedWord encoded = encodedWords.remove(word);
+            if (encoded.isSubstringOf == null) {
+                if (buffer.remaining() < encoded.bytes.length) {
                     writeFully(buffer, out);
                 }
+                buffer.put(encoded.bytes);
             }
-            // After the index, write the actual encoded words.
-            for (final String word : result.words) {
-                final EncodedWord encoded = encodedWords.remove(word);
-                if (encoded.isSubstringOf == null) {
-                    if (buffer.remaining() < encoded.bytes.length) {
-                        writeFully(buffer, out);
-                    }
-                    buffer.put(encoded.bytes);
-                }
-            }
-            writeFully(buffer, out);
         }
+        writeFully(buffer, out);
         assert encodedWords.isEmpty() : encodedWords;
-        return result;
     }
 }
