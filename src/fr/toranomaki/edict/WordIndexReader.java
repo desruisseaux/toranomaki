@@ -75,11 +75,18 @@ final class WordIndexReader extends DictionaryFile {
     private final int bufferStartPosition;
 
     /**
+     * The index read from the buffer for the first 8 iterations of the {@link #search} method.
+     * This is used on the assumption that it may help the OS to reduce the amount of disk seeks.
+     * Values in this array are initially zero, and computed when first needed.
+     */
+    private final int[] packedCache;
+
+    /**
      * A cache of most recently used strings. The cache capacity is arbitrary, but we are
      * better to use a value not greater than a power of 2 time the load factor (0.75).
      */
     @SuppressWarnings("serial")
-    private final Map<Integer,String> cache = new LinkedHashMap<Integer,String>(1024, 0.75f, true) {
+    private final Map<Integer,String> wordCache = new LinkedHashMap<Integer,String>(1024, 0.75f, true) {
         @Override protected boolean removeEldestEntry(final Map.Entry eldest) {
             return size() > CACHE_SIZE;
         }
@@ -119,6 +126,7 @@ final class WordIndexReader extends DictionaryFile {
         readFully(in, buffer);
         charSequences = new String(buffer.array(), 0, seqPoolSize, isReadingJapanese ? JAPAN_ENCODING : LATIN_ENCODING);
         stringBuilder = new StringBuilder();
+        packedCache   = new int[256]; // Must be a power of 2.
     }
 
     /**
@@ -136,7 +144,7 @@ final class WordIndexReader extends DictionaryFile {
     private String getWordAt(final int packed) {
         // First, look in the cache.
         final Integer key = packed;
-        String word = cache.get(key);
+        String word = wordCache.get(key);
         if (word != null) {
             return word;
         }
@@ -158,7 +166,7 @@ final class WordIndexReader extends DictionaryFile {
             stringBuilder.append(charSequences, start, start + (code & 0xFF));
         }
         word = stringBuilder.toString();
-        cache.put(key, word);
+        wordCache.put(key, word);
         return word;
     }
 
@@ -172,18 +180,43 @@ final class WordIndexReader extends DictionaryFile {
     final Entry search(final String word) {
         final ByteBuffer buffer = this.buffer;
         final int start = bufferStartPosition;
+        int cachePos = 1;
         int low  = 0;
         int high = numberOfWords - 1;
         while (low < high) {
             final int mid = (low + high) >>> 1;
-            final String midVal = getWordAt(buffer.getInt(mid*ELEMENT_SIZE + start));
+            /*
+             * Get a packed reference to the word at index 'mid' (we will extract the actual word
+             * later). We will use a cache for the first 8 iterations, because those iterations
+             * involve seeks over a large distance. After 8 iterations, the seek distances will
+             * be much shorter, so the OS cache will hopefully be used more easily.
+             */
+            int packed;
+            if (cachePos >= 0 && cachePos < packedCache.length) {
+                packed = packedCache[cachePos];
+                if (packed == 0) {
+                    packed = buffer.getInt(mid*ELEMENT_SIZE + start);
+                    packedCache[cachePos] = packed;
+                }
+                cachePos <<= 1;
+            } else {
+                packed = buffer.getInt(mid*ELEMENT_SIZE + start);
+            }
+            /*
+             * Now get the word at the packed reference and compare it with the word to search.
+             * Update the next index (including the index of cached packed references) according
+             * the comparison result.
+             */
+            final String midVal = getWordAt(packed);
             final int c = WordComparator.INSTANCE.compare(midVal, word);
             if (c == 0) {
                 return createEntry(mid, midVal);
             }
             if (c < 0) low = mid + 1;
-            else      high = mid - 1;
+            else     {high = mid - 1; cachePos |= 1;}
         }
+        // No need to use the cache, because if we reach this point, we already
+        // executed all the iterations so the seek distance is minimal.
         return createEntry(low, getWordAt(buffer.getInt(low*ELEMENT_SIZE + start)));
     }
 

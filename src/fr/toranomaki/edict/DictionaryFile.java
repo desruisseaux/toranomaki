@@ -33,7 +33,7 @@ public abstract class DictionaryFile {
      * Arbitrary magic number. The value on the right side of {@code +} is the version number,
      * to be incremented every time we apply an incompatible change in the file format.
      */
-    protected static final int MAGIC_NUMBER = 810241902 + 1;
+    protected static final int MAGIC_NUMBER = 810241902 + 2;
 
     /**
      * The byte order used in the dictionary files.
