@@ -19,12 +19,13 @@
  * to the binary format used by the {@link fr.toranomaki.edict} package. This package needs
  * to be used only on the developer machine; it can be excluded from the client applications.
  * <p>
- * The file format is:
+ * The file format is a header followed by a file to be mapped by a direct buffer.
+ * The header file format is:
  * <p>
  * <ul>
  *   <li>For each index (currently only two: Japanese words and senses):
  *     <ul>
- *       <li>The {@linkplain #MAGIC_NUMBER magic number} as a {@code int}.</li>
+ *       <li>The {@linkplain fr.toranomaki.edict.DictionaryFile#MAGIC_NUMBER magic number} as a {@code int}.</li>
  *       <li>Number of words, as an {@code int}.</li>
  *       <li>The length of the pool of bytes, as an {@code int}.</li>
  *       <li>Length of the character sequences pool, as an {@code int}.</li>
@@ -37,13 +38,43 @@
  *       <li>All character sequences encoded in UTF-8 or UTF-16.</li>
  *     </ul>
  *   </li>
- *   <li>For each index (again):
+ *   <li>Length of the list of entries for words in the Japanese index, in bytes.</li>
+ *   <li>Length of the list of entries for words in the senses index, in bytes.</li>
+ *   <li>Length of the pool of entries, in bytes.</li>
+ * </ul>
+ *
+ * <p>The mapped buffer file format (following immediately the header) is:</p>
+ * <ul>
+ *   <li>For each index:
  *     <ul>
- *       <li>Packed references to the encoded words as {@code int} numbers where the first bits are
- *           the index of the first byte to use in the pool (0 is the first byte after all packed
- *           references), and the last {@code NUM_BITS_FOR_WORD_LENGTH} bits are the number of bytes
- *           to read from the pool.</li>
+ *       <li>Packed references to the encoded words as {@code int} numbers where the first bits are the
+ *           index of the first byte to use in the pool (0 is the first byte after all packed references),
+ *           and the last {@value fr.toranomaki.edict.DictionaryFile#NUM_BITS_FOR_WORD_LENGTH} bits
+ *           are the number of bytes to read from the pool.</li>
  *       <li>A pool of bytes which represent the encoded words.</li>
+ *       <li>Packed references to the list of entries associated to a word as {@code int} numbers
+ *           where the first bits are the index of the first elements to use in the pool (0 is the
+ *           first byte after all packed references), and the last 8 bits are the number of elements
+ *           to read from the pool.</li>
+ *       <li>A pool of references to entry descriptions.</li>
+ *     </ul>
+ *   </li>
+ *   <li>For each entry:
+ *     <ul>
+ *       <li>Number of Kanji elements, on {@value fr.toranomaki.edict.DictionaryFile#NUM_BITS_FOR_ELEMENT_COUNT} bits.</li>
+ *       <li>Number of reading elements, on {@value fr.toranomaki.edict.DictionaryFile#NUM_BITS_FOR_ELEMENT_COUNT} bits.</li>
+ *       <li>Number of senses, on a {@code byte}.</li>
+ *       <li>For each Kanji elements, followed by each reading elements:
+ *         <ul>
+ *           <li>Packed index of the word, as an {@code int}.</li>
+ *           <li>Priority (0 if none), as a {@code short}.</li>
+ *         </ul>
+ *       </li>
+ *       <li>For each sense:
+ *         <ul>
+ *           <li>Packed index of the word, as an {@code int}.</li>
+ *         </ul>
+ *       </li>
  *     </ul>
  *   </li>
  * </ul>

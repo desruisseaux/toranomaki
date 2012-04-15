@@ -109,7 +109,7 @@ class WordEncoder extends DictionaryFile {
          * Note that some single characters may not be included in those preferred slots,
          * because they appear in very rare occasion.
          */
-        int index = Math.min(MASK_CODE_ON_TWO_BYTES, sequences.length);
+        int index = Math.min(MASK_CHARACTER_INDEX_ON_TWO_BYTES, sequences.length);
         for (int i=0; i<index; i++) {
             final String sequence = sequences[i];
             if (encodingMap.put(sequence, i) != null) {
@@ -166,11 +166,11 @@ class WordEncoder extends DictionaryFile {
      * All bits ahead of that location are shifted to the left.
      */
     private static int encodeTwoBytes(final int index) {
-        int code = index & ~(MASK_CODE_ON_TWO_BYTES - 1); // Higher bits.
+        int code = index & ~(MASK_CHARACTER_INDEX_ON_TWO_BYTES - 1); // Higher bits.
         code <<= 1;
-        code |= (index & (MASK_CODE_ON_TWO_BYTES - 1)); // Lower bits
-        code |= MASK_CODE_ON_TWO_BYTES;
-        assert (code > MASK_CODE_ON_TWO_BYTES) && (code & 0xFFFF0000) == 0 : index;
+        code |= (index & (MASK_CHARACTER_INDEX_ON_TWO_BYTES - 1)); // Lower bits
+        code |= MASK_CHARACTER_INDEX_ON_TWO_BYTES;
+        assert (code > MASK_CHARACTER_INDEX_ON_TWO_BYTES) && (code & 0xFFFF0000) == 0 : index;
         assert decodeTwoBytes(code) == index : index;
         return code;
     }
@@ -179,8 +179,8 @@ class WordEncoder extends DictionaryFile {
      * The reverse of {@link #decodeTwoBytes(int)}.
      */
     private static int decodeTwoBytes(int code) {
-        final int index = code & (MASK_CODE_ON_TWO_BYTES - 1); // Higher bits.
-        code = (code & ~((MASK_CODE_ON_TWO_BYTES << 1) - 1)) >>> 1;
+        final int index = code & (MASK_CHARACTER_INDEX_ON_TWO_BYTES - 1); // Higher bits.
+        code = (code & ~((MASK_CHARACTER_INDEX_ON_TWO_BYTES << 1) - 1)) >>> 1;
         return index | code;
     }
 
@@ -191,9 +191,9 @@ class WordEncoder extends DictionaryFile {
     private boolean canEncodeOnTwoBytes(final String sequence) {
         for (int i=sequence.length(); --i>=1;) {
             Integer code = encodingMap.get(sequence.substring(0, i));
-            if (code != null && (code & MASK_CODE_ON_TWO_BYTES) == 0) {
+            if (code != null && (code & MASK_CHARACTER_INDEX_ON_TWO_BYTES) == 0) {
                 code = encodingMap.get(sequence.substring(i));
-                if (code != null && (code & MASK_CODE_ON_TWO_BYTES) == 0) {
+                if (code != null && (code & MASK_CHARACTER_INDEX_ON_TWO_BYTES) == 0) {
                     return true;
                 }
             }
@@ -211,10 +211,9 @@ next:   for (int i=0; i<length;) {
                 final Integer code = encodingMap.get(word.substring(i, i+j));
                 if (code != null) {
                     final int n = code;
-                    if ((n & MASK_CODE_ON_TWO_BYTES) == 0) {
-                        buffer.put((byte) n);
-                    } else {
-                        buffer.putShort((short) n);
+                    buffer.put((byte) n);
+                    if ((n & MASK_CHARACTER_INDEX_ON_TWO_BYTES) != 0) {
+                        buffer.put((byte) (n >>> Byte.SIZE));
                     }
                     i += j;
                     continue next;

@@ -49,18 +49,35 @@ public final class DictionaryReader extends DictionaryFile {
                 4 * (Integer.SIZE / Byte.SIZE) +
                 1 * (Short  .SIZE / Byte.SIZE));
         header.order(BYTE_ORDER);
+        final int japanToEntriesPoolSize;
+        final int senseToEntriesPoolSize;
+        final int entryPoolSize;
         try (FileChannel in = FileChannel.open(file, StandardOpenOption.READ)) {
-            // Initialize the index of Japanese words.
+            /*
+             * Initialize the index of Japanese words. Note that the WordIndexReader
+             * constructor will read more data beyond the 'header' buffer.
+             */
             readFully(in, header);
-            japanIndex = new WordIndexReader(in, header, true, 0);
-
-            // Initialize the index of senses
+            japanIndex = new WordIndexReader(in, header, true);
+            /*
+             * Initialize the index of senses.
+             */
             header.clear();
             readFully(in, header);
-            senseIndex = new WordIndexReader(in, header, false, japanIndex.bufferEndPosition());
-
-            // Map the buffer.
-            buffer = in.map(FileChannel.MapMode.READ_ONLY, in.position(), senseIndex.bufferEndPosition());
+            senseIndex = new WordIndexReader(in, header, false);
+            /*
+             * Other header data.
+             */
+            header.clear().limit(3 * Integer.SIZE / Byte.SIZE);
+            readFully(in, header);
+            japanToEntriesPoolSize = header.getInt();
+            senseToEntriesPoolSize = header.getInt();
+            entryPoolSize          = header.getInt();
+            senseIndex.setBufferStartPosition(japanIndex.getBufferEndPosition(japanToEntriesPoolSize));
+            /*
+             * Map the buffer.
+             */
+            buffer = in.map(FileChannel.MapMode.READ_ONLY, in.position(), senseIndex.getBufferEndPosition(senseToEntriesPoolSize));
             buffer.order(BYTE_ORDER);
         }
         japanIndex.buffer = buffer;

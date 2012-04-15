@@ -60,7 +60,7 @@ final class WordIndexWriter extends WordEncoder {
      */
     public WordIndexWriter(final Collection<Entry> entries, final boolean japanese, final ByteBuffer buffer) {
         super(entries, japanese);
-        assert buffer.capacity() % ELEMENT_SIZE == 0;
+        assert buffer.capacity() % NUM_BYTES_FOR_INDEX_ELEMENT == 0;
         this.buffer  = buffer;
         encodedWords = new LinkedHashMap<>(2 * entries.size());
         /*

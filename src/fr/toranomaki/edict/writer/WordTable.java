@@ -45,4 +45,12 @@ final class WordTable {
         positions = new int[this.words.length];
         Arrays.sort(this.words, WordComparator.INSTANCE);
     }
+
+    /**
+     * Returns the packed position for the given word.
+     * The word must exist (this is not explicitely verified by this method).
+     */
+    int getPackedPosition(final String word) {
+        return positions[Arrays.binarySearch(words, word, WordComparator.INSTANCE)];
+    }
 }

@@ -49,7 +49,8 @@ final class WordIndexReader extends DictionaryFile {
     private final String charSequences;
 
     /**
-     * The position of each character sequences in the {@link #charSequences} string.
+     * The position (24 bits) and length (8 bits) of each character sequences
+     * in the {@link #charSequences} string.
      */
     private final int[] encodingMap;
 
@@ -69,10 +70,11 @@ final class WordIndexReader extends DictionaryFile {
 
     /**
      * Index of the first valid position for this index in the {@linkplain #buffer}.
+     * This is set after construction and should not change anymore after that point.
      *
-     * @see #bufferEndPosition()
+     * @see #getBufferEndPosition()
      */
-    private final int bufferStartPosition;
+    private int bufferStartPosition;
 
     /**
      * The words read from the buffer for the first 8 iterations of the {@link #search} method.
@@ -101,13 +103,7 @@ final class WordIndexReader extends DictionaryFile {
      *         or {@code false} for senses.
      * @throws IOException If an error occurred while reading the file.
      */
-    WordIndexReader(final ReadableByteChannel in, final ByteBuffer header,
-            final boolean isReadingJapanese, final long bufferStart) throws IOException
-    {
-        bufferStartPosition = (int) bufferStart;
-        if (bufferStartPosition != bufferStart) {
-            throw new IOException("Position out of bounds.");
-        }
+    WordIndexReader(final ReadableByteChannel in, final ByteBuffer header, final boolean isReadingJapanese) throws IOException {
         if (header.getInt() != MAGIC_NUMBER) {
             throw new IOException("Incompatible file format.");
         }
@@ -130,12 +126,32 @@ final class WordIndexReader extends DictionaryFile {
     }
 
     /**
+     * Sets the buffer start position. This can be set only after construction.
+     */
+    final void setBufferStartPosition(final long position) throws IOException {
+        if (buffer != null) {
+            throw new IllegalStateException();
+        }
+        bufferStartPosition = (int) position;
+        if (bufferStartPosition != position) {
+            throw new IOException("Position out of bounds.");
+        }
+    }
+
+    /**
      * Returns the end of the mapped portion of the file relevant to this index.
      *
      * @see #bufferStartPosition
      */
-    final long bufferEndPosition() {
-        return ((long) numberOfWords)*ELEMENT_SIZE + poolSize + bufferStartPosition;
+    final long getBufferEndPosition(final int wordToEntryPoolSize) {
+        /*
+         * NUM_BYTES_FOR_INDEX_ELEMENT is used once for the index created by WordIndexWriter,
+         * and once again for the "word to entries" map created by 'WordToEntries' class.
+         */
+        long position = ((long) numberOfWords) * (NUM_BYTES_FOR_INDEX_ELEMENT * 2);
+        position += poolSize; // Add the size of the pool managed by this WordIndexReader.
+        position += wordToEntryPoolSize; // Add the size of the pool of 'word to entries' sequences.
+        return position + bufferStartPosition;
     }
 
     /**
@@ -149,17 +165,17 @@ final class WordIndexReader extends DictionaryFile {
             return word;
         }
         // Read from disk, then cache the result.
-        final int position = (packed >>> NUM_BITS_FOR_WORD_LENGTH) + numberOfWords*ELEMENT_SIZE;
+        final int position = (packed >>> NUM_BITS_FOR_WORD_LENGTH) + numberOfWords*NUM_BYTES_FOR_INDEX_ELEMENT;
         int remaining = packed & ((1 << NUM_BITS_FOR_WORD_LENGTH) - 1);
         final ByteBuffer buffer = this.buffer;
         buffer.position(bufferStartPosition + position);
         stringBuilder.setLength(0);
         while (--remaining >= 0) {
             int code = buffer.get() & 0xFF;
-            if ((code & MASK_CODE_ON_TWO_BYTES) != 0) {
+            if ((code & MASK_CHARACTER_INDEX_ON_TWO_BYTES) != 0) {
                 assert remaining != 0;
                 remaining--;
-                code = (code & ~MASK_CODE_ON_TWO_BYTES) | ((buffer.get() & 0xFF) << 7);
+                code = (code & ~MASK_CHARACTER_INDEX_ON_TWO_BYTES) | ((buffer.get() & 0xFF) << 7);
             }
             code = encodingMap[code];
             final int start = code >>> Byte.SIZE;
@@ -194,12 +210,12 @@ final class WordIndexReader extends DictionaryFile {
             if (cachePos >= 0 && cachePos < wordByIteration.length) {
                 midVal = wordByIteration[cachePos];
                 if (midVal == null) {
-                    midVal = getWordAt(buffer.getInt(mid*ELEMENT_SIZE + start));
+                    midVal = getWordAt(buffer.getInt(mid*NUM_BYTES_FOR_INDEX_ELEMENT + start));
                     wordByIteration[cachePos] = midVal;
                 }
                 cachePos <<= 1;
             } else {
-                midVal = getWordAt(buffer.getInt(mid*ELEMENT_SIZE + start));
+                midVal = getWordAt(buffer.getInt(mid*NUM_BYTES_FOR_INDEX_ELEMENT + start));
             }
             /*
              * Now compare the word at the mid position with the word to search. Update the next index
@@ -214,7 +230,7 @@ final class WordIndexReader extends DictionaryFile {
         }
         // No need to use the cache, because if we reach this point, we already
         // executed all the iterations so the seek distance is minimal.
-        return createEntry(low, getWordAt(buffer.getInt(low*ELEMENT_SIZE + start)));
+        return createEntry(low, getWordAt(buffer.getInt(low*NUM_BYTES_FOR_INDEX_ELEMENT + start)));
     }
 
     /**

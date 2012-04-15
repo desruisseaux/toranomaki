@@ -29,8 +29,8 @@ import java.nio.channels.ReadableByteChannel;
 
 
 /**
- * Base class of every classes for reading or writing the dictionary file in its binary format.
- * The binary format is specific to this project and is documented in the
+ * Base class of every classes for reading or writing the dictionary file in its binary format,
+ * or part of that file. The binary format is specific to this project and is documented in the
  * {@link fr.toranomaki.edict.writer} package.
  *
  * @author Martin Desruisseaux
@@ -40,7 +40,7 @@ public abstract class DictionaryFile {
      * Arbitrary magic number. The value on the right side of {@code +} is the version number,
      * to be incremented every time we apply an incompatible change in the file format.
      */
-    protected static final int MAGIC_NUMBER = 810241902 + 2;
+    protected static final int MAGIC_NUMBER = 810241902 + 4;
 
     /**
      * The byte order used in the dictionary files.
@@ -61,7 +61,7 @@ public abstract class DictionaryFile {
      * We store the 128 most common characters on 1 byte, and the remaining on two
      * bytes.
      */
-    protected static final int MASK_CODE_ON_TWO_BYTES = 0x80;
+    protected static final int MASK_CHARACTER_INDEX_ON_TWO_BYTES = 0x80;
 
     /**
      * Number of bits to use for storing the word length in a {@code int} reference value.
@@ -70,12 +70,22 @@ public abstract class DictionaryFile {
     protected static final int NUM_BITS_FOR_WORD_LENGTH = 9;
 
     /**
+     * Number of bits to use for storing the count of Kanji and reading elements in an entry.
+     */
+    protected static final int NUM_BITS_FOR_ELEMENT_COUNT = 4;
+
+    /**
      * Size in bytes of one index value in the index array, which is the size of the {@code int} type.
      *
      * <p>Note: if this value is changed, we recommend to perform a search for {@code Integer.SIZE}
      * on the code base, especially in {@code WordIndexReader} and {@code WordIndexWriter}.</p>
      */
-    protected static final int ELEMENT_SIZE = Integer.SIZE / Byte.SIZE;
+    protected static final int NUM_BYTES_FOR_INDEX_ELEMENT = Integer.SIZE / Byte.SIZE;
+
+    /**
+     * Number of bytes to use for storing the position of an entry.
+     */
+    protected static final int NUM_BYTES_FOR_ENTRY_POSITION = 3;
 
     /**
      * For subclass constructors only.
