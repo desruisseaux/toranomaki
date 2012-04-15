@@ -60,7 +60,7 @@ class WordEncoder extends DictionaryFile {
      */
     public WordEncoder(final Collection<Entry> entries, final boolean japanese) {
         isAddingJapanese = japanese;
-        encodingMap      = new HashMap<>(entries.size());
+        encodingMap = new HashMap<>(MAX_SEQUENCE_LENGTH * entries.size());
         /*
          * Computes the frequencies of character sequences in the given entries.
          */
