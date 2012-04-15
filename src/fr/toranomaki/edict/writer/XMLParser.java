@@ -37,7 +37,6 @@ import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.DefaultHandler;
 import org.xml.sax.helpers.XMLReaderFactory;
 
-import fr.toranomaki.Main;
 import fr.toranomaki.edict.JMdict;
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
@@ -45,6 +44,8 @@ import fr.toranomaki.edict.ElementType;
 import fr.toranomaki.edict.PartOfSpeech;
 import fr.toranomaki.edict.Priority;
 import fr.toranomaki.edict.DictionaryException;
+
+import static fr.toranomaki.edict.DictionaryFile.getDirectory;
 
 
 /**
@@ -218,7 +219,7 @@ final class XMLParser extends DefaultHandler {
      */
     public static InputStream getDefaultStream() throws IOException {
         final InputStream in;
-        final File file = new File(Main.getDirectory(), "JMdict.xml");
+        final File file = getDirectory().resolve("JMdict.xml").toFile();
         if (file.isFile()) {
             in = new FileInputStream(file);
         } else {

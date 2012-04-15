@@ -42,7 +42,7 @@ import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.DefaultHandler;
 import org.xml.sax.helpers.XMLReaderFactory;
 
-import fr.toranomaki.Main;
+import static fr.toranomaki.edict.DictionaryFile.getDirectory;
 
 
 /**
@@ -699,7 +699,7 @@ final class JMdictImport extends DefaultHandler implements AutoCloseable {
                 break;
             }
             case 0: {
-                final File file = new File(Main.getDirectory(), "JMdict.xml");
+                final File file = getDirectory().resolve("JMdict.xml").toFile();
                 if (file.isFile()) {
                     in = new FileInputStream(file);
                     break;

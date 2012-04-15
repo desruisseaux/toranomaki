@@ -15,11 +15,7 @@
 package fr.toranomaki;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.URL;
-import java.net.URISyntaxException;
-import java.net.MalformedURLException;
 import java.sql.SQLException;
 import org.apache.derby.jdbc.EmbeddedDataSource;
 
@@ -36,6 +32,7 @@ import javafx.event.EventHandler;
 import javafx.application.Application;
 
 import fr.toranomaki.edict.JMdict;
+import static fr.toranomaki.edict.DictionaryFile.getDirectory;
 
 
 /**
@@ -78,49 +75,6 @@ public final class Main extends Application {
     }
 
     /**
-     * Returns the application installation directory. This method returns the first of the
-     * following choices:
-     * <p>
-     * <ul>
-     *   <li>If the {@code "toranomaki.dir"} property is set, returns that directory.</li>
-     *   <li>Otherwise if this application is bundled in a JAR file, returns the directory
-     *       that contain the JAR file.</li>
-     *   <li>Otherwise returns the user directory.</li>
-     * </ul>
-     * <p>
-     * If every cases, this method verify that the directory exists before to return it.
-     *
-     * @return The application directory.
-     * @throws IOException In an error occurred while getting the application directory.
-     */
-    public static File getDirectory() throws IOException {
-        File file;
-        final String directory = System.getProperty("toranomaki.dir");
-        if (directory != null) {
-            file = new File(directory);
-        } else {
-            URL url = Main.class.getResource("Main.class");
-            if ("jar".equals(url.getProtocol())) {
-                String path = url.getPath();
-                path = path.substring(0, path.indexOf('!'));
-                url = new URL(path);
-                try {
-                    file = new File(url.toURI());
-                } catch (URISyntaxException e) {
-                    throw new MalformedURLException(e.getLocalizedMessage());
-                }
-                file = file.getParentFile();
-            } else {
-                file = new File(System.getProperty("user.dir", "."));
-            }
-        }
-        if (!file.isDirectory()) {
-            throw new FileNotFoundException(file.getPath());
-        }
-        return file;
-    }
-
-    /**
      * Returns the data source to use for the connection to the SQL database.
      *
      * @return The data source.
@@ -128,7 +82,7 @@ public final class Main extends Application {
      */
     public static EmbeddedDataSource getDataSource() throws IOException {
         final EmbeddedDataSource datasource = new EmbeddedDataSource();
-        datasource.setDatabaseName(new File(getDirectory(), "JMdict").getPath().replace(File.separatorChar, '/'));
+        datasource.setDatabaseName(getDirectory().resolve("JMdict").toString().replace(File.separatorChar, '/'));
         datasource.setDataSourceName("JMdict"); // Optional - for information purpose only.
         return datasource;
     }

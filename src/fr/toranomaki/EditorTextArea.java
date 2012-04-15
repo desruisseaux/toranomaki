@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 
 import fr.toranomaki.edict.SearchResult;
+import static fr.toranomaki.edict.DictionaryFile.getDirectory;
 
 
 /**
@@ -72,7 +73,7 @@ class EditorTextArea {
      * Returns the file in which to save the editor content.
      */
     private static File getFile() throws IOException {
-        return new File(Main.getDirectory(), "Editor.txt");
+        return getDirectory().resolve("Editor.txt").toFile();
     }
 
     /**

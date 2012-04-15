@@ -56,12 +56,13 @@ final class WordIndexWriter extends WordEncoder {
      *
      * @param entries  The entries for which to create en encoder.
      * @param japanese {@code true} for adding Japanese words, or {@code false} for adding senses.
+     * @param buffer   A buffer to use. Its content will be overwritten.
      */
-    public WordIndexWriter(final Collection<Entry> entries, final boolean japanese) {
+    public WordIndexWriter(final Collection<Entry> entries, final boolean japanese, final ByteBuffer buffer) {
         super(entries, japanese);
+        assert buffer.capacity() % ELEMENT_SIZE == 0;
+        this.buffer  = buffer;
         encodedWords = new LinkedHashMap<>(2 * entries.size());
-        buffer       = ByteBuffer.allocate(1024 * ELEMENT_SIZE);
-        buffer.order(BYTE_ORDER);
         /*
          * Sets the entries to write. The 'wordFragments' map will contains portion of encoded
          * words. This is used in order to detect the words that can be encoded as substrings
