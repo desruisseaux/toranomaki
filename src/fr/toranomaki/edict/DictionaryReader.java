@@ -49,8 +49,7 @@ public final class DictionaryReader extends DictionaryFile {
                 4 * (Integer.SIZE / Byte.SIZE) +
                 1 * (Short  .SIZE / Byte.SIZE));
         header.order(BYTE_ORDER);
-        final int japanToEntriesPoolSize;
-        final int senseToEntriesPoolSize;
+        final int entryListPoolSize;
         final int entryPoolSize;
         try (FileChannel in = FileChannel.open(file, StandardOpenOption.READ)) {
             /*
@@ -58,26 +57,24 @@ public final class DictionaryReader extends DictionaryFile {
              * constructor will read more data beyond the 'header' buffer.
              */
             readFully(in, header);
-            japanIndex = new WordIndexReader(in, header, true);
+            japanIndex = new WordIndexReader(in, header, true, 0);
             /*
              * Initialize the index of senses.
              */
             header.clear();
             readFully(in, header);
-            senseIndex = new WordIndexReader(in, header, false);
+            senseIndex = new WordIndexReader(in, header, false, japanIndex.bufferEndPosition());
             /*
              * Other header data.
              */
-            header.clear().limit(3 * Integer.SIZE / Byte.SIZE);
+            header.clear().limit(2 * Integer.SIZE / Byte.SIZE);
             readFully(in, header);
-            japanToEntriesPoolSize = header.getInt();
-            senseToEntriesPoolSize = header.getInt();
-            entryPoolSize          = header.getInt();
-            senseIndex.setBufferStartPosition(japanIndex.getBufferEndPosition(japanToEntriesPoolSize));
+            entryListPoolSize = header.getInt();
+            entryPoolSize     = header.getInt();
             /*
              * Map the buffer.
              */
-            buffer = in.map(FileChannel.MapMode.READ_ONLY, in.position(), senseIndex.getBufferEndPosition(senseToEntriesPoolSize));
+            buffer = in.map(FileChannel.MapMode.READ_ONLY, in.position(), senseIndex.bufferEndPosition());
             buffer.order(BYTE_ORDER);
         }
         japanIndex.buffer = buffer;

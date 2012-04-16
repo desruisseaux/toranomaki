@@ -84,6 +84,7 @@ public final class DictionaryWriter extends DictionaryFile {
         System.out.println("Creating entry references");
         final WordToEntries japanToEntries = new WordToEntries(entries, true);
         final WordToEntries senseToEntries = new WordToEntries(entries, false);
+        final EntryList[] entryLists = WordToEntries.computePositions(japanToEntries, senseToEntries);
         entryPositions = new IdentityHashMap<>(entries.size());
         final int entryPoolLength = computeEntryPositions(entries);
 
@@ -91,11 +92,11 @@ public final class DictionaryWriter extends DictionaryFile {
         try (FileChannel out = FileChannel.open(file, WRITE, CREATE, TRUNCATE_EXISTING)) {
             japanese = japanWriter.writeHeader(out);
             senses   = senseWriter.writeHeader(out);
-            buffer.putInt(japanToEntries.entriesListLength * NUM_BYTES_FOR_ENTRY_POSITION);
-            buffer.putInt(senseToEntries.entriesListLength * NUM_BYTES_FOR_ENTRY_POSITION);
+            buffer.putInt(WordToEntries.entryListPoolSize(entryLists));
             buffer.putInt(entryPoolLength);
-            japanWriter.writeIndex(japanese, out); japanToEntries.write(japanese.words, entryPositions, buffer, out);
-            senseWriter.writeIndex(senses,   out); senseToEntries.write(senses  .words, entryPositions, buffer, out);
+            japanWriter.writeIndex(japanese, out); japanToEntries.writeReferences(japanese.words, buffer, out);
+            senseWriter.writeIndex(senses,   out); senseToEntries.writeReferences(senses  .words, buffer, out);
+            WordToEntries.writeLists(entryLists, entryPositions, buffer, out);
             int position = 0;
             for (final Entry entry : entries) {
                 assert entryPositions.get(entry) == position;

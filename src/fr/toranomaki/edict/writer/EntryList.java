@@ -23,7 +23,7 @@ import fr.toranomaki.edict.Entry;
  *
  * @author Martin Desruisseaux
  */
-final class EntryList {
+final class EntryList implements Comparable<EntryList> {
     /**
      * The entries included in this list.
      */
@@ -68,6 +68,18 @@ final class EntryList {
      */
     int size() {
         return entries.length;
+    }
+
+    /**
+     * If this list is a sublist of another list, returns the size of that other list.
+     * Otherwise returns the size of this list.
+     */
+    int parentSize() {
+        EntryList list = this;
+        while (list.isSublistOf != null) {
+            list = list.isSublistOf;
+        }
+        return list.size();
     }
 
     /**
@@ -129,5 +141,22 @@ final class EntryList {
             }
         }
         return false;
+    }
+
+    /**
+     * Compares this list with the given list for order.
+     */
+    @Override
+    public int compareTo(final EntryList other) {
+        final Entry[] ta = this. entries;
+        final Entry[] oa = other.entries;
+        final int length = Math.min(ta.length, oa.length);
+        for (int i=0; i<length; i++) {
+            final int id0 = ta[i].identifier;
+            final int id1 = oa[i].identifier;
+            if (id0 < id1) return -1;
+            if (id0 > id1) return +1;
+        }
+        return ta.length - oa.length;
     }
 }

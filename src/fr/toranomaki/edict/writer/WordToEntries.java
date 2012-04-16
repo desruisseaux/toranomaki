@@ -42,13 +42,10 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
     private final Map<String, EntryList> entriesForWord;
 
     /**
-     * The length of list of entries in the stream, in units of
-     * {@value #NUM_BYTES_FOR_ENTRY_POSITION}.
-     */
-    final int entriesListLength;
-
-    /**
      * Creates a new mapping for the given collection of entries.
+     * This constructor create the mapping of all words to their entries, but does not
+     * yet compute the position of those entries in the binary stream. To compute their
+     * position, invoke {@link #computePositions(WordToEntries[])} after creation.
      *
      * @param entries  The entries for which to create en encoder.
      * @param japanese {@code true} for adding Japanese words, or {@code false} for adding senses.
@@ -70,34 +67,6 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
                 }
             }
         }
-        /*
-         * If a value from the 'entriesForWord' map is a sub-array of an other value,
-         * store this information.
-         */
-        final Map<EntryList, EntryList> subLists = new HashMap<>(2 * entriesForWord.size());
-        for (final EntryList list : getSortedEntryLists()) {
-            final int length = list.size();
-            for (int start=0; start<length; start++) {
-                for (int end=start+1; end<=length; end++) {
-                    final EntryList sublist = list.sublist(start, end);
-                    subLists.put(sublist, sublist);
-                }
-            }
-        }
-        for (final Map.Entry<String,EntryList> entry : entriesForWord.entrySet()) {
-            entry.setValue(subLists.get(entry.getValue()));
-        }
-        /*
-         * Finally, computes the position of each list, excluding sublists.
-         */
-        int position = 0;
-        for (final EntryList list : entriesForWord.values()) {
-            if (list.isSublistOf == null) {
-                list.position = position;
-                position += list.size();
-            }
-        }
-        entriesListLength = position;
     }
 
     /**
@@ -114,15 +83,6 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
     }
 
     /**
-     * Returns all {@link EntryList} elements, sorted in ascending list size.
-     */
-    private EntryList[] getSortedEntryLists() {
-        final EntryList[] sortedLists = entriesForWord.values().toArray(new EntryList[entriesForWord.size()]);
-        Arrays.sort(sortedLists, this);
-        return sortedLists;
-    }
-
-    /**
      * Compares the given elements in such a way that shortest lists are sorted first.
      * Shortest lists are first because we want longest lists to overwrite shortest ones,
      * when iterating over the sorted {@code EntryList} array in ascending index order.
@@ -133,19 +93,83 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
     }
 
     /**
-     * Writes the references from words to entries.
+     * Invoked after every {@code WordToEntries} instances has been created, in order to
+     * compute the position of each entry in the binary stream.
      *
-     * @param words          The words, sorted in the order used by the index.
-     * @param entryPositions A map of entries to their location in the stream.
-     * @param buffer         A temporary buffer to use for writing.
-     * @param out            Where to flush the buffer.
+     * @param  references All {@code WordToEntries} for which to compute the position of entries.
+     * @return The common list of entries to save.
      */
-    void write(final String[] words, final Map<Entry,Integer> entryPositions,
-            final ByteBuffer buffer, final WritableByteChannel out) throws IOException
-    {
+    static EntryList[] computePositions(final WordToEntries... references) {
         /*
-         * Write the position and length of each sequence of references to entries.
+         * Create the collection of all sublists of entries lists. If there is many lists
+         * can produce the same sublist, keep the sublist created by the longest list.
          */
+        final Map<EntryList, EntryList> subLists = new HashMap<>(256 * 1024);
+        for (final WordToEntries ref : references) {
+            final Collection<EntryList> entries = ref.entriesForWord.values();
+            final EntryList[] sortedLists = entries.toArray(new EntryList[entries.size()]);
+            Arrays.sort(sortedLists, ref);
+            for (final EntryList list : sortedLists) {
+                final int length = list.size();
+                for (int start=0; start<length; start++) {
+                    for (int end=start+1; end<=length; end++) {
+                        final EntryList sublist = list.sublist(start, end);
+                        final EntryList old = subLists.put(sublist, sublist);
+                        if (old != null && old.parentSize() > sublist.parentSize()) {
+                            subLists.put(old, old);
+                        }
+                    }
+                }
+            }
+        }
+        /*
+         * Now that we found all possible sublists, replace the references of all WordEntries.
+         * Then get the set of unique instance of list, discarting all sublists.
+         */
+        for (final WordToEntries ref : references) {
+            for (final Map.Entry<String,EntryList> entry : ref.entriesForWord.entrySet()) {
+                entry.setValue(subLists.get(entry.getValue()));
+            }
+        }
+        subLists.clear();
+        for (final WordToEntries ref : references) {
+            for (final EntryList list : ref.entriesForWord.values()) {
+                if (list.isSublistOf == null) {
+                    subLists.put(list, null);
+                }
+            }
+        }
+        /*
+         * Finally, computes the position of each list. We will sort first the
+         * references to the entries that are declared first in the XML file.
+         */
+        final EntryList[] entries = subLists.keySet().toArray(new EntryList[subLists.size()]);
+        Arrays.sort(entries);
+        int position = 0;
+        for (final EntryList list : entries) {
+            list.position = position;
+            position += list.size();
+        }
+        return entries;
+    }
+
+    /**
+     * Returns the length of the pool of entry lists, in bytes.
+     */
+    static int entryListPoolSize(final EntryList[] lists) {
+        final EntryList last = lists[lists.length - 1];
+        return (last.position + last.size()) * NUM_BYTES_FOR_ENTRY_POSITION;
+    }
+
+    /**
+     * Writes the references to the list of entries. For each word, the reference to be
+     * written is the position and length of the entry list, packed on an {@code int}.
+     *
+     * @param words  The words, sorted in the order used by the index.
+     * @param buffer A temporary buffer to use for writing.
+     * @param out    Where to flush the buffer.
+     */
+    void writeReferences(final String[] words, final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
         for (final String word : words) {
             EntryList list = entriesForWord.get(word);
             final int length = list.size();
@@ -166,10 +190,24 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
             }
             buffer.putInt(position);
         }
+        writeFully(buffer, out);
+    }
+
+    /**
+     * Writes the list of entries (actually references to entries).
+     * This list is shared by all {@link WordToEntries} instances.
+     *
+     * @param lists          The lists calculated by {@link #computePositions(WordToEntries[])}.
+     * @param entryPositions A map of entries to their location in the stream.
+     * @param buffer         A temporary buffer to use for writing.
+     * @param out            Where to flush the buffer.
+     */
+    static void writeLists(final EntryList[] lists, final Map<Entry,Integer> entryPositions,
+            final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
         /*
          * Writes the references to the entries.
          */
-        for (final EntryList list : entriesForWord.values()) {
+        for (final EntryList list : lists) {
             if (list.isSublistOf == null) {
                 for (final Entry entry : list.entries()) {
                     if (buffer.remaining() < NUM_BYTES_FOR_ENTRY_POSITION) {

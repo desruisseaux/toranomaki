@@ -38,8 +38,7 @@
  *       <li>All character sequences encoded in UTF-8 or UTF-16.</li>
  *     </ul>
  *   </li>
- *   <li>Length of the list of entries for words in the Japanese index, in bytes.</li>
- *   <li>Length of the list of entries for words in the senses index, in bytes.</li>
+ *   <li>Length of the pool of references to entries, in bytes.</li>
  *   <li>Length of the pool of entries, in bytes.</li>
  * </ul>
  *
@@ -56,9 +55,9 @@
  *           where the first bits are the index of the first elements to use in the pool (0 is the
  *           first byte after all packed references), and the last 8 bits are the number of elements
  *           to read from the pool.</li>
- *       <li>A pool of references to entry descriptions.</li>
  *     </ul>
  *   </li>
+ *   <li>A pool of references to entry descriptions.</li>
  *   <li>For each entry:
  *     <ul>
  *       <li>Number of Kanji elements, on {@value fr.toranomaki.edict.DictionaryFile#NUM_BITS_FOR_ELEMENT_COUNT} bits.</li>

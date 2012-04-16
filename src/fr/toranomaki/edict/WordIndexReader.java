@@ -70,11 +70,10 @@ final class WordIndexReader extends DictionaryFile {
 
     /**
      * Index of the first valid position for this index in the {@linkplain #buffer}.
-     * This is set after construction and should not change anymore after that point.
      *
-     * @see #getBufferEndPosition()
+     * @see #bufferEndPosition()
      */
-    private int bufferStartPosition;
+    private final int bufferStartPosition;
 
     /**
      * The words read from the buffer for the first 8 iterations of the {@link #search} method.
@@ -103,7 +102,13 @@ final class WordIndexReader extends DictionaryFile {
      *         or {@code false} for senses.
      * @throws IOException If an error occurred while reading the file.
      */
-    WordIndexReader(final ReadableByteChannel in, final ByteBuffer header, final boolean isReadingJapanese) throws IOException {
+    WordIndexReader(final ReadableByteChannel in, final ByteBuffer header,
+            final boolean isReadingJapanese, final long bufferStart) throws IOException
+    {
+        bufferStartPosition = (int) bufferStart;
+        if (bufferStartPosition != bufferStart) {
+            throw new IOException("Position out of bounds.");
+        }
         if (header.getInt() != MAGIC_NUMBER) {
             throw new IOException("Incompatible file format.");
         }
@@ -126,31 +131,17 @@ final class WordIndexReader extends DictionaryFile {
     }
 
     /**
-     * Sets the buffer start position. This can be set only after construction.
-     */
-    final void setBufferStartPosition(final long position) throws IOException {
-        if (buffer != null) {
-            throw new IllegalStateException();
-        }
-        bufferStartPosition = (int) position;
-        if (bufferStartPosition != position) {
-            throw new IOException("Position out of bounds.");
-        }
-    }
-
-    /**
      * Returns the end of the mapped portion of the file relevant to this index.
      *
      * @see #bufferStartPosition
      */
-    final long getBufferEndPosition(final int wordToEntryPoolSize) {
+    final long bufferEndPosition() {
         /*
          * NUM_BYTES_FOR_INDEX_ELEMENT is used once for the index created by WordIndexWriter,
          * and once again for the "word to entries" map created by 'WordToEntries' class.
          */
         long position = ((long) numberOfWords) * (NUM_BYTES_FOR_INDEX_ELEMENT * 2);
         position += poolSize; // Add the size of the pool managed by this WordIndexReader.
-        position += wordToEntryPoolSize; // Add the size of the pool of 'word to entries' sequences.
         return position + bufferStartPosition;
     }
 
