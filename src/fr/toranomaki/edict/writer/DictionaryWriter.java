@@ -42,11 +42,6 @@ import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
  */
 public final class DictionaryWriter extends DictionaryFile {
     /**
-     * Set to {@code true} for verifying the binary file after writing.
-     */
-    private static final boolean VERIFY = true;
-
-    /**
      * The file to create.
      */
     private final Path file;
@@ -81,7 +76,7 @@ public final class DictionaryWriter extends DictionaryFile {
         for (int i=0; i<wordToEntries.length; i++) {
             wordToEntries[i] = new WordToEntries(entries, getLanguageAt(i));
         }
-        final EntryList[] entryLists = WordToEntries.computePositions(wordToEntries);
+        final EntryListPool entryListPool = WordToEntries.computePositions(wordToEntries);
         entryPositions = new IdentityHashMap<>(entries.size());
         final int entryPoolLength = computeEntryPositions(entries);
 
@@ -91,18 +86,20 @@ public final class DictionaryWriter extends DictionaryFile {
             for (int i=0; i<wordIndex.length; i++) {
                 wordTables[i] = wordIndex[i].writeHeader(out);
             }
-            buffer.putInt(WordToEntries.entryListPoolSize(entryLists));
+            buffer.putInt(entryListPool.size);
             buffer.putInt(entryPoolLength);
             for (int i=0; i<wordIndex.length; i++) {
                 wordIndex[i].writeIndex(wordTables[i], out);
-                wordToEntries[i].writeReferences(wordTables[i].words, buffer, out);
+                wordToEntries[i].write(wordTables[i].words, buffer, out);
             }
-            WordToEntries.writeLists(entryLists, entryPositions, buffer, out);
+            entryListPool.write(entryPositions, buffer, out);
             int position = 0;
             for (final Entry entry : entries) {
-                assert entryPositions.get(entry) == position;
+                assert entryPositions.get(entry) == position : position;
                 position += writeEntry(entry, buffer, out);
             }
+            assert position == entryPoolLength;
+            writeFully(buffer, out);
         }
     }
 
@@ -206,9 +203,7 @@ public final class DictionaryWriter extends DictionaryFile {
             final String[] words = table.words.clone();
             Collections.shuffle(Arrays.asList(words));
             for (final String word : words) {
-                final Entry  entry = reader.search(word, japanese);
-//              final String found = japanese ? entry.getWord(false, 0) : entry.getSenses()[0].meaning;
-                final String found = entry.getWord(false, 0);
+                final String found = reader.search(word, japanese);
                 if (!word.equals(found)) {
                     throw new IOException("Verification failed: expected \"" + word + "\" but found \"" + found + "\".");
                 }
@@ -228,8 +223,6 @@ public final class DictionaryWriter extends DictionaryFile {
             parser.parse(in);
         }
         final DictionaryWriter writer = new DictionaryWriter(parser.entryList);
-        if (VERIFY) {
-            writer.verifyIndex();
-        }
+        writer.verifyIndex();
     }
 }

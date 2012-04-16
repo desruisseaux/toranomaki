@@ -99,7 +99,7 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
      * @param  references All {@code WordToEntries} for which to compute the position of entries.
      * @return The common list of entries to save.
      */
-    static EntryList[] computePositions(final WordToEntries... references) {
+    static EntryListPool computePositions(final WordToEntries... references) {
         /*
          * Create the collection of all sublists of entries lists. If there is many lists
          * can produce the same sublist, keep the sublist created by the longest list.
@@ -143,22 +143,7 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
          * Finally, computes the position of each list. We will sort first the
          * references to the entries that are declared first in the XML file.
          */
-        final EntryList[] entries = subLists.keySet().toArray(new EntryList[subLists.size()]);
-        Arrays.sort(entries);
-        int position = 0;
-        for (final EntryList list : entries) {
-            list.position = position;
-            position += list.size();
-        }
-        return entries;
-    }
-
-    /**
-     * Returns the length of the pool of entry lists, in bytes.
-     */
-    static int entryListPoolSize(final EntryList[] lists) {
-        final EntryList last = lists[lists.length - 1];
-        return (last.position + last.size()) * NUM_BYTES_FOR_ENTRY_POSITION;
+        return new EntryListPool(subLists.keySet());
     }
 
     /**
@@ -169,7 +154,7 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
      * @param buffer A temporary buffer to use for writing.
      * @param out    Where to flush the buffer.
      */
-    void writeReferences(final String[] words, final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
+    void write(final String[] words, final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
         for (final String word : words) {
             EntryList list = entriesForWord.get(word);
             final int length = list.size();
@@ -190,40 +175,5 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
             }
             buffer.putInt(position);
         }
-        writeFully(buffer, out);
-    }
-
-    /**
-     * Writes the list of entries (actually references to entries).
-     * This list is shared by all {@link WordToEntries} instances.
-     *
-     * @param lists          The lists calculated by {@link #computePositions(WordToEntries[])}.
-     * @param entryPositions A map of entries to their location in the stream.
-     * @param buffer         A temporary buffer to use for writing.
-     * @param out            Where to flush the buffer.
-     */
-    static void writeLists(final EntryList[] lists, final Map<Entry,Integer> entryPositions,
-            final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
-        /*
-         * Writes the references to the entries.
-         */
-        for (final EntryList list : lists) {
-            if (list.isSublistOf == null) {
-                for (final Entry entry : list.entries()) {
-                    if (buffer.remaining() < NUM_BYTES_FOR_ENTRY_POSITION) {
-                        writeFully(buffer, out);
-                    }
-                    int reference = entryPositions.get(entry);
-                    for (int i=NUM_BYTES_FOR_ENTRY_POSITION; --i>=0;) {
-                        buffer.put((byte) reference);
-                        reference >>= Byte.SIZE;
-                    }
-                    if (reference != 0) {
-                        throw new IllegalArgumentException("Reference to " + entry + " is too large.");
-                    }
-                }
-            }
-        }
-        writeFully(buffer, out);
     }
 }

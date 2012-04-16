@@ -14,6 +14,8 @@
  */
 package fr.toranomaki.edict;
 
+import java.util.List;
+import java.util.ArrayList;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -41,6 +43,16 @@ public final class DictionaryReader extends DictionaryFile {
     private final ByteBuffer buffer;
 
     /**
+     * Index in the {@linkplain #buffer} where the list of entries begin.
+     */
+    private final int entryListsPoolStart;
+
+    /**
+     * Index in the {@linkplain #buffer} where the definition of entries begin.
+     */
+    private final int entryDefinitionsStart;
+
+    /**
      * Creates a new reader for the given binary file.
      *
      * @param  file The dictionary file to open.
@@ -52,8 +64,6 @@ public final class DictionaryReader extends DictionaryFile {
                 4 * (Integer.SIZE / Byte.SIZE) +
                 1 * (Short  .SIZE / Byte.SIZE));
         header.order(BYTE_ORDER);
-        final int entryListPoolSize;
-        final int entryPoolSize;
         try (FileChannel in = FileChannel.open(file, StandardOpenOption.READ)) {
             /*
              * Initialize the index of words. Note that the WordIndexReader
@@ -67,15 +77,12 @@ public final class DictionaryReader extends DictionaryFile {
                 position = wordIndex[i].bufferEndPosition();
             }
             /*
-             * Other header data.
+             * Read remaining header data and map the buffer.
              */
             header.clear().limit(2 * Integer.SIZE / Byte.SIZE);
             readFully(in, header);
-            entryListPoolSize = header.getInt();
-            entryPoolSize     = header.getInt();
-            /*
-             * Map the buffer.
-             */
+            entryListsPoolStart   = (int) position; position += header.getInt();
+            entryDefinitionsStart = (int) position; position += header.getInt();
             buffer = in.map(FileChannel.MapMode.READ_ONLY, in.position(), position);
             buffer.order(BYTE_ORDER);
         }
@@ -85,14 +92,16 @@ public final class DictionaryReader extends DictionaryFile {
     }
 
     /**
-     * Searches the entry for the given word. If no exact match is found,
-     * returns the first entry right after the given word.
+     * Searches the given word. If no exact match is found, returns the first word
+     * after the given word.
      *
      * @param  word The word to search.
      * @param  isJapanese {@code true} for searching a Japanese word, or {@code false} for a sense.
-     * @return A partially created entry for the given word.
+     * @return A word equals or sorted after the given word.
      */
-    public Entry search(final String word, final boolean isJapanese) {
-        return wordIndex[getLanguageIndex(isJapanese)].search(word);
+    public String search(final String word, final boolean isJapanese) {
+        final List<String> addTo = new ArrayList<>(1);
+        wordIndex[getLanguageIndex(isJapanese)].search(word, addTo);
+        return addTo.get(0);
     }
 }

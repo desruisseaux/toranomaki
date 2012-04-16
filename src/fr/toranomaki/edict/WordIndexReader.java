@@ -16,6 +16,7 @@ package fr.toranomaki.edict;
 
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Collection;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
@@ -178,13 +179,14 @@ final class WordIndexReader extends DictionaryFile {
     }
 
     /**
-     * Searches the entry for the given word. If no exact match is found,
-     * returns the first entry right after the given word.
+     * Searches the index of the given word. If no exact match is found, returns the index
+     * of first word after the given word.
      *
      * @param  word The word to search.
-     * @return A partially created entry for the given word.
+     * @param  result An optional collection where to add the word which has been found.
+     * @return Index of the word.
      */
-    final Entry search(final String word) {
+    final int search(final String word, final Collection<String> addWordTo) {
         final ByteBuffer buffer = this.buffer;
         final int start = bufferStartPosition;
         int cachePos = 1;
@@ -214,25 +216,19 @@ final class WordIndexReader extends DictionaryFile {
              */
             final int c = WordComparator.INSTANCE.compare(midVal, word);
             if (c == 0) {
-                return createEntry(mid, midVal);
+                if (addWordTo != null) {
+                    addWordTo.add(midVal);
+                }
+                return mid;
             }
             if (c < 0) low = mid + 1;
             else     {high = mid - 1; cachePos |= 1;}
         }
         // No need to use the cache, because if we reach this point, we already
         // executed all the iterations so the seek distance is minimal.
-        return createEntry(low, getWordAt(buffer.getInt(low*NUM_BYTES_FOR_INDEX_ELEMENT + start)));
-    }
-
-    /**
-     * Creates a new entry for the given word, which has been found at the given index.
-     *
-     * @param index The index where the word has been found.
-     * @param word  The word which has been found.
-     */
-    private static Entry createEntry(final int index, final String word) {
-        final Entry entry = new Entry(index);
-        entry.add(false, word, (short) 0);
-        return entry;
+        if (addWordTo != null) {
+            addWordTo.add(getWordAt(buffer.getInt(low*NUM_BYTES_FOR_INDEX_ELEMENT + start)));
+        }
+        return low;
     }
 }
