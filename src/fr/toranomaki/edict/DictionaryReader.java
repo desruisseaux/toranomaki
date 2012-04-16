@@ -28,9 +28,11 @@ import java.nio.file.StandardOpenOption;
  */
 public final class DictionaryReader extends DictionaryFile {
     /**
-     * The index.
+     * The index. For now we support only Japanese language and senses in westerner languages.
+     * But we define this field as an array anyway in order to make easier the addition of new
+     * languages in a future version, if desired.
      */
-    private final WordIndexReader japanIndex, senseIndex;
+    private final WordIndexReader[] wordIndex;
 
     /**
      * A view over a portion of the file created by the {@link fr.toranomaki.edict.writer}
@@ -45,6 +47,7 @@ public final class DictionaryReader extends DictionaryFile {
      * @throws IOException If an error occurred while reading the file.
      */
     public DictionaryReader(final Path file) throws IOException {
+        wordIndex = new WordIndexReader[2];
         final ByteBuffer header = ByteBuffer.allocate(
                 4 * (Integer.SIZE / Byte.SIZE) +
                 1 * (Short  .SIZE / Byte.SIZE));
@@ -53,17 +56,16 @@ public final class DictionaryReader extends DictionaryFile {
         final int entryPoolSize;
         try (FileChannel in = FileChannel.open(file, StandardOpenOption.READ)) {
             /*
-             * Initialize the index of Japanese words. Note that the WordIndexReader
+             * Initialize the index of words. Note that the WordIndexReader
              * constructor will read more data beyond the 'header' buffer.
              */
-            readFully(in, header);
-            japanIndex = new WordIndexReader(in, header, true, 0);
-            /*
-             * Initialize the index of senses.
-             */
-            header.clear();
-            readFully(in, header);
-            senseIndex = new WordIndexReader(in, header, false, japanIndex.bufferEndPosition());
+            long position = 0;
+            for (int i=0; i<wordIndex.length; i++) {
+                header.clear();
+                readFully(in, header);
+                wordIndex[i] = new WordIndexReader(in, header, getLanguageAt(i), position);
+                position = wordIndex[i].bufferEndPosition();
+            }
             /*
              * Other header data.
              */
@@ -74,11 +76,12 @@ public final class DictionaryReader extends DictionaryFile {
             /*
              * Map the buffer.
              */
-            buffer = in.map(FileChannel.MapMode.READ_ONLY, in.position(), senseIndex.bufferEndPosition());
+            buffer = in.map(FileChannel.MapMode.READ_ONLY, in.position(), position);
             buffer.order(BYTE_ORDER);
         }
-        japanIndex.buffer = buffer;
-        senseIndex.buffer = buffer;
+        for (int i=0; i<wordIndex.length; i++) {
+            wordIndex[i].buffer = buffer;
+        }
     }
 
     /**
@@ -86,10 +89,10 @@ public final class DictionaryReader extends DictionaryFile {
      * returns the first entry right after the given word.
      *
      * @param  word The word to search.
-     * @param  japanese {@code true} for searching a Japanese word, or {@code false} for a sense.
+     * @param  isJapanese {@code true} for searching a Japanese word, or {@code false} for a sense.
      * @return A partially created entry for the given word.
      */
-    public Entry search(final String word, final boolean japanese) {
-        return (japanese ? japanIndex : senseIndex).search(word);
+    public Entry search(final String word, final boolean isJapanese) {
+        return wordIndex[getLanguageIndex(isJapanese)].search(word);
     }
 }

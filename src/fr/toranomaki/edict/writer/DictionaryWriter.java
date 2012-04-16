@@ -52,14 +52,9 @@ public final class DictionaryWriter extends DictionaryFile {
     private final Path file;
 
     /**
-     * The index of Japanese words.
+     * The index of words for each languages (currently only Japanese and westerners).
      */
-    private final WordTable japanese;
-
-    /**
-     * The index of translations.
-     */
-    private final WordTable senses;
+    private final WordTable[] wordTables;
 
     /**
      * The position of each entry in the stream, after the indexes.
@@ -75,27 +70,33 @@ public final class DictionaryWriter extends DictionaryFile {
         final ByteBuffer buffer = ByteBuffer.allocate(1024 * NUM_BYTES_FOR_INDEX_ELEMENT);
         buffer.order(BYTE_ORDER);
 
-        System.out.println("Creating index for Japanese words");
-        final WordIndexWriter japanWriter = new WordIndexWriter(entries, true, buffer);
-
-        System.out.println("Creating index for senses");
-        final WordIndexWriter senseWriter = new WordIndexWriter(entries, false, buffer);
+        final WordIndexWriter[] wordIndex = new WordIndexWriter[2];
+        for (int i=0; i<wordIndex.length; i++) {
+            System.out.println("Creating index for " + ((i == 0) ? "Japanese words" : "senses"));
+            wordIndex[i] = new WordIndexWriter(entries, getLanguageAt(i), buffer);
+        }
 
         System.out.println("Creating entry references");
-        final WordToEntries japanToEntries = new WordToEntries(entries, true);
-        final WordToEntries senseToEntries = new WordToEntries(entries, false);
-        final EntryList[] entryLists = WordToEntries.computePositions(japanToEntries, senseToEntries);
+        final WordToEntries[] wordToEntries = new WordToEntries[wordIndex.length];
+        for (int i=0; i<wordToEntries.length; i++) {
+            wordToEntries[i] = new WordToEntries(entries, getLanguageAt(i));
+        }
+        final EntryList[] entryLists = WordToEntries.computePositions(wordToEntries);
         entryPositions = new IdentityHashMap<>(entries.size());
         final int entryPoolLength = computeEntryPositions(entries);
 
         System.out.println("Writing the dictionary file");
+        wordTables = new WordTable[2];
         try (FileChannel out = FileChannel.open(file, WRITE, CREATE, TRUNCATE_EXISTING)) {
-            japanese = japanWriter.writeHeader(out);
-            senses   = senseWriter.writeHeader(out);
+            for (int i=0; i<wordIndex.length; i++) {
+                wordTables[i] = wordIndex[i].writeHeader(out);
+            }
             buffer.putInt(WordToEntries.entryListPoolSize(entryLists));
             buffer.putInt(entryPoolLength);
-            japanWriter.writeIndex(japanese, out); japanToEntries.writeReferences(japanese.words, buffer, out);
-            senseWriter.writeIndex(senses,   out); senseToEntries.writeReferences(senses  .words, buffer, out);
+            for (int i=0; i<wordIndex.length; i++) {
+                wordIndex[i].writeIndex(wordTables[i], out);
+                wordToEntries[i].writeReferences(wordTables[i].words, buffer, out);
+            }
             WordToEntries.writeLists(entryLists, entryPositions, buffer, out);
             int position = 0;
             for (final Entry entry : entries) {
@@ -175,16 +176,18 @@ public final class DictionaryWriter extends DictionaryFile {
             int verify = buffer.position(); // To be used for assertions only.
             buffer.put((byte) ((numKanjis << NUM_BITS_FOR_ELEMENT_COUNT) | numReadings));
             buffer.put((byte) senses.length);
+            final WordTable japaneseWords = wordTables[getLanguageIndex(true)];
+            final WordTable senseWords    = wordTables[getLanguageIndex(false)];
             boolean isKanji = false;
             do {
                 final int count = isKanji ? numKanjis : numReadings;
                 for (int i=0; i<count; i++) {
-                    buffer.putInt(japanese.getPackedPosition(entry.getWord(isKanji, i)));
+                    buffer.putInt(japaneseWords.getPackedPosition(entry.getWord(isKanji, i)));
                     buffer.putShort(entry.getPriority(isKanji, i));
                 }
             } while ((isKanji = !isKanji) == true);
             for (final Sense sense : senses) {
-                buffer.putInt(this.senses.getPackedPosition(sense.meaning));
+                buffer.putInt(senseWords.getPackedPosition(sense.meaning));
             }
             assert (verify = buffer.position() - verify - length) == 0 : verify;
         }
@@ -197,27 +200,18 @@ public final class DictionaryWriter extends DictionaryFile {
     void verifyIndex() throws IOException {
         System.out.println("Verifying index");
         final DictionaryReader reader = new DictionaryReader(file);
-        verifyIndex(reader, japanese, true);
-        verifyIndex(reader, senses,  false);
-    }
-
-    /**
-     * Verifies the index for all words in the given table.
-     *
-     * @param reader   The reader to use for verifying the index.
-     * @param table    The table of words to verify.
-     * @param japanese {@code true} for verifying Japanese words, or {@code false} for verifying senses.
-     */
-    private static void verifyIndex(final DictionaryReader reader, final WordTable table, final boolean japanese) throws IOException {
-        final String[] words = table.words.clone();
-        Collections.shuffle(Arrays.asList(words));
-        for (int i=0; i<words.length; i++) {
-            final String word  = words[i];
-            final Entry  entry = reader.search(word, japanese);
-//            final String found = japanese ? entry.getWord(false, 0) : entry.getSenses()[0].meaning;
-            final String found = entry.getWord(false, 0);
-            if (!word.equals(found)) {
-                throw new IOException("Verification failed: expected \"" + word + "\" but found \"" + found + "\".");
+        for (int i=0; i<wordTables.length; i++) {
+            final WordTable table = wordTables[i];
+            final boolean japanese = getLanguageAt(i);
+            final String[] words = table.words.clone();
+            Collections.shuffle(Arrays.asList(words));
+            for (final String word : words) {
+                final Entry  entry = reader.search(word, japanese);
+//              final String found = japanese ? entry.getWord(false, 0) : entry.getSenses()[0].meaning;
+                final String found = entry.getWord(false, 0);
+                if (!word.equals(found)) {
+                    throw new IOException("Verification failed: expected \"" + word + "\" but found \"" + found + "\".");
+                }
             }
         }
     }

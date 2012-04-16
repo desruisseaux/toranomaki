@@ -137,6 +137,34 @@ public abstract class DictionaryFile {
     }
 
     /**
+     * {@code true} if we are reading or writing a dictionary part for the Japanese language,
+     * or {@code false} for the senses in westerner languages. This trivial method is mostly
+     * a placeholder for identifying the code to update if we want to support more languages
+     * in a future version.
+     *
+     * @param  index The index of the dictionary parts being read or written.
+     * @return The language, currently as a boolean but may be changed in a future version.
+     */
+    protected static boolean getLanguageAt(final int index) {
+        switch (index) {
+            case 0: return true;
+            case 1: return false;
+            default: throw new IndexOutOfBoundsException(String.valueOf(index));
+        }
+    }
+
+    /**
+     * The converse of {@link #getLanguageAt(int)}. The argument may be changed from a boolean
+     * to something else in a future version.
+     *
+     * @param isJapanese {@code true} for the Japanese language, or {@code false} for senses.
+     * @return The index of the given language.
+     */
+    protected static int getLanguageIndex(final boolean isJapanese) {
+        return isJapanese ? 0 : 1;
+    }
+
+    /**
      * Reads bytes from the given channel until the given buffer is full, then flips the buffer.
      */
     static void readFully(final ReadableByteChannel in, final ByteBuffer buffer) throws IOException {
