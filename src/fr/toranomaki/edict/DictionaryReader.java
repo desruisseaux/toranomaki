@@ -14,8 +14,8 @@
  */
 package fr.toranomaki.edict;
 
-import java.util.List;
-import java.util.ArrayList;
+import java.util.Locale;
+import java.util.Collections;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -55,7 +55,7 @@ public final class DictionaryReader extends DictionaryFile {
     /**
      * Creates a new reader for the given binary file.
      *
-     * @param  file The dictionary file to open.
+     * @param  file The dictionary file to open, typically {@link #getDictionaryFile()}.
      * @throws IOException If an error occurred while reading the file.
      */
     public DictionaryReader(final Path file) throws IOException {
@@ -100,8 +100,86 @@ public final class DictionaryReader extends DictionaryFile {
      * @return A word equals or sorted after the given word.
      */
     public String search(final String word, final boolean isJapanese) {
-        final List<String> addTo = new ArrayList<>(1);
-        wordIndex[getLanguageIndex(isJapanese)].search(word, addTo);
-        return addTo.get(0);
+        final WordIndexReader index = wordIndex[getLanguageIndex(isJapanese)];
+        return index.getWordAt(index.search(word));
+    }
+
+    /**
+     * Returns all entries associated to the word at the given index.
+     *
+     * @param  wordIndex Index of the word to search.
+     * @param  isJapanese {@code true} for a Japanese word, or {@code false} for a sense.
+     * @return All entries associated to the word at the given index.
+     */
+    public Entry[] getEntries(final int wordIndex, final boolean isJapanese) {
+        final WordIndexReader index = this.wordIndex[getLanguageIndex(isJapanese)];
+        int position = index.getEntryListPackedPosition(wordIndex);
+        final int length = position & 0xFF;
+        position >>>= Byte.SIZE;
+        buffer.position(entryListsPoolStart + position*NUM_BYTES_FOR_ENTRY_POSITION);
+        final int[] references = new int[length];
+        for (int i=0; i<length; i++) {
+            int ref = buffer.get() & 0xFF;
+            if (NUM_BYTES_FOR_ENTRY_POSITION >= 2) {
+                ref |= (buffer.get() & 0xFF) << Byte.SIZE;
+                if (NUM_BYTES_FOR_ENTRY_POSITION >= 3) {
+                    ref |= (buffer.get() & 0xFF) << (2*Byte.SIZE);
+                    if (NUM_BYTES_FOR_ENTRY_POSITION >= 4) {
+                        throw new AssertionError(NUM_BYTES_FOR_ENTRY_POSITION);
+                    }
+                }
+            }
+            references[i] = ref;
+        }
+        final Entry[] entries = new Entry[length];
+        for (int i=0; i<length; i++) {
+            entries[i] = getEntryAt(references[i]);
+        }
+        return entries;
+    }
+
+    /**
+     * Gets the entry at the given position.
+     *
+     * @param  position Entry position, in bytes relative to the beginning of the entry pool.
+     * @return The entry at the given index.
+     */
+    private Entry getEntryAt(final int position) {
+        buffer.position(entryDefinitionsStart + position);
+        /*
+         * Get the number of Japanese words and the number of senses.
+         */
+        int numKanjis = buffer.get() & 0xFF;
+        final int numReadings = numKanjis & ((1 << NUM_BITS_FOR_ELEMENT_COUNT) - 1);
+        numKanjis >>>= NUM_BITS_FOR_ELEMENT_COUNT;
+        final int numJapaneses = numKanjis + numReadings;
+        final int numSenses = buffer.get() & 0xFF;
+        /*
+         * Extract all entry data now. This include pointer to words,
+         * but we will not resolve those pointers yet.
+         */
+        final int[]   words      = new int  [numJapaneses + numSenses];
+        final short[] priorities = new short[numJapaneses];
+        for (int i=0; i<words.length; i++) {
+            words[i] = buffer.getInt();
+            if (i < numJapaneses) {
+                priorities[i] = buffer.getShort();
+            }
+        }
+        /*
+         * Now build the entry. Note that the call to WordIndexReader.getWordAtPacked(int)
+         * will change the buffer position, which is why we needed to extract all pointers
+         * first.
+         */
+        final Entry entry = new Entry(position);
+        WordIndexReader index = wordIndex[getLanguageIndex(true)];
+        for (int i=0; i<numJapaneses; i++) {
+            entry.add(i < numKanjis, index.getWordAtPacked(words[i]), priorities[i]);
+        }
+        index = wordIndex[getLanguageIndex(false)];
+        for (int i=numJapaneses; i<words.length; i++) {
+            entry.addSense(new Sense(Locale.ENGLISH, index.getWordAtPacked(words[i]), Collections.<PartOfSpeech>emptySet()));
+        }
+        return entry;
     }
 }

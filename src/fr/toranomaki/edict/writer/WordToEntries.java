@@ -148,7 +148,7 @@ final class WordToEntries extends DictionaryFile implements Comparator<EntryList
 
     /**
      * Writes the references to the list of entries. For each word, the reference to be
-     * written is the position and length of the entry list, packed on an {@code int}.
+     * written is the position and length of the entry list, packed in an {@code int}.
      *
      * @param words  The words, sorted in the order used by the index.
      * @param buffer A temporary buffer to use for writing.

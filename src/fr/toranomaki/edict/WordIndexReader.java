@@ -16,7 +16,6 @@ package fr.toranomaki.edict;
 
 import java.util.Map;
 import java.util.LinkedHashMap;
-import java.util.Collection;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
@@ -24,6 +23,9 @@ import java.nio.channels.ReadableByteChannel;
 
 /**
  * Searches words in the file created by {@link fr.toranomaki.edict.writer.WordIndexWriter}.
+ * <p>
+ * This class is not thread-safe. It is user responsibility to ensure that instances of this
+ * class are used in only one thread.
  *
  * @author Martin Desruisseaux
  */
@@ -75,6 +77,11 @@ final class WordIndexReader extends DictionaryFile {
      * @see #bufferEndPosition()
      */
     private final int bufferStartPosition;
+
+    /**
+     * Position where the references to entry lists begin.
+     */
+    private final int entryListRefStartPosition;
 
     /**
      * The words read from the buffer for the first 8 iterations of the {@link #search} method.
@@ -129,6 +136,7 @@ final class WordIndexReader extends DictionaryFile {
         charSequences   = new String(buffer.array(), 0, seqPoolSize, isReadingJapanese ? JAPAN_ENCODING : LATIN_ENCODING);
         stringBuilder   = new StringBuilder();
         wordByIteration = new String[256]; // Must be a power of 2.
+        entryListRefStartPosition = bufferStartPosition + numberOfWords*NUM_BYTES_FOR_INDEX_ELEMENT + poolSize;
     }
 
     /**
@@ -149,7 +157,7 @@ final class WordIndexReader extends DictionaryFile {
     /**
      * Returns the word at the given packed position.
      */
-    private String getWordAt(final int packed) {
+    final String getWordAtPacked(final int packed) {
         // First, look in the cache.
         final Integer key = packed;
         String word = wordbyPackedIndex.get(key);
@@ -179,16 +187,31 @@ final class WordIndexReader extends DictionaryFile {
     }
 
     /**
-     * Searches the index of the given word. If no exact match is found, returns the index
-     * of first word after the given word.
+     * Returns the word at the given index. The index shall be a value returned by
+     * {@link #search(String)}.
+     */
+    final String getWordAt(final int wordIndex) {
+        return getWordAtPacked(buffer.getInt(wordIndex*NUM_BYTES_FOR_INDEX_ELEMENT + bufferStartPosition));
+    }
+
+    /**
+     * Returns the position of the list of all entries associated to the word at the given index.
+     * The returned value is packed: the first 3 bytes for the position, and the last byte for the
+     * list length.
+     */
+    final int getEntryListPackedPosition(final int wordIndex) {
+        return buffer.getInt(wordIndex*NUM_BYTES_FOR_INDEX_ELEMENT + entryListRefStartPosition);
+    }
+
+    /**
+     * Searches the index of the given word. If no exact match is found, returns the index of the
+     * first word after the given word. The returned value can be given to {@link #getWordAt(int)}
+     * in order to get the actual word at that index.
      *
      * @param  word The word to search.
-     * @param  result An optional collection where to add the word which has been found.
      * @return Index of the word.
      */
-    final int search(final String word, final Collection<String> addWordTo) {
-        final ByteBuffer buffer = this.buffer;
-        final int start = bufferStartPosition;
+    final int search(final String word) {
         int cachePos = 1;
         int low  = 0;
         int high = numberOfWords - 1;
@@ -203,12 +226,12 @@ final class WordIndexReader extends DictionaryFile {
             if (cachePos >= 0 && cachePos < wordByIteration.length) {
                 midVal = wordByIteration[cachePos];
                 if (midVal == null) {
-                    midVal = getWordAt(buffer.getInt(mid*NUM_BYTES_FOR_INDEX_ELEMENT + start));
+                    midVal = getWordAt(mid);
                     wordByIteration[cachePos] = midVal;
                 }
                 cachePos <<= 1;
             } else {
-                midVal = getWordAt(buffer.getInt(mid*NUM_BYTES_FOR_INDEX_ELEMENT + start));
+                midVal = getWordAt(mid);
             }
             /*
              * Now compare the word at the mid position with the word to search. Update the next index
@@ -216,18 +239,10 @@ final class WordIndexReader extends DictionaryFile {
              */
             final int c = WordComparator.INSTANCE.compare(midVal, word);
             if (c == 0) {
-                if (addWordTo != null) {
-                    addWordTo.add(midVal);
-                }
                 return mid;
             }
             if (c < 0) low = mid + 1;
             else     {high = mid - 1; cachePos |= 1;}
-        }
-        // No need to use the cache, because if we reach this point, we already
-        // executed all the iterations so the seek distance is minimal.
-        if (addWordTo != null) {
-            addWordTo.add(getWordAt(buffer.getInt(low*NUM_BYTES_FOR_INDEX_ELEMENT + start)));
         }
         return low;
     }

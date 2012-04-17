@@ -42,7 +42,7 @@ import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
  */
 public final class DictionaryWriter extends DictionaryFile {
     /**
-     * The file to create.
+     * The file to create, typically {@link #getDictionaryFile()}.
      */
     private final Path file;
 
@@ -61,7 +61,7 @@ public final class DictionaryWriter extends DictionaryFile {
      * This constructor creates the binary file immediately.
      */
     DictionaryWriter(final List<Entry> entries) throws IOException {
-        file = getDirectory().resolve("JMdict.dat");
+        file = getDictionaryFile();
         final ByteBuffer buffer = ByteBuffer.allocate(1024 * NUM_BYTES_FOR_INDEX_ELEMENT);
         buffer.order(BYTE_ORDER);
 

@@ -137,6 +137,18 @@ public abstract class DictionaryFile {
     }
 
     /**
+     * Returns the dictionary file. This is the {@code "JMdict.dat"} file in the
+     * {@linkplain #getDirectory() application directory}. This file can be given
+     * to the {@link DictionaryReader} constructor.
+     *
+     * @return The path to the dictionary file.
+     * @throws IOException In an error occurred while getting the application directory.
+     */
+    protected static Path getDictionaryFile() throws IOException {
+        return getDirectory().resolve("JMdict.dat");
+    }
+
+    /**
      * {@code true} if we are reading or writing a dictionary part for the Japanese language,
      * or {@code false} for the senses in westerner languages. This trivial method is mostly
      * a placeholder for identifying the code to update if we want to support more languages
