@@ -28,7 +28,7 @@ import java.nio.channels.WritableByteChannel;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
-import fr.toranomaki.edict.DictionaryFile;
+import fr.toranomaki.edict.BinaryData;
 import fr.toranomaki.edict.DictionaryReader;
 
 import static java.nio.file.StandardOpenOption.*;
@@ -40,7 +40,7 @@ import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
  *
  * @author Martin Desruisseaux
  */
-public final class DictionaryWriter extends DictionaryFile {
+public final class DictionaryWriter extends BinaryData {
     /**
      * The file to create, typically {@link #getDictionaryFile()}.
      */

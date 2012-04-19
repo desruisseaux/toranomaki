@@ -28,7 +28,7 @@ import java.nio.file.StandardOpenOption;
  *
  * @author Martin Desruisseaux
  */
-public final class DictionaryReader extends DictionaryFile {
+public final class DictionaryReader extends BinaryData {
     /**
      * The index. For now we support only Japanese language and senses in westerner languages.
      * But we define this field as an array anyway in order to make easier the addition of new

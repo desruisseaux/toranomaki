@@ -29,7 +29,7 @@ import java.nio.channels.ReadableByteChannel;
  *
  * @author Martin Desruisseaux
  */
-final class WordIndexReader extends DictionaryFile {
+final class WordIndexReader extends BinaryData {
     /**
      * The cache capacity. This value is arbitrary, but we are better to use a value
      * not greater than a power of 2 time the load factor (0.75).

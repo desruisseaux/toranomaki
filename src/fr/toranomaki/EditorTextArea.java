@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 
 import fr.toranomaki.edict.SearchResult;
-import static fr.toranomaki.edict.DictionaryFile.getDirectory;
+import static fr.toranomaki.edict.BinaryData.getDirectory;
 
 
 /**

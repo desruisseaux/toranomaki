@@ -42,7 +42,7 @@ import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.DefaultHandler;
 import org.xml.sax.helpers.XMLReaderFactory;
 
-import static fr.toranomaki.edict.DictionaryFile.getDirectory;
+import static fr.toranomaki.edict.BinaryData.getDirectory;
 
 
 /**

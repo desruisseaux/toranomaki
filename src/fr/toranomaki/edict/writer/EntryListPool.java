@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
 import fr.toranomaki.edict.Entry;
-import fr.toranomaki.edict.DictionaryFile;
+import fr.toranomaki.edict.BinaryData;
 import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
 
 
@@ -31,7 +31,7 @@ import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
  *
  * @author Martin Desruisseaux
  */
-final class EntryListPool extends DictionaryFile {
+final class EntryListPool extends BinaryData {
     /**
      * The entry lists.
      */

@@ -25,7 +25,7 @@
  * <ul>
  *   <li>For each index (currently only two: Japanese words and senses):
  *     <ul>
- *       <li>The {@linkplain fr.toranomaki.edict.DictionaryFile#MAGIC_NUMBER magic number} as a {@code int}.</li>
+ *       <li>The {@linkplain fr.toranomaki.edict.BinaryData#MAGIC_NUMBER magic number} as a {@code int}.</li>
  *       <li>Number of words, as an {@code int}.</li>
  *       <li>The length of the pool of bytes, as an {@code int}.</li>
  *       <li>Length of the character sequences pool, as an {@code int}.</li>
@@ -48,7 +48,7 @@
  *     <ul>
  *       <li>Packed references to the encoded words as {@code int} numbers where the first bits are the
  *           index of the first byte to use in the pool (0 is the first byte after all packed references),
- *           and the last {@value fr.toranomaki.edict.DictionaryFile#NUM_BITS_FOR_WORD_LENGTH} bits
+ *           and the last {@value fr.toranomaki.edict.BinaryData#NUM_BITS_FOR_WORD_LENGTH} bits
  *           are the number of bytes to read from the pool.</li>
  *       <li>A pool of bytes which represent the encoded words.</li>
  *       <li>Packed references to the list of entries associated to a word as {@code int} numbers
@@ -60,8 +60,8 @@
  *   <li>A pool of references to entry descriptions.</li>
  *   <li>For each entry:
  *     <ul>
- *       <li>Number of Kanji elements, on {@value fr.toranomaki.edict.DictionaryFile#NUM_BITS_FOR_ELEMENT_COUNT} bits.</li>
- *       <li>Number of reading elements, on {@value fr.toranomaki.edict.DictionaryFile#NUM_BITS_FOR_ELEMENT_COUNT} bits.</li>
+ *       <li>Number of Kanji elements, on {@value fr.toranomaki.edict.BinaryData#NUM_BITS_FOR_ELEMENT_COUNT} bits.</li>
+ *       <li>Number of reading elements, on {@value fr.toranomaki.edict.BinaryData#NUM_BITS_FOR_ELEMENT_COUNT} bits.</li>
  *       <li>Number of senses, on a {@code byte}.</li>
  *       <li>For each Kanji elements, followed by each reading elements:
  *         <ul>

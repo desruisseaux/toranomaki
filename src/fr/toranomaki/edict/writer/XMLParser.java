@@ -45,7 +45,7 @@ import fr.toranomaki.edict.PartOfSpeech;
 import fr.toranomaki.edict.Priority;
 import fr.toranomaki.edict.DictionaryException;
 
-import static fr.toranomaki.edict.DictionaryFile.getDirectory;
+import static fr.toranomaki.edict.BinaryData.getDirectory;
 
 
 /**

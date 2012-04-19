@@ -27,7 +27,7 @@ import java.nio.channels.WritableByteChannel;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
-import fr.toranomaki.edict.DictionaryFile;
+import fr.toranomaki.edict.BinaryData;
 
 
 /**
@@ -35,7 +35,7 @@ import fr.toranomaki.edict.DictionaryFile;
  *
  * @author Martin Desruisseaux
  */
-class WordEncoder extends DictionaryFile {
+class WordEncoder extends BinaryData {
     /**
      * Maximal length of character sequences to analyze. This is based on empirical trial.
      */

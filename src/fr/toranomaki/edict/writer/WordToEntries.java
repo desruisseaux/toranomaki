@@ -26,7 +26,7 @@ import java.nio.channels.WritableByteChannel;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
-import fr.toranomaki.edict.DictionaryFile;
+import fr.toranomaki.edict.BinaryData;
 import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
 
 
@@ -35,7 +35,7 @@ import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
  *
  * @author Martin Desruisseaux
  */
-final class WordToEntries extends DictionaryFile implements Comparator<EntryList> {
+final class WordToEntries extends BinaryData implements Comparator<EntryList> {
     /**
      * The entries associated to each word.
      */

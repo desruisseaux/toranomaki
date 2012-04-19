@@ -35,7 +35,7 @@ import java.nio.channels.ReadableByteChannel;
  *
  * @author Martin Desruisseaux
  */
-public abstract class DictionaryFile {
+public abstract class BinaryData {
     /**
      * Arbitrary magic number. The value on the right side of {@code +} is the version number,
      * to be incremented every time we apply an incompatible change in the file format.
@@ -90,7 +90,7 @@ public abstract class DictionaryFile {
     /**
      * For subclass constructors only.
      */
-    protected DictionaryFile() {
+    protected BinaryData() {
     }
 
     /**
@@ -115,7 +115,7 @@ public abstract class DictionaryFile {
         if (property != null) {
             directory = Paths.get(property);
         } else {
-            URL url = DictionaryFile.class.getResource("DictionaryFile.class");
+            URL url = BinaryData.class.getResource("BinaryData.class");
             if ("jar".equals(url.getProtocol())) {
                 String path = url.getPath();
                 path = path.substring(0, path.indexOf('!'));

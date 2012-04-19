@@ -32,7 +32,7 @@ import javafx.event.EventHandler;
 import javafx.application.Application;
 
 import fr.toranomaki.edict.JMdict;
-import static fr.toranomaki.edict.DictionaryFile.getDirectory;
+import static fr.toranomaki.edict.BinaryData.getDirectory;
 
 
 /**
