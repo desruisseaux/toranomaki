@@ -218,7 +218,7 @@ public final class DictionaryWriter extends BinaryData {
      * @throws Exception If a I/O, SAX or other exception occurred.
      */
     public static void main(final String[] args) throws Exception {
-        final XMLParser parser = new XMLParser();
+        final XMLParser parser = new XMLParser(LANGUAGES);
         try (InputStream in = XMLParser.getDefaultStream()) {
             parser.parse(in);
         }

@@ -117,10 +117,9 @@ final class XMLParser extends DefaultHandler {
     private Locale language;
 
     /**
-     * The language to keep, in addition to English.
-     * Other languages will be discarded.
+     * The languages to keep. Other languages will be discarded.
      */
-    private final Locale retainedLanguage;
+    private final String[] retainedLanguages;
 
     /**
      * The set of informations for the word in process of being parsed.
@@ -193,21 +192,26 @@ final class XMLParser extends DefaultHandler {
 
     /**
      * Creates a new instance which will import the {@code JMdict.xml} content.
+     *
+     * @param retainedLanguages The languages to keep. Other languages will be discarded.
      */
-    public XMLParser() {
-        priorityColumns  = Priority.Type.values();
-        priorities       = new EnumMap<>(Priority.Type.class);
-        priorityMap      = new HashMap<>();
-        partOfSpeech     = EnumSet.noneOf(PartOfSpeech.class);
-        retainedLanguage = Locale.getDefault();
-        cachePOS         = new HashMap<>();
-        informations     = new HashSet<>();
-        synonyms         = new HashMap<>();
-        antonyms         = new HashMap<>();
-        entryList        = new ArrayList<>(130000);
-        posList          = new ArrayList<>(128);
-        priorityList     = new ArrayList<>(128);
-        informationList  = new ArrayList<>(128);
+    public XMLParser(final Locale[] locales) {
+        priorityColumns   = Priority.Type.values();
+        priorities        = new EnumMap<>(Priority.Type.class);
+        priorityMap       = new HashMap<>();
+        partOfSpeech      = EnumSet.noneOf(PartOfSpeech.class);
+        cachePOS          = new HashMap<>();
+        informations      = new HashSet<>();
+        synonyms          = new HashMap<>();
+        antonyms          = new HashMap<>();
+        entryList         = new ArrayList<>(130000);
+        posList           = new ArrayList<>(128);
+        priorityList      = new ArrayList<>(128);
+        informationList   = new ArrayList<>(128);
+        retainedLanguages = new String[locales.length];
+        for (int i=0; i<locales.length; i++) {
+            retainedLanguages[i] = locales[i].getLanguage();
+        }
     }
 
     /**
@@ -383,8 +387,11 @@ final class XMLParser extends DefaultHandler {
                  */
                 case gloss: {
                     final String lang = language.getLanguage();
-                    if (lang.equals("en") || lang.equals(retainedLanguage.getLanguage())) {
-                        entry.addSense(new Sense(language, content, partOfSpeech));
+                    for (final String retained : retainedLanguages) {
+                        if (lang.equals(retained)) {
+                            entry.addSense(new Sense(language, content, partOfSpeech));
+                            break;
+                        }
                     }
                     break;
                 }

@@ -14,6 +14,7 @@
  */
 package fr.toranomaki.edict;
 
+import java.util.Locale;
 import java.io.IOException;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -86,6 +87,16 @@ public abstract class BinaryData {
      * Number of bytes to use for storing the position of an entry.
      */
     protected static final int NUM_BYTES_FOR_ENTRY_POSITION = 3;
+
+    /**
+     * The languages of senses to be stored in the database. If the XML file contains
+     * any languages that are not in this list, those language will not be saved.
+     */
+    protected static final Locale[] LANGUAGES = {
+        Locale.ENGLISH,
+        Locale.FRENCH
+        // More may be added later.
+    };
 
     /**
      * For subclass constructors only.
