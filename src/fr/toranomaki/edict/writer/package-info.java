@@ -72,6 +72,10 @@
  *       <li>For each sense:
  *         <ul>
  *           <li>Packed index of the word, as an {@code int}.</li>
+ *           <li>The language as an index in the {@link fr.toranomaki.edict.BinaryData#LANGUAGES}
+ *               array, on {@value fr.toranomaki.edict.BinaryData#NUM_BITS_FOR_LANGUAGE} bits.</li>
+ *           <li>Number of Part of Speech (POS) on 5 bits.</li>
+ *           <li>Part of Speech ordinal codes as bytes.</li>
  *         </ul>
  *       </li>
  *     </ul>

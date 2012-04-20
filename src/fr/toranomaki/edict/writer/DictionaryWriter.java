@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.Locale;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -28,6 +29,7 @@ import java.nio.channels.WritableByteChannel;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
+import fr.toranomaki.edict.PartOfSpeech;
 import fr.toranomaki.edict.BinaryData;
 import fr.toranomaki.edict.DictionaryReader;
 
@@ -135,6 +137,9 @@ public final class DictionaryWriter extends BinaryData {
      *   <li>For each sense:
      *     <ul>
      *       <li>Packed index of the word, as an {@code int}.</li>
+     *       <li>The language as an index in the {@link #LANGUAGES} array, on 3 bits.</li>
+     *       <li>Number of Part of Speech (POS) on 5 bits.</li>
+     *       <li>Part of Speech ordinal codes as bytes.</li>
      *     </ul>
      *   </li>
      * </ul>
@@ -159,10 +164,15 @@ public final class DictionaryWriter extends BinaryData {
          *   - Number of (Kanji, reading, senses), packed as described in the javadoc
          *   - Packed referenced to Kanki/reading elements (as int)
          *   - Packed referenced to senses (as int)
+         *   - Language and number of Part Of Speech (1 byte per sense).
+         *   - Part of Speech ordinal value (1 byte per POS)
          */
-        final int length = 2
+        int length = 2
                 + (numKanjis + numReadings) * ((Integer.SIZE + Short.SIZE) / Byte.SIZE)
                 + senses.length * ((Integer.SIZE) / Byte.SIZE);
+        for (Sense sense : senses) {
+            length += (1 + sense.partOfSpeech.size());
+        }
         /*
          * Actual writing.
          */
@@ -183,12 +193,41 @@ public final class DictionaryWriter extends BinaryData {
                     buffer.putShort(entry.getPriority(isKanji, i));
                 }
             } while ((isKanji = !isKanji) == true);
+            /*
+             * After Kanjis and reading elements, now write senses.
+             */
             for (final Sense sense : senses) {
                 buffer.putInt(senseWords.getPackedPosition(sense.meaning));
+                int n = sense.partOfSpeech.size();
+                if (n >= (1 << (Byte.SIZE - NUM_BITS_FOR_LANGUAGE))) {
+                    throw new IllegalArgumentException("Too many Part of Speech: " + n);
+                }
+                n = (n << NUM_BITS_FOR_LANGUAGE) | languageIndex(sense.locale);
+                buffer.put((byte) n);
+                for (final PartOfSpeech pos : sense.partOfSpeech) {
+                    n = pos.ordinal();
+                    if (n > 0xFF) {
+                        throw new IllegalArgumentException("Too many PartOfSpeech enums: " + n);
+                    }
+                    buffer.put((byte) n);
+                }
             }
             assert (verify = buffer.position() - verify - length) == 0 : verify;
         }
         return length;
+    }
+
+    /**
+     * Returns the index of the given language.
+     */
+    private static int languageIndex(final Locale language) {
+        for (int i=0; i<LANGUAGES.length; i++) {
+            if (LANGUAGES[i] == language) {
+                assert i < (1 << NUM_BITS_FOR_LANGUAGE) : i;
+                return i;
+            }
+        }
+        throw new IllegalArgumentException("Unknown language: " + language);
     }
 
     /**

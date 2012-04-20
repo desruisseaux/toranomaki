@@ -103,11 +103,14 @@ final class XMLParser extends DefaultHandler {
     private boolean inheritPOS;
 
     /**
-     * The {@link #partOfSpeech} values created up to date. The values are either
-     * {@link PartOfSpeech} enumeration values, or instances of {@link Short} if
-     * the value is actually a compound of many POS.
+     * The {@link #partOfSpeech} values parsed up to date.
      */
-    private final Map<String, Comparable<?>> cachePOS;
+    private final Map<String, PartOfSpeech> parsedPOS;
+
+    /**
+     * Cached {@link #partOfSpeech} instances.
+     */
+    private final Map<Set<PartOfSpeech>, Set<PartOfSpeech>> cachedPOS;
 
     /**
      * The target language of the {@linkplain #word} translation.
@@ -200,7 +203,8 @@ final class XMLParser extends DefaultHandler {
         priorities        = new EnumMap<>(Priority.Type.class);
         priorityMap       = new HashMap<>();
         partOfSpeech      = EnumSet.noneOf(PartOfSpeech.class);
-        cachePOS          = new HashMap<>();
+        parsedPOS         = new HashMap<>();
+        cachedPOS         = new HashMap<>();
         informations      = new HashSet<>();
         synonyms          = new HashMap<>();
         antonyms          = new HashMap<>();
@@ -389,7 +393,12 @@ final class XMLParser extends DefaultHandler {
                     final String lang = language.getLanguage();
                     for (final String retained : retainedLanguages) {
                         if (lang.equals(retained)) {
-                            entry.addSense(new Sense(language, content, partOfSpeech));
+                            Set<PartOfSpeech> pos = cachedPOS.get(partOfSpeech);
+                            if (pos == null) {
+                                pos = EnumSet.copyOf(partOfSpeech);
+                                cachedPOS.put(pos, pos);
+                            }
+                            entry.addSense(new Sense(language, content, pos));
                             break;
                         }
                     }
@@ -486,10 +495,10 @@ final class XMLParser extends DefaultHandler {
      * @return The <cite>Part Of Speech</cite> enumeration value.
      */
     private PartOfSpeech getPartOfSpeech(final String description) {
-        PartOfSpeech pos = (PartOfSpeech) cachePOS.get(description);
+        PartOfSpeech pos = parsedPOS.get(description);
         if (pos == null) {
             pos = PartOfSpeech.parseEDICT(description);
-            cachePOS.put(description, pos);
+            parsedPOS.put(description, pos);
             posList.add(pos);
         }
         return pos;

@@ -76,6 +76,11 @@ public abstract class BinaryData {
     protected static final int NUM_BITS_FOR_ELEMENT_COUNT = 4;
 
     /**
+     * Number of bits for specifying a language as an index in the {@link #LANGUAGES} array.
+     */
+    protected static final int NUM_BITS_FOR_LANGUAGE = 3;
+
+    /**
      * Size in bytes of one index value in the index array, which is the size of the {@code int} type.
      *
      * <p>Note: if this value is changed, we recommend to perform a search for {@code Integer.SIZE}
@@ -90,7 +95,8 @@ public abstract class BinaryData {
 
     /**
      * The languages of senses to be stored in the database. If the XML file contains
-     * any languages that are not in this list, those language will not be saved.
+     * any languages that are not in this list, those language will not be saved. The
+     * length of this array must be smaller than {@code 1 << NUM_BITS_FOR_LANGUAGE}.
      */
     protected static final Locale[] LANGUAGES = {
         Locale.ENGLISH,
