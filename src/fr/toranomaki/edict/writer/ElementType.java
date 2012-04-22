@@ -12,7 +12,7 @@
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  *    Lesser General Public License for more details.
  */
-package fr.toranomaki.edict;
+package fr.toranomaki.edict.writer;
 
 
 /**
@@ -25,7 +25,7 @@ package fr.toranomaki.edict;
  *
  * @author Martin Desruisseaux
  */
-public enum ElementType {
+enum ElementType {
     /**
      * The root element of {@code JMdict.xml} files.
      */

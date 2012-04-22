@@ -14,14 +14,13 @@
  */
 package fr.toranomaki;
 
-import java.sql.SQLException;
 import javafx.scene.Node;
 import javafx.scene.control.Control;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextArea;
 import javafx.geometry.Orientation;
 
-import fr.toranomaki.edict.JMdict;
+import fr.toranomaki.edict.DictionaryReader;
 
 
 /**
@@ -48,8 +47,8 @@ final class Editor implements AutoCloseable {
     /**
      * Creates a new instance using the given dictionary for searching words.
      */
-    Editor(final JMdict dictionary) {
-        description = new WordPanel(dictionary);
+    Editor(final DictionaryReader dictionary) {
+        description = new WordPanel();
         text        = new TextArea();
         table       = new WordTable(description, dictionary);
     }
@@ -68,11 +67,10 @@ final class Editor implements AutoCloseable {
     }
 
     /**
-     * Closes the resources used by this editor. Note that this method closes also
-     * the connection to the SQL database, which is shared by the {@link Training} pane.
+     * Closes the resources used by this editor.
      */
     @Override
-    public void close() throws SQLException {
+    public void close() {
         table.close();
     }
 }

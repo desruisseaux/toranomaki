@@ -15,12 +15,9 @@
 package fr.toranomaki;
 
 import java.io.IOException;
-import java.sql.SQLException;
 import java.util.concurrent.CountDownLatch;
-import org.apache.derby.jdbc.EmbeddedDataSource;
 
 import javax.swing.JFrame;
-import javax.swing.JComponent;
 import javax.swing.JSplitPane;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowAdapter;
@@ -30,7 +27,7 @@ import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.layout.StackPane;
 
-import fr.toranomaki.edict.JMdict;
+import fr.toranomaki.edict.DictionaryReader;
 
 
 /**
@@ -61,13 +58,11 @@ public final class SwingMain extends WindowAdapter {
      *
      * @param args The command lines arguments, which are ignored.
      * @throws IOException In an error occurred while getting the application directory.
-     * @throws SQLException If an error occurred while connecting to the database.
      */
-    public static void main(final String[] args) throws IOException, SQLException {
+    public static void main(final String[] args) throws IOException {
         final JFrame frame = new JFrame("Toranomaki");
-        final EmbeddedDataSource dataSource = Main.getDataSource();
         try {
-            final SwingMain main = new SwingMain(frame, dataSource);
+            final SwingMain main = new SwingMain(frame);
             try (WordTable table = main.table) {
                 try {
                     main.monitor.await();
@@ -78,12 +73,6 @@ public final class SwingMain extends WindowAdapter {
         } catch (Throwable e) {
             e.printStackTrace(); // For debugging purpose only.
         } finally {
-            dataSource.setShutdownDatabase("shutdown");
-            try {
-                dataSource.getConnection().close();
-            } catch (SQLException e) {
-                // This is the expected exception.
-            }
             frame.dispose();
         }
     }
@@ -91,9 +80,9 @@ public final class SwingMain extends WindowAdapter {
     /**
      * Creates a new application.
      */
-    private SwingMain(final JFrame frame, final EmbeddedDataSource dataSource) throws IOException, SQLException {
-        final JMdict      dictionary  = new JMdict(dataSource);
-        final WordPanel   description = new WordPanel(dictionary);
+    private SwingMain(final JFrame frame) throws IOException {
+        final DictionaryReader dictionary  = new DictionaryReader();
+        final WordPanel   description = new WordPanel();
                           table       = new WordTable(description, dictionary);
                           editor      = new SwingEditor(table);
         final JFXPanel    fxDesc      = new JFXPanel();

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -37,10 +38,8 @@ import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.DefaultHandler;
 import org.xml.sax.helpers.XMLReaderFactory;
 
-import fr.toranomaki.edict.JMdict;
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
-import fr.toranomaki.edict.ElementType;
 import fr.toranomaki.edict.PartOfSpeech;
 import fr.toranomaki.edict.Priority;
 import fr.toranomaki.edict.DictionaryException;
@@ -64,6 +63,11 @@ import static fr.toranomaki.edict.BinaryData.getDirectory;
  * @author Martin Desruisseaux
  */
 final class XMLParser extends DefaultHandler {
+    /**
+     * The logger for reporting warnings.
+     */
+    private static final Logger LOGGER = Logger.getLogger("fr.toranomaki.edict");
+
     /**
      * The XML element which is in process of being parsed. This field is modified every time a XML
      * element is started or ended. This information is used by {@link #characters(char[], int, int)}
@@ -372,7 +376,7 @@ final class XMLParser extends DefaultHandler {
                     final Short rank = p.rank;
                     final Short old  = priorities.put(p.type, rank);
                     if (old != null) {
-                        JMdict.LOGGER.log(Level.WARNING, "Priority \"{0}\" is defined twice "
+                        LOGGER.log(Level.WARNING, "Priority \"{0}\" is defined twice "
                                 + "for word \"{1}\" with values {2} and {3}.",
                                 new Object[] {p.type, word, old, rank});
                         if (old < rank) {

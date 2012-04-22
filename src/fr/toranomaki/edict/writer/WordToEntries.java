@@ -26,6 +26,7 @@ import java.nio.channels.WritableByteChannel;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
+import fr.toranomaki.edict.Alphabet;
 import fr.toranomaki.edict.BinaryData;
 import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
 
@@ -48,23 +49,29 @@ final class WordToEntries extends BinaryData implements Comparator<EntryList> {
      * position, invoke {@link #computePositions(WordToEntries[])} after creation.
      *
      * @param entries  The entries for which to create en encoder.
-     * @param japanese {@code true} for adding Japanese words, or {@code false} for adding senses.
+     * @param alphabet Indicates whatever we are adding Japanese words or senses.
      */
-    WordToEntries(final Collection<Entry> entries, final boolean japanese) {
+    WordToEntries(final Collection<Entry> entries, final Alphabet alphabet) {
         entriesForWord = new LinkedHashMap<>(2 * entries.size());
         for (final Entry entry : entries) {
-            if (japanese) {
-                boolean isKanji = false;
-                do {
-                    final int count = entry.getCount(isKanji);
-                    for (int i=0; i<count; i++) {
-                        add(entry.getWord(isKanji, i), entry);
-                    }
-                } while ((isKanji = !isKanji) == true);
-            } else {
-                for (final Sense sense : entry.getSenses()) {
-                    add(sense.meaning, entry);
+            switch (alphabet) {
+                case JAPANESE: {
+                    boolean isKanji = false;
+                    do {
+                        final int count = entry.getCount(isKanji);
+                        for (int i=0; i<count; i++) {
+                            add(entry.getWord(isKanji, i), entry);
+                        }
+                    } while ((isKanji = !isKanji) == true);
+                    break;
                 }
+                case LATIN: {
+                    for (final Sense sense : entry.getSenses()) {
+                        add(sense.meaning, entry);
+                    }
+                    break;
+                }
+                default: throw new IllegalArgumentException(String.valueOf(alphabet));
             }
         }
     }

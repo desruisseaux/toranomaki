@@ -50,14 +50,6 @@ public abstract class BinaryData {
     protected static final ByteOrder BYTE_ORDER = ByteOrder.LITTLE_ENDIAN;
 
     /**
-     * The encoding used for Latin or Japanese characters. Those encodings are used only
-     * in the header of the binary file. After the header, we will use our own encoding
-     * which will replace the most frequent character sequence by a code.
-     */
-    protected static final String LATIN_ENCODING = "UTF-8",
-                                  JAPAN_ENCODING = "UTF-16";
-
-    /**
      * The mask indicating that a character is encoded on two bytes rather than one.
      * We store the 128 most common characters on 1 byte, and the remaining on two
      * bytes.
@@ -163,34 +155,6 @@ public abstract class BinaryData {
      */
     protected static Path getDictionaryFile() throws IOException {
         return getDirectory().resolve("JMdict.dat");
-    }
-
-    /**
-     * {@code true} if we are reading or writing a dictionary part for the Japanese language,
-     * or {@code false} for the senses in westerner languages. This trivial method is mostly
-     * a placeholder for identifying the code to update if we want to support more languages
-     * in a future version.
-     *
-     * @param  index The index of the dictionary parts being read or written.
-     * @return The language, currently as a boolean but may be changed in a future version.
-     */
-    protected static boolean getLanguageAt(final int index) {
-        switch (index) {
-            case 0: return true;
-            case 1: return false;
-            default: throw new IndexOutOfBoundsException(String.valueOf(index));
-        }
-    }
-
-    /**
-     * The converse of {@link #getLanguageAt(int)}. The argument may be changed from a boolean
-     * to something else in a future version.
-     *
-     * @param isJapanese {@code true} for the Japanese language, or {@code false} for senses.
-     * @return The index of the given language.
-     */
-    protected static int getLanguageIndex(final boolean isJapanese) {
-        return isJapanese ? 0 : 1;
     }
 
     /**

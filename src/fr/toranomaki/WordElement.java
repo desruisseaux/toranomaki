@@ -19,13 +19,12 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.sql.SQLException;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
-import fr.toranomaki.edict.JMdict;
 import fr.toranomaki.edict.Priority;
 import fr.toranomaki.edict.PartOfSpeech;
+import fr.toranomaki.edict.DictionaryReader;
 import fr.toranomaki.grammar.CharacterType;
 
 
@@ -88,10 +87,8 @@ final class WordElement {
      *
      * @param  dictionary   The dictionary used for building the entry.
      * @param  entry        The entry.
-     * @throws SQLException If an error occurred while fetching additional information
-     *                      from the database.
      */
-    WordElement(final JMdict dictionary, final Entry entry) throws SQLException {
+    WordElement(final DictionaryReader dictionary, final Entry entry) {
         this.entry      = entry;
         int maskKanji   = isCommon(dictionary, entry, true);
         int maskReading = isCommon(dictionary, entry, false);
@@ -107,7 +104,7 @@ final class WordElement {
     /**
      * Returns {@link #COMMON_MASK} if the Kanji or reading element is common, or 0 otherwise.
      */
-    private static int isCommon(final JMdict dictionary, final Entry entry, final boolean isKanji) throws SQLException {
+    private static int isCommon(final DictionaryReader dictionary, final Entry entry, final boolean isKanji) {
         final short code = entry.getPriority(isKanji, WORD_INDEX);
         if (code != 0) {
             for (final Priority priority : dictionary.getPriority(code)) {

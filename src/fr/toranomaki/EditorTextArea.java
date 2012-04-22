@@ -22,7 +22,6 @@ import java.io.OutputStreamWriter;
 import java.io.BufferedReader;
 import java.io.Writer;
 import java.io.IOException;
-import java.sql.SQLException;
 
 import fr.toranomaki.edict.SearchResult;
 import static fr.toranomaki.edict.BinaryData.getDirectory;
@@ -143,15 +142,11 @@ class EditorTextArea {
                     if (!Character.isAlphabetic(c)) break;
                     upper += Character.charCount(c);
                 }
-                if (upper > lower) try {
+                if (upper > lower) {
                     final SearchResult search = wordTable.dictionary.searchBest(part.substring(lower, upper), documentOffset + lower);
                     if (search != null) {
                         searchCompleted(search);
                     }
-                } catch (SQLException e) {
-                    // TODO: We need a better handling, maybe with a widget for bug reports.
-                    // For now, we let the search result to null.
-                    Logging.recoverableException(EditorTextArea.class, "search", e);
                 }
             }
         });

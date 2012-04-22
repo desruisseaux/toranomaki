@@ -31,6 +31,7 @@ import java.nio.channels.WritableByteChannel;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
+import fr.toranomaki.edict.Alphabet;
 import fr.toranomaki.edict.PartOfSpeech;
 import fr.toranomaki.edict.BinaryData;
 import fr.toranomaki.edict.DictionaryReader;
@@ -79,10 +80,11 @@ public final class DictionaryWriter extends BinaryData {
          * for writing the header of the binary file. They also contains the
          * actual words in an encoded form which will be written later.
          */
+        final Alphabet[] alphabets = Alphabet.values();
         final WordIndexWriter[] wordIndex = new WordIndexWriter[2];
         for (int i=0; i<wordIndex.length; i++) {
             System.out.println("Creating index for " + ((i == 0) ? "Japanese words" : "senses"));
-            wordIndex[i] = new WordIndexWriter(entries, getLanguageAt(i), buffer);
+            wordIndex[i] = new WordIndexWriter(entries, alphabets[i], buffer);
         }
         /*
          * Computes how many bytes will be needed for each entry, and prepares a map of
@@ -91,7 +93,7 @@ public final class DictionaryWriter extends BinaryData {
         System.out.println("Creating entry references");
         final WordToEntries[] wordToEntries = new WordToEntries[wordIndex.length];
         for (int i=0; i<wordToEntries.length; i++) {
-            wordToEntries[i] = new WordToEntries(entries, getLanguageAt(i));
+            wordToEntries[i] = new WordToEntries(entries, alphabets[i]);
         }
         final EntryListPool entryListPool = WordToEntries.computePositions(wordToEntries);
         entryPositions = new IdentityHashMap<>(entries.size());
@@ -249,8 +251,8 @@ public final class DictionaryWriter extends BinaryData {
             int verify = buffer.position(); // To be used for assertions only.
             buffer.put((byte) ((numKanjis << NUM_BITS_FOR_ELEMENT_COUNT) | numReadings));
             buffer.put((byte) senses.length);
-            final WordTable japaneseWords = wordTables[getLanguageIndex(true)];
-            final WordTable senseWords    = wordTables[getLanguageIndex(false)];
+            final WordTable japaneseWords = wordTables[Alphabet.JAPANESE.ordinal()];
+            final WordTable senseWords    = wordTables[Alphabet.LATIN.ordinal()];
             boolean isKanji = false;
             do {
                 final int count = isKanji ? numKanjis : numReadings;
@@ -295,13 +297,14 @@ public final class DictionaryWriter extends BinaryData {
     void verifyIndex() throws IOException {
         System.out.println("Verifying index");
         final DictionaryReader reader = new DictionaryReader(file);
+        final Alphabet[] alphabets = Alphabet.values();
         for (int i=0; i<wordTables.length; i++) {
             final WordTable table = wordTables[i];
-            final boolean japanese = getLanguageAt(i);
+            final Alphabet alphabet = alphabets[i];
             final String[] words = table.words.clone();
             Collections.shuffle(Arrays.asList(words));
             for (final String word : words) {
-                final String found = reader.search(word, japanese);
+                final String found = reader.getWordAt(reader.getWordIndex(word, alphabet), alphabet);
                 if (!word.equals(found)) {
                     throw new IOException("Verification failed: expected \"" + word + "\" but found \"" + found + "\".");
                 }

@@ -14,7 +14,6 @@
  */
 package fr.toranomaki;
 
-import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
@@ -34,7 +33,9 @@ import javafx.event.ActionEvent;
 import javafx.concurrent.Task;
 
 import fr.toranomaki.edict.Entry;
-import fr.toranomaki.edict.JMdict;
+import fr.toranomaki.edict.Alphabet;
+import fr.toranomaki.edict.DictionaryReader;
+import fr.toranomaki.grammar.CharacterType;
 
 
 /**
@@ -48,7 +49,7 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
     /**
      * The dictionary to use for searching words.
      */
-    final JMdict dictionary;
+    final DictionaryReader dictionary;
 
     /**
      * The entries to show in the table.
@@ -73,7 +74,7 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
     /**
      * Creates a new instance using the given dictionary for searching words.
      */
-    WordTable(final WordPanel description, final JMdict dictionary) {
+    WordTable(final WordPanel description, final DictionaryReader dictionary) {
         this.description = description;
         this.dictionary = dictionary;
         executor = Executors.newSingleThreadExecutor();
@@ -142,12 +143,13 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
      * @param word The word to search.
      */
     final void setContent(final String word) {
+        final Alphabet alphabet = CharacterType.forWord(word).alphabet;
         final Task<WordElement[]> task = new Task<WordElement[]>() {
             @Override
-            protected WordElement[] call() throws SQLException {
+            protected WordElement[] call() {
                 final WordElement[] selected;
                 try {
-                    selected = setContent(dictionary.search(word), -1);
+                    selected = setContent(dictionary.getEntriesUsingWord(word, alphabet), -1);
                 } catch (Throwable e) {
                     Logging.recoverableException(WordTable.class, "setContent", e);
                     return null;
@@ -165,7 +167,7 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
      * @param tableEntries The entries to show in the table.
      * @param selectedIndex The index of the entry to show in the description area, or -1 if none.
      */
-    final WordElement[] setContent(final Entry[] tableEntries, final int selectedIndex) throws SQLException {
+    final WordElement[] setContent(final Entry[] tableEntries, final int selectedIndex) {
         final WordElement[] elements = new WordElement[tableEntries.length];
         for (int i=0; i<tableEntries.length; i++) {
             elements[i] = new WordElement(dictionary, tableEntries[i]);
@@ -181,21 +183,18 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
     }
 
     /**
-     * Closes the resources used by this words table. Note that this method closes also
-     * the connection to the SQL database, which is shared by the {@link Training} pane.
+     * Closes the resources used by this words table.
      */
     @Override
-    public void close() throws SQLException {
+    public void close() {
         executor.shutdown();
         try {
             executor.awaitTermination(2, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             /*
-             * Someone doesn't want to let us sleep. Go close the database connection.
-             * Note that it may cause a SQLException in the thread that we failed to shutdown.
+             * Someone doesn't want to let us sleep.
              */
         }
-        dictionary.close();
     }
 
     /**

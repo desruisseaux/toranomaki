@@ -20,7 +20,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+
 import fr.toranomaki.Logging;
+import fr.toranomaki.edict.Alphabet;
 
 
 /**
@@ -36,37 +38,42 @@ public enum CharacterType {
      * character, and all those characters are Jōyō Kanji. The word may also contains other
      * kind of characters in addition of the ideographic ones.
      */
-    JOYO_KANJI(true),
+    JOYO_KANJI(Alphabet.JAPANESE, true),
 
     /**
      * The word contains at least one {@linkplain Character#isIdeographic(int) ideographic}
      * character. It may also contains other kind of characters in addition of the ideographic
      * ones.
      */
-    KANJI(true),
+    KANJI(Alphabet.JAPANESE, true),
 
     /**
      * The word does not contain any ideographic character, but contains at least one katakana
      * character. Hiragana or alphabetic characters may also be present.
      */
-    KATAKANA(false),
+    KATAKANA(Alphabet.JAPANESE, false),
 
     /**
      * The word does not contain any ideographic character or katakana, but contains at least
      * one hiragana character. Alphabetic characters may also be present.
      */
-    HIRAGANA(false),
+    HIRAGANA(Alphabet.JAPANESE, false),
 
     /**
      * The word does not contain any ideographic character, katakana or hiragana, but contains
      * at least one {@linkplain Character#isAlphabetic(int) alphabetic} character.
      */
-    ALPHABETIC(false),
+    ALPHABETIC(Alphabet.LATIN, false),
 
     /**
      * If the word does not contains any of the above characters.
      */
-    OTHER(false);
+    OTHER(null, false);
+
+    /**
+     * The alphabet containing this type of character.
+     */
+    public final Alphabet alphabet;
 
     /**
      * Convenience flag set to {@code true} for {@link #JOYO_KANJI} and {@link #KANJI},
@@ -123,8 +130,9 @@ public enum CharacterType {
     /**
      * Creates a new enum.
      */
-    private CharacterType(final boolean isKanji) {
-        this.isKanji = isKanji;
+    private CharacterType(final Alphabet alphabet, final boolean isKanji) {
+        this.alphabet = alphabet;
+        this.isKanji  = isKanji;
     }
 
     /**

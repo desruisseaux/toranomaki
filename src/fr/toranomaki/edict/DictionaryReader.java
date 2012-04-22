@@ -14,11 +14,14 @@
  */
 package fr.toranomaki.edict;
 
+import java.util.Set;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+
+import fr.toranomaki.grammar.CharacterType;
 
 
 /**
@@ -38,12 +41,12 @@ public final class DictionaryReader extends BinaryData {
      * A view over a portion of the file created by the {@link fr.toranomaki.edict.writer}
      * package. This is a view of all the remaining part of the binary file after the header.
      */
-    private final ByteBuffer buffer;
+    final ByteBuffer buffer;
 
     /**
      * Index in the {@linkplain #buffer} where the list of entries begin.
      */
-    private final int entryListsPoolStart;
+    final int entryListsPoolStart;
 
     /**
      * Index in the {@linkplain #buffer} where the definition of entries begin.
@@ -56,12 +59,22 @@ public final class DictionaryReader extends BinaryData {
     private final PartOfSpeechSet[] partOfSpeechSets;
 
     /**
+     * Creates a new reader for the default binary file.
+     *
+     * @throws IOException If an error occurred while reading the file.
+     */
+    public DictionaryReader() throws IOException {
+        this(getDictionaryFile());
+    }
+
+    /**
      * Creates a new reader for the given binary file.
      *
      * @param  file The dictionary file to open, typically {@link #getDictionaryFile()}.
      * @throws IOException If an error occurred while reading the file.
      */
     public DictionaryReader(final Path file) throws IOException {
+        final Alphabet[] alphabets = Alphabet.values();
         wordIndex = new WordIndexReader[2];
         final ByteBuffer header = ByteBuffer.allocate(4096);
         header.order(BYTE_ORDER);
@@ -75,7 +88,7 @@ public final class DictionaryReader extends BinaryData {
                 header.clear().limit(4 * (Integer.SIZE / Byte.SIZE) +
                                      1 * (Short  .SIZE / Byte.SIZE));
                 readFully(in, header);
-                wordIndex[i] = new WordIndexReader(in, header, getLanguageAt(i), position);
+                wordIndex[i] = new WordIndexReader(this, in, header, alphabets[i], position);
                 position = wordIndex[i].bufferEndPosition();
             }
             /*
@@ -98,65 +111,64 @@ public final class DictionaryReader extends BinaryData {
             buffer = in.map(FileChannel.MapMode.READ_ONLY, in.position(), position);
             buffer.order(BYTE_ORDER);
         }
-        for (int i=0; i<wordIndex.length; i++) {
-            wordIndex[i].buffer = buffer;
-        }
     }
 
     /**
-     * Searches the given word. If no exact match is found, returns the first word
-     * after the given word.
+     * Searches the index of the given word. If no exact match is found, returns the
+     * "insertion point" with all bits reversed (same convention than
+     * {@link java.util.Arrays#binarySearch(Object[], Object)}).
      *
      * @param  word The word to search.
-     * @param  isJapanese {@code true} for searching a Japanese word, or {@code false} for a sense.
-     * @return A word equals or sorted after the given word.
+     * @param  alphabet Identifies the dictionary index where to search the word.
+     * @return The index of the given word, or the insertion point with all bits reversed.
      */
-    public String search(final String word, final boolean isJapanese) {
-        final WordIndexReader index = wordIndex[getLanguageIndex(isJapanese)];
-        return index.getWordAt(index.search(word));
+    public int getWordIndex(final String word, final Alphabet alphabet) {
+        return wordIndex[alphabet.ordinal()].getWordIndex(word);
+    }
+
+    /**
+     * Returns the word at the given index. The index is typically a value returned by
+     * {@link #getWordIndex(String, boolean)}.
+     *
+     * @param  wordIndex Index of the word to search.
+     * @param  alphabet Identifies the dictionary index where to search the word.
+     * @return The word at the given index.
+     * @throws IndexOutOfBoundsException If the given index is out of bounds.
+     */
+    public String getWordAt(final int wordIndex, final Alphabet alphabet) throws IndexOutOfBoundsException {
+        return this.wordIndex[alphabet.ordinal()].getWordAt(wordIndex);
+    }
+
+    /**
+     * Returns all entries associated to given word, or an empty array of none.
+     *
+     * @param  word The word to search.
+     * @param  alphabet Identifies the dictionary index where to search the word.
+     * @return All entries associated to the given word.
+     */
+    public Entry[] getEntriesUsingWord(final String word, final Alphabet alphabet) {
+        return this.wordIndex[alphabet.ordinal()].getEntriesUsingWord(word);
     }
 
     /**
      * Returns all entries associated to the word at the given index.
      *
      * @param  wordIndex Index of the word to search.
-     * @param  isJapanese {@code true} for a Japanese word, or {@code false} for a sense.
+     * @param  alphabet Identifies the dictionary index where to search the word.
      * @return All entries associated to the word at the given index.
      */
-    public Entry[] getEntries(final int wordIndex, final boolean isJapanese) {
-        final WordIndexReader index = this.wordIndex[getLanguageIndex(isJapanese)];
-        int position = index.getEntryListPackedPosition(wordIndex);
-        final int length = position & 0xFF;
-        position >>>= Byte.SIZE;
-        buffer.position(entryListsPoolStart + position*NUM_BYTES_FOR_ENTRY_POSITION);
-        final int[] references = new int[length];
-        for (int i=0; i<length; i++) {
-            int ref = buffer.get() & 0xFF;
-            if (NUM_BYTES_FOR_ENTRY_POSITION >= 2) {
-                ref |= (buffer.get() & 0xFF) << Byte.SIZE;
-                if (NUM_BYTES_FOR_ENTRY_POSITION >= 3) {
-                    ref |= (buffer.get() & 0xFF) << (2*Byte.SIZE);
-                    if (NUM_BYTES_FOR_ENTRY_POSITION >= 4) {
-                        throw new AssertionError(NUM_BYTES_FOR_ENTRY_POSITION);
-                    }
-                }
-            }
-            references[i] = ref;
-        }
-        final Entry[] entries = new Entry[length];
-        for (int i=0; i<length; i++) {
-            entries[i] = getEntryAt(references[i]);
-        }
-        return entries;
+    public Entry[] getEntriesUsingWord(final int wordIndex, final Alphabet alphabet) {
+        return this.wordIndex[alphabet.ordinal()].getEntriesUsingWord(wordIndex);
     }
 
     /**
      * Gets the entry at the given position.
+     * This is a callback method for {@link WordIndexReader} only.
      *
      * @param  position Entry position, in bytes relative to the beginning of the entry pool.
      * @return The entry at the given index.
      */
-    private Entry getEntryAt(final int position) {
+    final Entry getEntryAt(final int position) {
         buffer.position(entryDefinitionsStart + position);
         /*
          * Get the number of Japanese words and the number of senses.
@@ -182,11 +194,11 @@ public final class DictionaryReader extends BinaryData {
          * first.
          */
         final Entry entry = new Entry(position);
-        WordIndexReader index = wordIndex[getLanguageIndex(true)];
+        WordIndexReader index = wordIndex[Alphabet.JAPANESE.ordinal()];
         for (int i=0; i<numJapaneses; i++) {
             entry.add(i < numKanjis, index.getWordAtPacked(wordRefs[i]), attributes[i]);
         }
-        index = wordIndex[getLanguageIndex(false)];
+        index = wordIndex[Alphabet.LATIN.ordinal()];
         for (int i=numJapaneses; i<wordRefs.length; i++) {
             final String word = index.getWordAtPacked(wordRefs[i]);
             final short  attr = attributes[i];
@@ -194,5 +206,54 @@ public final class DictionaryReader extends BinaryData {
             entry.addSense(new Sense(LANGUAGES[lang], word, partOfSpeechSets[attr >>> NUM_BITS_FOR_LANGUAGE]));
         }
         return entry;
+    }
+
+    /**
+     * Returns the set of priority from the given code.
+     *
+     * @param  code The code from which to get the set of priorities.
+     * @return The set of priorities from the given code.
+     *
+     * @todo Not yet implemented.
+     */
+    public Set<Priority> getPriority(final short code) {
+        return java.util.Collections.emptySet();
+    }
+
+    /**
+     * Searches the best entry matching the given text, or {@code null} if none.
+     *
+     * @param toSearch       The word to search.
+     * @param documentOffset Index of the first character of the given word in the document.
+     *        This information is not used by this method. This value is simply stored in the
+     *        {@link SearchResult#documentOffset} field for caller convenience.
+     * @return The search result, or {@code null} if none.
+     *
+     * @todo Not yet implemented.
+     */
+    public SearchResult searchBest(final String toSearch, final int documentOffset) {
+        if (toSearch == null || toSearch.isEmpty()) {
+            return null;
+        }
+        String racine = toSearch;
+        final CharacterType type = CharacterType.forWord(toSearch);
+        if (type.isKanji) {
+            final int length = toSearch.length();
+            for (int i=0; i<length;) {
+                final int c = toSearch.codePointAt(i);
+                if (Character.isIdeographic(c)) {
+                    i += Character.charCount(c);
+                    continue;
+                }
+                // Found the first non-ideographic character. If we have at least one
+                // ideographic character, we will use is as the root of the words to search.
+                if (i != 0) {
+                    racine = toSearch.substring(0, i);
+                }
+                break;
+            }
+        }
+        return null;
+        //return SearchResult.search(search(racine, type), toSearch, type.isKanji, documentOffset);
     }
 }

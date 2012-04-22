@@ -37,6 +37,20 @@ final class WordIndexReader extends BinaryData {
     private static final int CACHE_SIZE = 3000;
 
     /**
+     * The array to returns from the search method when no matching entry has been found.
+     */
+    private static final Entry[] EMPTY_RESULT = new Entry[0];
+
+    /**
+     * The dictionary which contain this index. The {@link DictionaryReader#buffer} shall be
+     * a view over the content of the file created by {@link WordIndexWriter}. The first part
+     * of that buffer contains the indexes, and the second part contains the bytes from which
+     * to build the words. The separation between those two parts is {@link #numberOfWords}
+     * multiplied by the size of the {@code int} type.
+     */
+    private final DictionaryReader dictionary;
+
+    /**
      * Number of words in the mapped index.
      */
     private final int numberOfWords;
@@ -63,15 +77,6 @@ final class WordIndexReader extends BinaryData {
     private final StringBuilder stringBuilder;
 
     /**
-     * A view over the content of the file created by {@link WordIndexWriter}.
-     * The first part of this buffer contains the indexes, and the second part
-     * contains the bytes from which to build the words. The separation between
-     * those two parts is {@link #numberOfWords} multiplied by the size of the
-     * {@code int} type.
-     */
-    ByteBuffer buffer;
-
-    /**
      * Index of the first valid position for this index in the {@linkplain #buffer}.
      *
      * @see #bufferEndPosition()
@@ -84,7 +89,7 @@ final class WordIndexReader extends BinaryData {
     private final int entryListRefStartPosition;
 
     /**
-     * The words read from the buffer for the first 8 iterations of the {@link #search} method.
+     * The words read from the buffer for the first 8 iterations of the {@link #getWordIndex} method.
      * This is used on the assumption that it may help the OS to reduce the amount of disk seeks.
      * Values in this array are initially null, and computed when first needed.
      */
@@ -104,15 +109,16 @@ final class WordIndexReader extends BinaryData {
     /**
      * Creates a new index reader.
      *
+     * @param  dictionary The dictionary which contain this index.
      * @param  in The file channel from which to read the header.
      * @param  header A buffer containing the header bytes. Must contains 2 integers and one short.
-     * @param  isReadingJapanese {@code true} if the dictionary is for Japanese words,
-     *         or {@code false} for senses.
+     * @param  alphabet Identifies the index encoding.
      * @throws IOException If an error occurred while reading the file.
      */
-    WordIndexReader(final ReadableByteChannel in, final ByteBuffer header,
-            final boolean isReadingJapanese, final long bufferStart) throws IOException
+    WordIndexReader(final DictionaryReader dictionary, final ReadableByteChannel in, final ByteBuffer header,
+            final Alphabet alphabet, final long bufferStart) throws IOException
     {
+        this.dictionary = dictionary;
         bufferStartPosition = (int) bufferStart;
         if (bufferStartPosition != bufferStart) {
             throw new IOException("Position out of bounds.");
@@ -133,7 +139,7 @@ final class WordIndexReader extends BinaryData {
         buffer.asIntBuffer().get(encodingMap);
         buffer.clear().limit(seqPoolSize);
         readFully(in, buffer);
-        charSequences   = new String(buffer.array(), 0, seqPoolSize, isReadingJapanese ? JAPAN_ENCODING : LATIN_ENCODING);
+        charSequences   = new String(buffer.array(), 0, seqPoolSize, alphabet.encoding);
         stringBuilder   = new StringBuilder();
         wordByIteration = new String[256]; // Must be a power of 2.
         entryListRefStartPosition = bufferStartPosition + numberOfWords*NUM_BYTES_FOR_INDEX_ELEMENT + poolSize;
@@ -167,7 +173,7 @@ final class WordIndexReader extends BinaryData {
         // Read from disk, then cache the result.
         final int position = (packed >>> NUM_BITS_FOR_WORD_LENGTH) + numberOfWords*NUM_BYTES_FOR_INDEX_ELEMENT;
         int remaining = packed & ((1 << NUM_BITS_FOR_WORD_LENGTH) - 1);
-        final ByteBuffer buffer = this.buffer;
+        final ByteBuffer buffer = dictionary.buffer;
         buffer.position(bufferStartPosition + position);
         stringBuilder.setLength(0);
         while (--remaining >= 0) {
@@ -187,35 +193,36 @@ final class WordIndexReader extends BinaryData {
     }
 
     /**
-     * Returns the word at the given index. The index shall be a value returned by
-     * {@link #search(String)}.
+     * Returns the word at the given index. The index is typically a value returned by
+     * {@link #getWordIndex(String)}.
+     *
+     * @param  wordIndex Index of the word to search.
+     * @return The word at the given index.
+     * @throws IndexOutOfBoundsException If the given index is out of bounds.
      */
-    final String getWordAt(final int wordIndex) {
-        return getWordAtPacked(buffer.getInt(wordIndex*NUM_BYTES_FOR_INDEX_ELEMENT + bufferStartPosition));
+    public String getWordAt(final int wordIndex) throws IndexOutOfBoundsException {
+        if (wordIndex < 0 || wordIndex >= numberOfWords) {
+            throw new IndexOutOfBoundsException(String.valueOf(wordIndex));
+        }
+        return getWordAtPacked(dictionary.buffer.getInt(wordIndex*NUM_BYTES_FOR_INDEX_ELEMENT + bufferStartPosition));
     }
 
     /**
-     * Returns the position of the list of all entries associated to the word at the given index.
-     * The returned value is packed: the first 3 bytes for the position, and the last byte for the
-     * list length.
-     */
-    final int getEntryListPackedPosition(final int wordIndex) {
-        return buffer.getInt(wordIndex*NUM_BYTES_FOR_INDEX_ELEMENT + entryListRefStartPosition);
-    }
-
-    /**
-     * Searches the index of the given word. If no exact match is found, returns the index of the
-     * first word after the given word. The returned value can be given to {@link #getWordAt(int)}
+     * Searches the index of the given word. If no exact match is found, returns the
+     * "insertion point" with all bits reversed (same convention than
+     * {@link java.util.Arrays#binarySearch(Object[], Object)}).
+     * <p>
+     * If positive, the returned value can be given to {@link #getWordAt(int)}
      * in order to get the actual word at that index.
      *
      * @param  word The word to search.
-     * @return Index of the word.
+     * @return The index of the given word, or the insertion point with all bits reversed.
      */
-    final int search(final String word) {
+    public int getWordIndex(final String word) {
         int cachePos = 1;
         int low  = 0;
         int high = numberOfWords - 1;
-        while (low < high) {
+        while (low <= high) {
             final int mid = (low + high) >>> 1;
             /*
              * Get the word at index 'mid'. We use a cache for the first 8 iterations, because those
@@ -244,6 +251,55 @@ final class WordIndexReader extends BinaryData {
             if (c < 0) low = mid + 1;
             else     {high = mid - 1; cachePos |= 1;}
         }
-        return low;
+        return ~low;
+    }
+
+    /**
+     * Returns all entries associated to given word, or an empty array of none.
+     *
+     * @param  word The word to search.
+     * @return All entries associated to the given word.
+     */
+    public Entry[] getEntriesUsingWord(final String word) {
+        final int index = getWordIndex(word);
+        return (index >= 0) ? getEntriesUsingWord(index) : EMPTY_RESULT;
+    }
+
+    /**
+     * Returns all entries associated to the word at the given index.
+     *
+     * @param  wordIndex Index of the word to search.
+     * @return All entries associated to the word at the given index.
+     */
+    public Entry[] getEntriesUsingWord(final int wordIndex) {
+        final ByteBuffer buffer = dictionary.buffer;
+        /*
+         * Gets the position of the list of all entries associated to the word at the given index.
+         * The 'position' value is packed: the first 3 bytes for the position, and the last byte
+         * for the list length.
+         */
+        int position = buffer.getInt(wordIndex*NUM_BYTES_FOR_INDEX_ELEMENT + entryListRefStartPosition);
+        final int length = position & 0xFF;
+        position >>>= Byte.SIZE;
+        buffer.position(dictionary.entryListsPoolStart + position*NUM_BYTES_FOR_ENTRY_POSITION);
+        final int[] references = new int[length];
+        for (int i=0; i<length; i++) {
+            int ref = buffer.get() & 0xFF;
+            if (NUM_BYTES_FOR_ENTRY_POSITION >= 2) {
+                ref |= (buffer.get() & 0xFF) << Byte.SIZE;
+                if (NUM_BYTES_FOR_ENTRY_POSITION >= 3) {
+                    ref |= (buffer.get() & 0xFF) << (2*Byte.SIZE);
+                    if (NUM_BYTES_FOR_ENTRY_POSITION >= 4) {
+                        throw new AssertionError(NUM_BYTES_FOR_ENTRY_POSITION);
+                    }
+                }
+            }
+            references[i] = ref;
+        }
+        final Entry[] entries = new Entry[length];
+        for (int i=0; i<length; i++) {
+            entries[i] = dictionary.getEntryAt(references[i]);
+        }
+        return entries;
     }
 }

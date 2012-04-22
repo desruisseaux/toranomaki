@@ -18,7 +18,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.control.Label;
 
-import fr.toranomaki.edict.JMdict;
+import fr.toranomaki.edict.DictionaryReader;
 
 
 /**
@@ -30,12 +30,12 @@ final class Training {
     /**
      * The dictionary to use for searching words.
      */
-    private final JMdict dictionary;
+    private final DictionaryReader dictionary;
 
     /**
      * Creates a new instance using the given dictionary for searching the words to ask.
      */
-    Training(final JMdict dictionary) {
+    Training(final DictionaryReader dictionary) {
         this.dictionary = dictionary;
     }
 

@@ -37,12 +37,11 @@ import javafx.geometry.VPos;
 import javafx.geometry.Insets;
 
 import fr.toranomaki.edict.Entry;
-import fr.toranomaki.edict.JMdict;
 import fr.toranomaki.edict.PartOfSpeech;
 
 
 /**
- * The panel which show the description about a selected word.
+ * The panel showing a description about a selected word.
  *
  * @author Martin Desruisseaux
  */
@@ -55,7 +54,7 @@ final class WordPanel {
     /**
      * Identifiers associated to {@linkplain #cachedNodes cached nodes}. Those identifiers are
      * used for distinguish <cite>Part of Speech</cite> and <cite>glossary</cite> from other
-     * kind of nodes. The other kind of nodes are flag, which uses the 3 letters language code
+     * kind of nodes. The other kind of nodes are flags, which uses the 3 letters language code
      * as their identifier.
      *
      * @see Node#id
@@ -102,9 +101,9 @@ final class WordPanel {
     private final List<Node> cachedNodes;
 
     /**
-     * Creates a new instance using the given dictionary for searching words.
+     * Creates a new instance for showing word descriptions.
      */
-    WordPanel(final JMdict dictionary) {
+    WordPanel() {
         posInsets   = new Insets(/*top*/ 6, /*right*/ 0, /*bottom*/ 0, /*left*/  6);
         flagInsets  = new Insets(/*top*/ 4, /*right*/ 6, /*bottom*/ 0, /*left*/ 18);
         flags       = new HashMap<>();

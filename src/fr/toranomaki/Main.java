@@ -14,10 +14,7 @@
  */
 package fr.toranomaki;
 
-import java.io.File;
 import java.io.IOException;
-import java.sql.SQLException;
-import org.apache.derby.jdbc.EmbeddedDataSource;
 
 import javafx.stage.Stage;
 import javafx.scene.Scene;
@@ -31,8 +28,7 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.application.Application;
 
-import fr.toranomaki.edict.JMdict;
-import static fr.toranomaki.edict.BinaryData.getDirectory;
+import fr.toranomaki.edict.DictionaryReader;
 
 
 /**
@@ -44,11 +40,6 @@ import static fr.toranomaki.edict.BinaryData.getDirectory;
  * @author Martin Desruisseaux
  */
 public final class Main extends Application {
-    /**
-     * The connection to the JMdict dictionary.
-     */
-    private EmbeddedDataSource dataSource;
-
     /**
      * Controls the panel used for vocabulary training.
      */
@@ -75,46 +66,23 @@ public final class Main extends Application {
     }
 
     /**
-     * Returns the data source to use for the connection to the SQL database.
+     * Connects the application to the dictionary file.
      *
-     * @return The data source.
-     * @throws IOException In an error occurred while getting the application directory.
-     */
-    public static EmbeddedDataSource getDataSource() throws IOException {
-        final EmbeddedDataSource datasource = new EmbeddedDataSource();
-        datasource.setDatabaseName(getDirectory().resolve("JMdict").toString().replace(File.separatorChar, '/'));
-        datasource.setDataSourceName("JMdict"); // Optional - for information purpose only.
-        return datasource;
-    }
-
-    /**
-     * Connects the application to the database.
-     *
-     * @throws IOException In an error occurred while getting the application directory.
-     * @throws SQLException If an error occurred while connecting to the database.
+     * @throws IOException In an error occurred while opening the dictionary.
      */
     @Override
-    public void init() throws IOException, SQLException {
-        dataSource = getDataSource();
-        final JMdict dictionary = new JMdict(dataSource);
+    public void init() throws IOException {
+        final DictionaryReader dictionary = new DictionaryReader();
         training = new Training(dictionary);
         editor   = new Editor  (dictionary);
     }
 
     /**
-     * Releases the resources used by this application (database connection, service threads).
-     *
-     * @throws SQLException If an error occurred while closing the connection to the database.
+     * Releases the resources used by this application.
      */
     @Override
-    public void stop() throws SQLException {
+    public void stop() {
         editor.close();
-        dataSource.setShutdownDatabase("shutdown");
-        try {
-            dataSource.getConnection().close();
-        } catch (SQLException e) {
-            // This is the expected exception.
-        }
     }
 
     /**

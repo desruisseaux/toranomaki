@@ -27,6 +27,7 @@ import java.nio.file.Path;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
+import fr.toranomaki.edict.Alphabet;
 
 
 /**
@@ -55,11 +56,11 @@ final class WordIndexWriter extends WordEncoder {
      * This constructor will performs all needed computation immediately.
      *
      * @param entries  The entries for which to create en encoder.
-     * @param japanese {@code true} for adding Japanese words, or {@code false} for adding senses.
+     * @param alphabet Indicates whatever we are adding Japanese words or senses.
      * @param buffer   A buffer to use. Its content will be overwritten.
      */
-    public WordIndexWriter(final Collection<Entry> entries, final boolean japanese, final ByteBuffer buffer) {
-        super(entries, japanese);
+    public WordIndexWriter(final Collection<Entry> entries, final Alphabet alphabet, final ByteBuffer buffer) {
+        super(entries, alphabet);
         assert buffer.capacity() % NUM_BYTES_FOR_INDEX_ELEMENT == 0;
         this.buffer  = buffer;
         encodedWords = new LinkedHashMap<>(2 * entries.size());
@@ -70,18 +71,24 @@ final class WordIndexWriter extends WordEncoder {
          */
         final SortedMap<EncodedWord,EncodedWord> wordFragments = new TreeMap<>();
         for (final Entry entry : entries) {
-            if (japanese) {
-                boolean isKanji = false;
-                do {
-                    final int count = entry.getCount(isKanji);
-                    for (int i=0; i<count; i++) {
-                        addWord(entry.getWord(isKanji, i), wordFragments);
-                    }
-                } while ((isKanji = !isKanji) == true);
-            } else {
-                for (final Sense sense : entry.getSenses()) {
-                    addWord(sense.meaning, wordFragments);
+            switch (alphabet) {
+                case JAPANESE: {
+                    boolean isKanji = false;
+                    do {
+                        final int count = entry.getCount(isKanji);
+                        for (int i=0; i<count; i++) {
+                            addWord(entry.getWord(isKanji, i), wordFragments);
+                        }
+                    } while ((isKanji = !isKanji) == true);
+                    break;
                 }
+                case LATIN: {
+                    for (final Sense sense : entry.getSenses()) {
+                        addWord(sense.meaning, wordFragments);
+                    }
+                    break;
+                }
+                default: throw new IllegalArgumentException(String.valueOf(alphabet));
             }
         }
         /*

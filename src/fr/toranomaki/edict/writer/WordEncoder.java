@@ -27,6 +27,7 @@ import java.nio.channels.WritableByteChannel;
 
 import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
+import fr.toranomaki.edict.Alphabet;
 import fr.toranomaki.edict.BinaryData;
 
 
@@ -42,9 +43,9 @@ class WordEncoder extends BinaryData {
     private static final int MAX_SEQUENCE_LENGTH = 4;
 
     /**
-     * {@code true} for adding Japanese words, or {@code false} for adding senses.
+     * Indicates whatever we are adding Japanese words or senses.
      */
-    final boolean isAddingJapanese;
+    final Alphabet alphabet;
 
     /**
      * On construction, this will hold the frequencies of a few characters.
@@ -56,27 +57,33 @@ class WordEncoder extends BinaryData {
      * Creates a new encoder from the frequencies of character sequences in the given entries.
      *
      * @param entries  The entries for which to create en encoder.
-     * @param japanese {@code true} for adding Japanese words, or {@code false} for adding senses.
+     * @param alphabet Indicates whatever we are adding Japanese words or senses.
      */
-    public WordEncoder(final Collection<Entry> entries, final boolean japanese) {
-        isAddingJapanese = japanese;
+    public WordEncoder(final Collection<Entry> entries, final Alphabet alphabet) {
+        this.alphabet = alphabet;
         encodingMap = new HashMap<>(MAX_SEQUENCE_LENGTH * entries.size());
         /*
          * Computes the frequencies of character sequences in the given entries.
          */
         for (final Entry entry : entries) {
-            if (japanese) {
-                boolean isKanji = false;
-                do {
-                    final int count = entry.getCount(isKanji);
-                    for (int i=0; i<count; i++) {
-                        countCharSequenceFrequencies(entry.getWord(isKanji, i));
-                    }
-                } while ((isKanji = !isKanji) == true);
-            } else {
-                for (final Sense sense : entry.getSenses()) {
-                    countCharSequenceFrequencies(sense.meaning);
+            switch (alphabet) {
+                case JAPANESE: {
+                    boolean isKanji = false;
+                    do {
+                        final int count = entry.getCount(isKanji);
+                        for (int i=0; i<count; i++) {
+                            countCharSequenceFrequencies(entry.getWord(isKanji, i));
+                        }
+                    } while ((isKanji = !isKanji) == true);
+                    break;
                 }
+                case LATIN: {
+                    for (final Sense sense : entry.getSenses()) {
+                        countCharSequenceFrequencies(sense.meaning);
+                    }
+                    break;
+                }
+                default: throw new IllegalArgumentException(String.valueOf(alphabet));
             }
         }
         /*
@@ -276,7 +283,7 @@ next:   for (int i=0; i<length;) {
         /*
          * Computes the length of the character pool.
          */
-        final ByteBuffer bytes = ByteBuffer.wrap(pool.getBytes(isAddingJapanese ? JAPAN_ENCODING : LATIN_ENCODING));
+        final ByteBuffer bytes = ByteBuffer.wrap(pool.getBytes(alphabet.encoding));
         buffer.putInt(bytes.limit());
         /*
          * Write the number of character sequences, then the position and length of each
