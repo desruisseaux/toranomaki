@@ -40,6 +40,8 @@
  *   </li>
  *   <li>Length of the pool of references to entries, in bytes.</li>
  *   <li>Length of the pool of entries, in bytes.</li>
+ *   <li>Number of items in the pool of sets of <cite>part of speech</cite>, as an {@code int}.</li>
+ *   <li>Pool of sets of <cite>part of speech</cite>, as {@code long}s.</li>
  * </ul>
  *
  * <p>The mapped buffer file format (following immediately the header) is:</p>
@@ -74,8 +76,7 @@
  *           <li>Packed index of the word, as an {@code int}.</li>
  *           <li>The language as an index in the {@link fr.toranomaki.edict.BinaryData#LANGUAGES}
  *               array, on {@value fr.toranomaki.edict.BinaryData#NUM_BITS_FOR_LANGUAGE} bits.</li>
- *           <li>Number of Part of Speech (POS) on 5 bits.</li>
- *           <li>Part of Speech ordinal codes as bytes.</li>
+ *           <li>Reference to the set of Part of Speech (POS), on 13 bits.</li>
  *         </ul>
  *       </li>
  *     </ul>

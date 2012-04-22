@@ -255,6 +255,15 @@ final class XMLParser extends DefaultHandler {
     }
 
     /**
+     * Returns all <cite>Part of speech</cite> sets which have been found while parsing
+     * the XML file. There is few distinct sets (about 400), and each set is expected to
+     * contain at most 8 elements.
+     */
+    public Set<Set<PartOfSpeech>> getPartOfSpeechSets() {
+        return cachedPOS.keySet();
+    }
+
+    /**
      * Invoked when entering in a new XML element. This method determines the {@link ElementType}
      * and ensures that it is consistent with the allowed type.
      * <p>

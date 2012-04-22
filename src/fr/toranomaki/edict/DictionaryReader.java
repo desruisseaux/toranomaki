@@ -14,7 +14,6 @@
  */
 package fr.toranomaki.edict;
 
-import java.util.EnumSet;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -52,9 +51,9 @@ public final class DictionaryReader extends BinaryData {
     private final int entryDefinitionsStart;
 
     /**
-     * The part of speech enum used in the binary file.
+     * The part of speech sets used in the binary file.
      */
-    private final PartOfSpeech[] partOfSpeech;
+    private final PartOfSpeechSet[] partOfSpeechSets;
 
     /**
      * Creates a new reader for the given binary file.
@@ -64,9 +63,7 @@ public final class DictionaryReader extends BinaryData {
      */
     public DictionaryReader(final Path file) throws IOException {
         wordIndex = new WordIndexReader[2];
-        final ByteBuffer header = ByteBuffer.allocate(
-                4 * (Integer.SIZE / Byte.SIZE) +
-                1 * (Short  .SIZE / Byte.SIZE));
+        final ByteBuffer header = ByteBuffer.allocate(4096);
         header.order(BYTE_ORDER);
         try (FileChannel in = FileChannel.open(file, StandardOpenOption.READ)) {
             /*
@@ -75,25 +72,35 @@ public final class DictionaryReader extends BinaryData {
              */
             long position = 0;
             for (int i=0; i<wordIndex.length; i++) {
-                header.clear();
+                header.clear().limit(4 * (Integer.SIZE / Byte.SIZE) +
+                                     1 * (Short  .SIZE / Byte.SIZE));
                 readFully(in, header);
                 wordIndex[i] = new WordIndexReader(in, header, getLanguageAt(i), position);
                 position = wordIndex[i].bufferEndPosition();
             }
             /*
-             * Read remaining header data and map the buffer.
+             * Read remaining header data, then constructs the sets of Part Of Speech (POS).
+             * We should have a raisonably small amount of set of POS (about 400).
              */
-            header.clear().limit(2 * Integer.SIZE / Byte.SIZE);
+            header.clear().limit(3 * (Integer.SIZE / Byte.SIZE));
             readFully(in, header);
             entryListsPoolStart   = (int) position; position += header.getInt();
             entryDefinitionsStart = (int) position; position += header.getInt();
+            partOfSpeechSets      = new PartOfSpeechSet[header.getInt()];
+            header.clear().limit(partOfSpeechSets.length * (Long.SIZE / Byte.SIZE));
+            readFully(in, header);
+            for (int i=0; i<partOfSpeechSets.length; i++) {
+                partOfSpeechSets[i] = new PartOfSpeechSet(header.getLong());
+            }
+            /*
+             * Map the buffer.
+             */
             buffer = in.map(FileChannel.MapMode.READ_ONLY, in.position(), position);
             buffer.order(BYTE_ORDER);
         }
         for (int i=0; i<wordIndex.length; i++) {
             wordIndex[i].buffer = buffer;
         }
-        partOfSpeech = PartOfSpeech.values();
     }
 
     /**
@@ -163,23 +170,11 @@ public final class DictionaryReader extends BinaryData {
          * Extract all entry data now. This include pointer to words,
          * but we will not resolve those pointers yet.
          */
-        final int[]    words      = new int  [numJapaneses + numSenses];
-        final short[]  priorities = new short[numJapaneses];
-        final byte[][] langPos    = new byte [numSenses][];
-        for (int i=0; i<words.length; i++) {
-            words[i] = buffer.getInt();
-            if (i < numJapaneses) {
-                // Additional info specific to Kanji and reading element.
-                priorities[i] = buffer.getShort();
-            } else {
-                // Additional info specific to senses.
-                final int packed = buffer.get() & 0xFF;
-                final int length = packed >>> NUM_BITS_FOR_LANGUAGE;
-                final byte[] data = new byte[length + 1];
-                data[0] = (byte) (packed & ((1 << NUM_BITS_FOR_LANGUAGE) - 1));
-                buffer.get(data, 1, length);
-                langPos[i - numJapaneses] = data;
-            }
+        final int[]   wordRefs   = new int  [numJapaneses + numSenses];
+        final short[] attributes = new short[numJapaneses + numSenses];
+        for (int i=0; i<wordRefs.length; i++) {
+            wordRefs  [i] = buffer.getInt();
+            attributes[i] = buffer.getShort();
         }
         /*
          * Now build the entry. Note that the call to WordIndexReader.getWordAtPacked(int)
@@ -189,17 +184,14 @@ public final class DictionaryReader extends BinaryData {
         final Entry entry = new Entry(position);
         WordIndexReader index = wordIndex[getLanguageIndex(true)];
         for (int i=0; i<numJapaneses; i++) {
-            entry.add(i < numKanjis, index.getWordAtPacked(words[i]), priorities[i]);
+            entry.add(i < numKanjis, index.getWordAtPacked(wordRefs[i]), attributes[i]);
         }
         index = wordIndex[getLanguageIndex(false)];
-        for (int i=numJapaneses; i<words.length; i++) {
-            final String word = index.getWordAtPacked(words[i]);
-            final byte[] data = langPos[i - numJapaneses];
-            final EnumSet<PartOfSpeech> pos = EnumSet.noneOf(PartOfSpeech.class);
-            for (int j=1; j<data.length; j++) {
-                pos.add(partOfSpeech[data[j] & 0xFF]);
-            }
-            entry.addSense(new Sense(LANGUAGES[data[0] & 0xFF], word, pos));
+        for (int i=numJapaneses; i<wordRefs.length; i++) {
+            final String word = index.getWordAtPacked(wordRefs[i]);
+            final short  attr = attributes[i];
+            final int    lang = (attr & ((1 << NUM_BITS_FOR_LANGUAGE) - 1));
+            entry.addSense(new Sense(LANGUAGES[lang], word, partOfSpeechSets[attr >>> NUM_BITS_FOR_LANGUAGE]));
         }
         return entry;
     }
