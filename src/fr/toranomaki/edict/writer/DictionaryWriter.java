@@ -70,7 +70,7 @@ public final class DictionaryWriter extends BinaryData {
      * Creates a new dictionary writers from the given entries.
      * This constructor creates the binary file immediately.
      */
-    DictionaryWriter(final List<Entry> entries, final Set<Set<PartOfSpeech>> posSets) throws IOException {
+    private DictionaryWriter(final List<Entry> entries, final Set<Set<PartOfSpeech>> posSets) throws IOException {
         file = getDictionaryFile();
         final ByteBuffer buffer = ByteBuffer.allocate(1024 * NUM_BYTES_FOR_INDEX_ELEMENT);
         buffer.order(BYTE_ORDER);
@@ -253,14 +253,14 @@ public final class DictionaryWriter extends BinaryData {
             buffer.put((byte) senses.length);
             final WordTable japaneseWords = wordTables[Alphabet.JAPANESE.ordinal()];
             final WordTable senseWords    = wordTables[Alphabet.LATIN.ordinal()];
-            boolean isKanji = false;
+            boolean isKanji = true;
             do {
                 final int count = isKanji ? numKanjis : numReadings;
                 for (int i=0; i<count; i++) {
                     buffer.putInt(japaneseWords.getPackedPosition(entry.getWord(isKanji, i)));
                     buffer.putShort(entry.getPriority(isKanji, i));
                 }
-            } while ((isKanji = !isKanji) == true);
+            } while ((isKanji = !isKanji) == false);
             /*
              * After Kanjis and reading elements, now write senses.
              */
@@ -292,9 +292,9 @@ public final class DictionaryWriter extends BinaryData {
     }
 
     /**
-     * Verifies all index.
+     * Verifies all index, then verifies entries.
      */
-    void verifyIndex() throws IOException {
+    private void verify() throws IOException {
         System.out.println("Verifying index");
         final DictionaryReader reader = new DictionaryReader(file);
         final Alphabet[] alphabets = Alphabet.values();
@@ -310,6 +310,49 @@ public final class DictionaryWriter extends BinaryData {
                 }
             }
         }
+        System.out.println("Verifying entries");
+        for (final Map.Entry<Entry, Integer> pair : entryPositions.entrySet()) {
+            final Entry expected = pair.getKey();
+            final Entry actual   = reader.getEntryAt(pair.getValue());
+            boolean isKanji = true;
+            do {
+                final int n = expected.getCount(isKanji);
+                assertEquals(expected, "getCount(" + isKanji + ')', n, actual.getCount(isKanji));
+                for (int i=0; i<n; i++) {
+                    assertEquals(expected, "getWord(" + isKanji + ',' + i + ')',
+                            expected.getWord(isKanji, i), actual.getWord(isKanji, i));
+                    assertEquals(expected, "getPriority(" + isKanji + ',' + i + ')',
+                            expected.getPriority(isKanji, i), actual.getPriority(isKanji, i));
+                }
+            } while ((isKanji = !isKanji) == false);
+            final Sense[] se = expected.getSenses();
+            final Sense[] sa = actual  .getSenses();
+            assertEquals(expected, "getSenses().length", se.length, sa.length);
+            for (int i=0; i<se.length; i++) {
+                assertEquals(expected, "getSenses()[" + i + "].locale",       se[i].locale,       sa[i].locale);
+                assertEquals(expected, "getSenses()[" + i + "].meaning",      se[i].meaning,      sa[i].meaning);
+                assertEquals(expected, "getSenses()[" + i + "].partOfSpeech", se[i].partOfSpeech, se[i].partOfSpeech);
+            }
+        }
+    }
+
+    /**
+     * Ensures that the two given values are equal.
+     *
+     * @param entry         The entry, used only for formatting an error message.
+     * @param comparedValue The method for which we are testing the value.
+     * @param expected      The expected value.
+     * @param actual        The actual value.
+     * @throws IOException  If the actual value is not equals to the expected value.
+     */
+    private static void assertEquals(final Entry entry, final String comparedValue,
+            final Object expected, final Object actual) throws IOException
+    {
+        if (!expected.equals(actual)) {
+            throw new IOException("Verification failed for " + comparedValue +
+                    ": expected \"" + expected + "\" " + " for " + entry +
+                    " but got \"" + actual + "\".");
+        }
     }
 
     /**
@@ -324,6 +367,6 @@ public final class DictionaryWriter extends BinaryData {
             parser.parse(in);
         }
         final DictionaryWriter writer = new DictionaryWriter(parser.entryList, parser.getPartOfSpeechSets());
-        writer.verifyIndex();
+        writer.verify();
     }
 }

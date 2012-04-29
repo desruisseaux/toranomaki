@@ -162,13 +162,14 @@ public final class DictionaryReader extends BinaryData {
     }
 
     /**
-     * Gets the entry at the given position.
-     * This is a callback method for {@link WordIndexReader} only.
+     * Gets the entry at the given position. This method is for internal usage, either invoked by
+     * {@link fr.toranomaki.edict.writer.DictionaryWriter} for verification purpose, or invoked as
+     * a callback method for {@link WordIndexReader}.
      *
      * @param  position Entry position, in bytes relative to the beginning of the entry pool.
      * @return The entry at the given index.
      */
-    final Entry getEntryAt(final int position) {
+    public Entry getEntryAt(final int position) {
         buffer.position(entryDefinitionsStart + position);
         /*
          * Get the number of Japanese words and the number of senses.

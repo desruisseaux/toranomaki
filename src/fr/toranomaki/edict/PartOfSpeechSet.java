@@ -44,7 +44,7 @@ final class PartOfSpeechSet extends AbstractSet<PartOfSpeech> {
      */
     @Override
     public int size() {
-        return (Long.SIZE - Long.numberOfLeadingZeros(code)) / Byte.SIZE;
+        return (Long.SIZE - Long.numberOfLeadingZeros(code) + (Byte.SIZE-1)) / Byte.SIZE;
     }
 
     /**
