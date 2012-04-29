@@ -74,9 +74,10 @@ public class Sense {
      * method is used for sorting sense instances in user language preference order.
      */
     final int indexOf(final Locale[] locales) {
+        final String language = locale.getLanguage();
         int i = locales.length;
         while (--i >= 0) {
-            if (locale.equals(locales[i])) break;
+            if (language.equals(locales[i].getLanguage())) break;
         }
         return i;
     }
@@ -94,8 +95,9 @@ public class Sense {
         Set<PartOfSpeech> largest = Collections.emptySet();
         for (int i=locales.length; --i>=0;) {
             final Locale locale = locales[i];
+            final String language = locale.getLanguage();
             for (final Sense candidate : senses) {
-                if (locale.equals(candidate.locale)) {
+                if (language.equals(candidate.locale.getLanguage())) {
                     if (candidate.partOfSpeech.containsAll(largest)) {
                         largest = candidate.partOfSpeech;
                     }

@@ -15,6 +15,9 @@
 package fr.toranomaki.edict;
 
 import java.util.Set;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -30,6 +33,23 @@ import fr.toranomaki.grammar.CharacterType;
  * @author Martin Desruisseaux
  */
 public final class DictionaryReader extends BinaryData {
+    /**
+     * The cache capacity. This value is arbitrary, but we are better to use a value
+     * not greater than a power of 2 time the load factor (0.75).
+     */
+    private static final int CACHE_SIZE = 3000;
+
+    /**
+     * The locales for which to search meanings, in <strong>reverse</strong> of preference order.
+     * We use reverse order because the English is the most extensively used language in the EDICT
+     * dictionary, so it is worth to put it first in our data structure. But it still only the
+     * fallback language for non-English users.
+     * <p>
+     * The default values are {@linkplain Locale#ENGLISH English} followed by the
+     * {@linkplain Locale#getDefault() system default}, if different then English.
+     */
+    private final Locale[] languages;
+
     /**
      * The index. For now we support only Japanese language and senses in westerner languages.
      * But we define this field as an array anyway in order to make easier the addition of new
@@ -59,6 +79,17 @@ public final class DictionaryReader extends BinaryData {
     private final PartOfSpeechSet[] partOfSpeechSets;
 
     /**
+     * A cache of most recently used entries. The cache capacity is arbitrary, but we are
+     * better to use a value not greater than a power of 2 time the load factor (0.75).
+     */
+    @SuppressWarnings("serial")
+    private final Map<Integer,Entry> cachedEntries = new LinkedHashMap<Integer,Entry>(1024, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(final Map.Entry<Integer,Entry> eldest) {
+            return size() > CACHE_SIZE;
+        }
+    };
+
+    /**
      * Creates a new reader for the default binary file.
      *
      * @throws IOException If an error occurred while reading the file.
@@ -74,6 +105,12 @@ public final class DictionaryReader extends BinaryData {
      * @throws IOException If an error occurred while reading the file.
      */
     public DictionaryReader(final Path file) throws IOException {
+        final Locale locale = Locale.getDefault();
+        if (locale.getLanguage().equals(Locale.ENGLISH.getLanguage())) {
+            languages = new Locale[] {locale};
+        } else {
+            languages = new Locale[] {Locale.ENGLISH, locale}; // Reverse of preference order.
+        }
         final Alphabet[] alphabets = Alphabet.values();
         wordIndex = new WordIndexReader[2];
         final ByteBuffer header = ByteBuffer.allocate(4096);
@@ -170,6 +207,11 @@ public final class DictionaryReader extends BinaryData {
      * @return The entry at the given index.
      */
     public Entry getEntryAt(final int position) {
+        final Integer key = position;
+        Entry entry = cachedEntries.get(key);
+        if (entry != null) {
+            return entry;
+        }
         buffer.position(entryDefinitionsStart + position);
         /*
          * Get the number of Japanese words and the number of senses.
@@ -194,7 +236,7 @@ public final class DictionaryReader extends BinaryData {
          * will change the buffer position, which is why we needed to extract all pointers
          * first.
          */
-        final Entry entry = new Entry(position);
+        entry = new Entry(position);
         WordIndexReader index = wordIndex[Alphabet.JAPANESE.ordinal()];
         for (int i=0; i<numJapaneses; i++) {
             entry.add(i < numKanjis, index.getWordAtPacked(wordRefs[i]), attributes[i]);
@@ -206,6 +248,8 @@ public final class DictionaryReader extends BinaryData {
             final int    lang = (attr & ((1 << NUM_BITS_FOR_LANGUAGE) - 1));
             entry.addSense(new Sense(LANGUAGES[lang], word, partOfSpeechSets[attr >>> NUM_BITS_FOR_LANGUAGE]));
         }
+        entry.addSenseSummary(languages);
+        cachedEntries.put(key, entry);
         return entry;
     }
 

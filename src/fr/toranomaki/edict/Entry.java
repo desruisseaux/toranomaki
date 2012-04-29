@@ -306,8 +306,10 @@ public final class Entry implements Comparable<Entry> {
 
     /**
      * If there is more than one sense, create a new sense which summarize all existing senses.
+     * This method also have a side-effect: it sorts the senses according the given language
+     * preference order.
      *
-     * @param locales The locales for which to create summaries.
+     * @param locales The locales in <em>reverse</em> of preference order.
      */
     final void addSenseSummary(final Locale[] locales) {
         if (senses instanceof Sense[]) {
