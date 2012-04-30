@@ -23,6 +23,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.io.File;
@@ -142,8 +143,8 @@ final class XMLParser extends DefaultHandler {
 
     /**
      * All {@code ke_pri} and {@code re_pri} values found in the XML file.
-     * The keys are set combination of priority values. The values are the
-     * numeric code given to that combination.
+     * The keys are priority value for each priority type. The values are
+     * the numeric code given to that combination.
      */
     private final Map<Map<Priority.Type, Short>, Short> priorityMap;
 
@@ -491,7 +492,8 @@ final class XMLParser extends DefaultHandler {
                 for (int i=priorityColumns.length; --i>=0;) {
                     final Priority.Type p = priorityColumns[i];
                     final Short n = priorities.get(p); // May be null.
-                    code += p.weight(n);
+                    code += p.rankToCode(n);
+                    assert Objects.equals(n, p.codeToRank(code)) : code;
                 }
                 if (priorityMap.put(new EnumMap<>(priorities), code) != null) {
                     throw new DictionaryException("Priority code collision: " + code);

@@ -14,6 +14,12 @@
  */
 package fr.toranomaki.edict;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Collections;
+
 
 /**
  * Provides record information about the relative priority of an entry. Priority is intended for
@@ -45,32 +51,32 @@ public final class Priority implements Comparable<Priority> {
         * first 12,000 in that file are marked "{@code news1}" and words in the second 12,000
         * are marked "{@code news2}"
         */
-        news((short) 2, (short) 6),
+        news((short) 2, (short) 6, (short) 3),
 
         /**
         * Appears in the "<cite>Ichimango goi bunruishuu</cite>", Senmon Kyouiku Publishing,
         * Tokyo, 1998. (The entries marked "{@code ichi2}" were demoted from "{@code ichi1}"
         * because they were observed to have low frequencies in the WWW and newspapers.)
         */
-        ichi((short) 2, (short) 4),
+        ichi((short) 2, (short) 4, (short) 3),
 
         /**
         * Small number of words use this marker when they are detected as
         * being common, but are not included in other lists.
         */
-        spec((short) 2, (short) 2),
+        spec((short) 2, (short) 2, (short) 3),
 
         /**
         * Common loanwords, based on the "<cite>wordfreq</cite>" file.
         */
-        gai((short) 2, (short) 0),
+        gai((short) 2, (short) 0, (short) 3),
 
         /**
         * Indicator of frequency-of-use ranking in the "<cite>wordfreq</cite>" file. The numeric
         * value is the number of the set of 500 words in which the entry can be found, with {@code 01}
         * assigned to the first 500, {@code 02} to the second, and so on.
         */
-        nf((short) 49, (short) 8);
+        nf((short) 49, (short) 8, (short) 0xFFFF);
 
         /**
          * The maximal allowed rank value.
@@ -78,30 +84,59 @@ public final class Priority implements Comparable<Priority> {
         final short max;
 
         /**
-         * A shift to apply to the {@link Priority#rank} value in order to get a primary key
-         * to use in the database. Actually this computation is not strictly necessary, but
-         * we use it for having a better sorting.
+         * A shift to apply to the {@link Priority#rank} value in order to get the numerical
+         * code to store in the binary file.
          */
         private final short shift;
 
         /**
+         * The mask to apply on the code in order to get back the rank.
+         */
+        private final short mask;
+
+        /**
          * Creates a new enumeration.
          */
-        private Type(final short max, final short shift) {
-            this.max = max;
+        private Type(final short max, final short shift, final short mask) {
+            this.max   = max;
             this.shift = shift;
+            this.mask  = mask;
         }
 
         /**
-         * The weight of the given rank when computing the primary key value.
+         * The weight of the given rank when computing the numerical code.
          *
-         * @param  rank The rank given to this priority type, or {@code null}.
+         * @param  rank The rank given to this priority type, or {@code null} if none.
          * @return The value to add to the priority primary key.
          */
-        public int weight(final Short rank) {
+        public final int rankToCode(final Short rank) {
             return ((rank != null) ? rank : max+1) << shift;
         }
+
+        /**
+         * The rank encoded in the given code for this type, or {@code null} if none.
+         * This method is the converse of {@link #rankToCode(Short)}.
+         *
+         * @param  code The code.
+         * @return The rank extracted from the given code, or {@code null} if none.
+         */
+        public final Short codeToRank(int code) {
+            code = (code >>> shift) & mask;
+            return (code != 0 && code != max+1) ? Short.valueOf((short) code) : null;
+        }
     }
+
+    /**
+     * A cache of priority instances. We don't put a limit to this cache because the
+     * maximal amount of such instances is reasonably low (less than 400).
+     */
+    private static final Map<Priority,Priority> CACHE = new HashMap<>();
+
+    /**
+     * A cache of priority sets. We don't put a limit to this cache because the
+     * maximal amount of such instances is reasonably low (less than 400).
+     */
+    private static final Map<Short,Set<Priority>> SET_CACHE = new HashMap<>();
 
     /**
      * Codes indicating the reference taken as an indication of the frequency with which
@@ -147,6 +182,48 @@ public final class Priority implements Comparable<Priority> {
             }
         }
         throw new IllegalArgumentException("Unparsable priority: " + name);
+    }
+
+    /**
+     * Returns an instance equals to this priority, from the cache if such instance
+     * has already been created before this method call.
+     *
+     * @return The priority of the given type and rank.
+     */
+    public Priority intern() {
+        synchronized (Priority.class) {
+            final Priority existing = CACHE.get(this);
+            if (existing != null) {
+                return existing;
+            }
+            CACHE.put(this, this);
+            return this;
+        }
+    }
+
+    /**
+     * Returns the set of priority from the given code.
+     *
+     * @param  code The code from which to get the set of priorities.
+     * @return The set of priorities from the given code.
+     */
+    public static synchronized Set<Priority> fromCode(final short code) {
+        if (code == 0) {
+            return Collections.emptySet();
+        }
+        final Short key = code;
+        Set<Priority> priorities = SET_CACHE.get(key);
+        if (priorities == null) {
+            priorities = new LinkedHashSet<>(4);
+            for (final Priority.Type type : Priority.Type.values()) {
+                final Short rank = type.codeToRank(code & 0xFFFF);
+                if (rank != null) {
+                    priorities.add(new Priority(type, rank).intern());
+                }
+            }
+            SET_CACHE.put(key, priorities);
+        }
+        return priorities;
     }
 
     /**

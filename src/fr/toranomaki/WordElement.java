@@ -107,7 +107,7 @@ final class WordElement {
     private static int isCommon(final DictionaryReader dictionary, final Entry entry, final boolean isKanji) {
         final short code = entry.getPriority(isKanji, WORD_INDEX);
         if (code != 0) {
-            for (final Priority priority : dictionary.getPriority(code)) {
+            for (final Priority priority : Priority.fromCode(code)) {
                 if (COMMONS.contains(priority.type)) {
                     return COMMON_MASK;
                 }

@@ -14,7 +14,6 @@
  */
 package fr.toranomaki.edict;
 
-import java.util.Set;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -251,18 +250,6 @@ public final class DictionaryReader extends BinaryData {
         entry.addSenseSummary(languages);
         cachedEntries.put(key, entry);
         return entry;
-    }
-
-    /**
-     * Returns the set of priority from the given code.
-     *
-     * @param  code The code from which to get the set of priorities.
-     * @return The set of priorities from the given code.
-     *
-     * @todo Not yet implemented.
-     */
-    public Set<Priority> getPriority(final short code) {
-        return java.util.Collections.emptySet();
     }
 
     /**
