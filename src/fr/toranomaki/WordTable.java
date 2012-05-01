@@ -143,7 +143,8 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
      * @param word The word to search.
      */
     final void setContent(final String word) {
-        final Alphabet alphabet = CharacterType.forWord(word).alphabet;
+        final CharacterType type = CharacterType.forWord(word);
+        final Alphabet alphabet = (type != null) ? type.alphabet : null;
         final Task<WordElement[]> task = new Task<WordElement[]>() {
             @Override
             protected WordElement[] call() {

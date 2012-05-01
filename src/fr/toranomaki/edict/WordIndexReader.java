@@ -14,6 +14,7 @@
  */
 package fr.toranomaki.edict;
 
+import java.util.Arrays;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
@@ -31,7 +32,7 @@ final class WordIndexReader extends BinaryData {
     /**
      * The array to returns from the search method when no matching entry has been found.
      */
-    private static final Entry[] EMPTY_RESULT = new Entry[0];
+    static final Entry[] EMPTY_RESULT = new Entry[0];
 
     /**
      * The dictionary which contain this index. The {@link DictionaryReader#buffer} shall be
@@ -257,6 +258,17 @@ final class WordIndexReader extends BinaryData {
      * @return All entries associated to the word at the given index.
      */
     public Entry[] getEntriesUsingWord(final int wordIndex) {
+        final int[] references = getEntryReferencesUsingWord(wordIndex);
+        return getEntriesAt(references, references.length);
+    }
+
+    /**
+     * Returns references to all entries associated to the word at the given index.
+     *
+     * @param  wordIndex Index of the word to search.
+     * @return References to all entries associated to the word at the given index.
+     */
+    private int[] getEntryReferencesUsingWord(final int wordIndex) {
         final ByteBuffer buffer = dictionary.buffer;
         /*
          * Gets the position of the list of all entries associated to the word at the given index.
@@ -281,10 +293,95 @@ final class WordIndexReader extends BinaryData {
             }
             references[i] = ref;
         }
+        return references;
+    }
+
+    /**
+     * Returns all entries at the given positions.
+     *
+     * @param references The references to entries.
+     * @param length Number of valid elements in the references array.
+     */
+    private Entry[] getEntriesAt(final int[] references, final int length) {
         final Entry[] entries = new Entry[length];
         for (int i=0; i<length; i++) {
             entries[i] = dictionary.getEntryAt(references[i]);
         }
         return entries;
+    }
+
+    /**
+     * Returns a collection of entries beginning by the given prefix. If no word begin by
+     * the given prefix, then this method will look for shorter character sequences, until
+     * a matching characters sequence is found.
+     *
+     * @param  prefix The prefix
+     * @return Entries beginning by the given prefix.
+     */
+    public Entry[] getEntriesUsingPrefix(final String prefix) {
+        int wordIndex = getWordIndex(prefix);
+        if (wordIndex >= 0) {
+            return getEntriesUsingWord(wordIndex);
+        }
+        /*
+         * Before to search for words in ascending order, we first need to look at little bit
+         * backward in case a longer matching characters sequence exists. For example if we
+         * search for "ABCD" in a dictionary containing only "ABCC" and "ABDD", then the
+         * "entry >= 'ABCD'" condition while returns "ABDD". But the previous entry, "ABCC",
+         * was a better march, so we need to check for it.
+         */
+        wordIndex = ~wordIndex;
+        int commonLength = commonPrefixLength(prefix, getWordAt(wordIndex));
+        if (commonLength != prefix.length()) {
+            while (wordIndex != 0) {
+                final int cl = commonPrefixLength(prefix, getWordAt(wordIndex-1));
+                if (cl < commonLength) {
+                    break;
+                }
+                commonLength = cl;
+                wordIndex--;
+            }
+        }
+        /*
+         * Now build the list of entries by scanning all matching character sequences
+         * in ascending order.
+         */
+        int[] references = getEntryReferencesUsingWord(wordIndex);
+        Arrays.sort(references);
+        int length = references.length;
+        while (++wordIndex != numberOfWords) {
+            if (commonPrefixLength(prefix, getWordAt(wordIndex)) != commonLength) {
+                break; // The next word is no longer a good match - stop.
+            }
+            for (int more : getEntryReferencesUsingWord(wordIndex)) {
+                int insertAt = Arrays.binarySearch(references, 0, length, more);
+                if (insertAt < 0) {
+                    insertAt = ~insertAt;
+                    if (length == references.length) {
+                        references = Arrays.copyOf(references, Math.max(8, length*2));
+                    }
+                    System.arraycopy(references, insertAt, references, insertAt+1, length-insertAt);
+                    references[insertAt] = more;
+                }
+            }
+        }
+        return getEntriesAt(references, length);
+    }
+
+    /**
+     * Returns the length of the prefix which is common to the two given strings.
+     * The comparison is case-sensitive.
+     */
+    private static int commonPrefixLength(final String s1, final String s2) {
+        final int length = Math.min(s1.length(), s2.length());
+        int i = 0;
+        while (i < length) {
+            // No need to use the codePointAt API, since we are looking for exact match.
+            if (s1.charAt(i) != s2.charAt(i)) {
+                break;
+            }
+            i++;
+        }
+        return i;
     }
 }

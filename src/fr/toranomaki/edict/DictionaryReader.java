@@ -183,6 +183,7 @@ public final class DictionaryReader extends BinaryData {
      * @return All entries associated to the given word.
      */
     public Entry[] getEntriesUsingWord(final String word, final Alphabet alphabet) {
+        if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
         return this.wordIndex[alphabet.ordinal()].getEntriesUsingWord(word);
     }
 
@@ -194,6 +195,7 @@ public final class DictionaryReader extends BinaryData {
      * @return All entries associated to the word at the given index.
      */
     public Entry[] getEntriesUsingWord(final int wordIndex, final Alphabet alphabet) {
+        if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
         return this.wordIndex[alphabet.ordinal()].getEntriesUsingWord(wordIndex);
     }
 
@@ -260,8 +262,6 @@ public final class DictionaryReader extends BinaryData {
      *        This information is not used by this method. This value is simply stored in the
      *        {@link SearchResult#documentOffset} field for caller convenience.
      * @return The search result, or {@code null} if none.
-     *
-     * @todo Not yet implemented.
      */
     public SearchResult searchBest(final String toSearch, final int documentOffset) {
         if (toSearch == null || toSearch.isEmpty()) {
@@ -285,7 +285,7 @@ public final class DictionaryReader extends BinaryData {
                 break;
             }
         }
-        return null;
-        //return SearchResult.search(search(racine, type), toSearch, type.isKanji, documentOffset);
+        return SearchResult.search(wordIndex[type.alphabet.ordinal()].getEntriesUsingPrefix(racine),
+                toSearch, type.isKanji, documentOffset);
     }
 }

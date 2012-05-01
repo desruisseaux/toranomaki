@@ -19,13 +19,13 @@ import static java.lang.Character.*;
 
 /**
  * Result of a word search. Instance of this class are created by the
- * {@link JMdict#searchBest(String)} method.
+ * {@link DictionaryReader#searchBest(String)} method.
  *
  * @author Martin Desruisseaux
  */
 public final class SearchResult {
     /**
-     * The entries which which were examined for the search.
+     * The entries which were examined for the search.
      */
     public final Entry[] entries;
 

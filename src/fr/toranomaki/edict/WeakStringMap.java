@@ -1,6 +1,6 @@
 /*
  *    Toranomaki - Help with Japanese words using the EDICT dictionary.
- *    (C) 2011-2012, Martin Desruisseaux
+ *    (C) 2012, Martin Desruisseaux
  *
  *    This library is free software; you can redistribute it and/or
  *    modify it under the terms of the GNU Lesser General Public
@@ -157,7 +157,7 @@ final class WeakStringMap {
      * Associates the given string to the given key in this map.
      */
     public synchronized void put(final int key, final String value) {
-        assert get(key) == null;
+        assert get(key) == null : value;
         removeQueued();
         if (count >= threshold) {
             rehash();
@@ -166,5 +166,6 @@ final class WeakStringMap {
         final int index = (key & MASK) % table.length;
         table[index] = new Element(key, value, queue, table[index]);
         count++;
+        assert get(key) == value;
     }
 }
