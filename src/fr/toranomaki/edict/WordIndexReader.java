@@ -14,8 +14,6 @@
  */
 package fr.toranomaki.edict;
 
-import java.util.Map;
-import java.util.LinkedHashMap;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
@@ -30,12 +28,6 @@ import java.nio.channels.ReadableByteChannel;
  * @author Martin Desruisseaux
  */
 final class WordIndexReader extends BinaryData {
-    /**
-     * The cache capacity. This value is arbitrary, but we are better to use a value
-     * not greater than a power of 2 time the load factor (0.75).
-     */
-    private static final int CACHE_SIZE = 3000;
-
     /**
      * The array to returns from the search method when no matching entry has been found.
      */
@@ -96,15 +88,9 @@ final class WordIndexReader extends BinaryData {
     private final String[] wordByIteration;
 
     /**
-     * A cache of most recently used strings. The cache capacity is arbitrary, but we are
-     * better to use a value not greater than a power of 2 time the load factor (0.75).
+     * A cache of most recently used strings.
      */
-    @SuppressWarnings("serial")
-    private final Map<Integer,String> wordbyPackedIndex = new LinkedHashMap<Integer,String>(1024, 0.75f, true) {
-        @Override protected boolean removeEldestEntry(final Map.Entry eldest) {
-            return size() > CACHE_SIZE;
-        }
-    };
+    private final WeakStringMap wordbyPackedIndex = new WeakStringMap();
 
     /**
      * Creates a new index reader.
@@ -165,8 +151,7 @@ final class WordIndexReader extends BinaryData {
      */
     final String getWordAtPacked(final int packed) {
         // First, look in the cache.
-        final Integer key = packed;
-        String word = wordbyPackedIndex.get(key);
+        String word = wordbyPackedIndex.get(packed);
         if (word != null) {
             return word;
         }
@@ -188,7 +173,7 @@ final class WordIndexReader extends BinaryData {
             stringBuilder.append(charSequences, start, start + (code & 0xFF));
         }
         word = stringBuilder.toString();
-        wordbyPackedIndex.put(key, word);
+        wordbyPackedIndex.put(packed, word);
         return word;
     }
 
