@@ -36,6 +36,7 @@ public final class Entry implements Comparable<Entry> {
      *
      * @see ElementType#ent_seq
      */
+    @Deprecated
     public final int identifier;
 
     /**

@@ -23,8 +23,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
-import fr.toranomaki.grammar.CharacterType;
-
 
 /**
  * The reader of the dictionary binary file.
@@ -94,22 +92,18 @@ public final class DictionaryReader extends BinaryData {
      * @throws IOException If an error occurred while reading the file.
      */
     public DictionaryReader() throws IOException {
-        this(getDictionaryFile());
+        this(getDictionaryFile(), getLanguages());
     }
 
     /**
      * Creates a new reader for the given binary file.
      *
      * @param  file The dictionary file to open, typically {@link #getDictionaryFile()}.
+     * @param  languages The languages to use, in reverse of preference order.
      * @throws IOException If an error occurred while reading the file.
      */
-    public DictionaryReader(final Path file) throws IOException {
-        final Locale locale = Locale.getDefault();
-        if (locale.getLanguage().equals(Locale.ENGLISH.getLanguage())) {
-            languages = new Locale[] {locale};
-        } else {
-            languages = new Locale[] {Locale.ENGLISH, locale}; // Reverse of preference order.
-        }
+    public DictionaryReader(final Path file, final Locale[] languages) throws IOException {
+        this.languages = languages;
         final Alphabet[] alphabets = Alphabet.values();
         wordIndex = new WordIndexReader[2];
         final ByteBuffer header = ByteBuffer.allocate(4096);
@@ -249,7 +243,12 @@ public final class DictionaryReader extends BinaryData {
             final int    lang = (attr & ((1 << NUM_BITS_FOR_LANGUAGE) - 1));
             entry.addSense(new Sense(LANGUAGES[lang], word, partOfSpeechSets[attr >>> NUM_BITS_FOR_LANGUAGE]));
         }
-        entry.addSenseSummary(languages);
+        // Undocumented behavior: do not add a summary sense and do not sort the senses in
+        // preference order if the languages are exactly the ones saved in the file, because
+        // this situation occurs only when we want to verify the integrity of the binary file.
+        if (languages != LANGUAGES) {
+            entry.addSenseSummary(languages);
+        }
         cachedEntries.put(key, entry);
         return entry;
     }
@@ -268,24 +267,22 @@ public final class DictionaryReader extends BinaryData {
             return null;
         }
         String racine = toSearch;
-        final CharacterType type = CharacterType.forWord(toSearch);
-        if (type.isKanji) {
-            final int length = toSearch.length();
-            for (int i=0; i<length;) {
-                final int c = toSearch.codePointAt(i);
-                if (Character.isIdeographic(c)) {
-                    i += Character.charCount(c);
-                    continue;
-                }
-                // Found the first non-ideographic character. If we have at least one
-                // ideographic character, we will use is as the root of the words to search.
-                if (i != 0) {
-                    racine = toSearch.substring(0, i);
-                }
-                break;
+        final int length = toSearch.length();
+        for (int i=0; i<length;) {
+            final int c = toSearch.codePointAt(i);
+            if (Character.isIdeographic(c)) {
+                i += Character.charCount(c);
+                continue;
             }
+            // Found the first non-ideographic character. If we have at least one
+            // ideographic character, we will use is as the root of the words to search.
+            if (i != 0) {
+                racine = toSearch.substring(0, i);
+            }
+            break;
         }
-        return SearchResult.search(wordIndex[type.alphabet.ordinal()].getEntriesUsingPrefix(racine),
-                toSearch, type.isKanji, documentOffset);
+        final PrefixType pt = new PrefixType(racine);
+        final Entry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(racine, pt);
+        return SearchResult.search(entries, toSearch, pt.type().isKanji, documentOffset);
     }
 }

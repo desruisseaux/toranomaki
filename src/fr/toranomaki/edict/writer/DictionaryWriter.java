@@ -296,7 +296,7 @@ public final class DictionaryWriter extends BinaryData {
      */
     private void verify() throws IOException {
         System.out.println("Verifying index");
-        final DictionaryReader reader = new DictionaryReader(file);
+        final DictionaryReader reader = new DictionaryReader(file, LANGUAGES);
         final Alphabet[] alphabets = Alphabet.values();
         for (int i=0; i<wordTables.length; i++) {
             final WordTable table = wordTables[i];

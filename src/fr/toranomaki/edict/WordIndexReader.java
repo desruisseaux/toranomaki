@@ -315,10 +315,12 @@ final class WordIndexReader extends BinaryData {
      * the given prefix, then this method will look for shorter character sequences, until
      * a matching characters sequence is found.
      *
-     * @param  prefix The prefix
+     * @param  prefix The prefix.
+     * @param  prefixType On input the type of the prefix.
+     *         On output, will contain the type of the prefix which has been actually used.
      * @return Entries beginning by the given prefix.
      */
-    public Entry[] getEntriesUsingPrefix(final String prefix) {
+    public Entry[] getEntriesUsingPrefix(final String prefix, final PrefixType prefixType) {
         int wordIndex = getWordIndex(prefix);
         if (wordIndex >= 0) {
             return getEntriesUsingWord(wordIndex);
@@ -331,41 +333,57 @@ final class WordIndexReader extends BinaryData {
          * was a better march, so we need to check for it.
          */
         wordIndex = ~wordIndex;
-        int commonLength = commonPrefixLength(prefix, getWordAt(wordIndex));
+        String candidate = getWordAt(wordIndex);
+        int commonLength = commonPrefixLength(prefix, candidate);
         if (commonLength != prefix.length()) {
-            while (wordIndex != 0) {
-                final int cl = commonPrefixLength(prefix, getWordAt(wordIndex-1));
+            while (candidate.length() != commonLength && wordIndex != 0) {
+                final String previous = getWordAt(wordIndex-1);
+                final int cl = commonPrefixLength(prefix, previous);
                 if (cl < commonLength) {
                     break;
                 }
+                candidate = previous;
                 commonLength = cl;
                 wordIndex--;
             }
+            prefixType.update(prefix.substring(0, commonLength));
         }
         /*
          * Now build the list of entries by scanning all matching character sequences
-         * in ascending order.
+         * in ascending order. As a special case, we will skip this search if the word
+         * that we found above matches exactly the begining of the string to search,
+         * because we will not find a better match.
          */
         int[] references = getEntryReferencesUsingWord(wordIndex);
-        Arrays.sort(references);
-        int length = references.length;
-        while (++wordIndex != numberOfWords) {
-            if (commonPrefixLength(prefix, getWordAt(wordIndex)) != commonLength) {
-                break; // The next word is no longer a good match - stop.
-            }
-            for (int more : getEntryReferencesUsingWord(wordIndex)) {
-                int insertAt = Arrays.binarySearch(references, 0, length, more);
-                if (insertAt < 0) {
-                    insertAt = ~insertAt;
-                    if (length == references.length) {
-                        references = Arrays.copyOf(references, Math.max(8, length*2));
+        int numEntries = references.length;
+        int minLength = candidate.length();
+        if (commonLength != minLength) {
+            Arrays.sort(references);
+            while (++wordIndex != numberOfWords) {
+                candidate = getWordAt(wordIndex);
+                if (commonPrefixLength(prefix, candidate) != commonLength) {
+                    break; // The next word is no longer a good match - stop.
+                }
+                final int length = candidate.length();
+                if (length > minLength) {
+                    continue; // Give precedence to shortest words.
+                }
+                minLength = length;
+                for (int more : getEntryReferencesUsingWord(wordIndex)) {
+                    int insertAt = Arrays.binarySearch(references, 0, numEntries, more);
+                    if (insertAt < 0) {
+                        insertAt = ~insertAt;
+                        if (numEntries == references.length) {
+                            references = Arrays.copyOf(references, Math.max(8, numEntries*2));
+                        }
+                        System.arraycopy(references, insertAt, references, insertAt+1, numEntries-insertAt);
+                        references[insertAt] = more;
+                        numEntries++;
                     }
-                    System.arraycopy(references, insertAt, references, insertAt+1, length-insertAt);
-                    references[insertAt] = more;
                 }
             }
         }
-        return getEntriesAt(references, length);
+        return getEntriesAt(references, numEntries);
     }
 
     /**

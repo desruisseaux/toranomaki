@@ -97,6 +97,18 @@ public abstract class BinaryData {
     };
 
     /**
+     * Returns the default languages to use at reading time, in reverse of preference order.
+     */
+    static Locale[] getLanguages() {
+        final Locale locale = Locale.getDefault();
+        if (locale.getLanguage().equals(Locale.ENGLISH.getLanguage())) {
+            return new Locale[] {locale};
+        } else {
+            return new Locale[] {Locale.ENGLISH, locale}; // Reverse of preference order.
+        }
+    }
+
+    /**
      * For subclass constructors only.
      */
     protected BinaryData() {
