@@ -241,28 +241,6 @@ final class WordIndexReader extends BinaryData {
     }
 
     /**
-     * Returns all entries associated to given word, or an empty array of none.
-     *
-     * @param  word The word to search.
-     * @return All entries associated to the given word.
-     */
-    public Entry[] getEntriesUsingWord(final String word) {
-        final int index = getWordIndex(word);
-        return (index >= 0) ? getEntriesUsingWord(index) : EMPTY_RESULT;
-    }
-
-    /**
-     * Returns all entries associated to the word at the given index.
-     *
-     * @param  wordIndex Index of the word to search.
-     * @return All entries associated to the word at the given index.
-     */
-    public Entry[] getEntriesUsingWord(final int wordIndex) {
-        final int[] references = getEntryReferencesUsingWord(wordIndex);
-        return getEntriesAt(references, references.length);
-    }
-
-    /**
      * Returns references to all entries associated to the word at the given index.
      *
      * @param  wordIndex Index of the word to search.
@@ -318,12 +296,21 @@ final class WordIndexReader extends BinaryData {
      * @param  prefix The prefix.
      * @param  prefixType On input the type of the prefix.
      *         On output, will contain the type of the prefix which has been actually used.
+     * @param  allowReducedSearch If {@code true}, this method will reduce the number of entries
+     *         if an exact match is found. For example if the user ask for "Internet", then this
+     *         method will not return "Internet access", "Internet address", etc.
      * @return Entries beginning by the given prefix.
      */
-    public Entry[] getEntriesUsingPrefix(final String prefix, final PrefixType prefixType) {
+    final Entry[] getEntriesUsingPrefix(final String prefix, final PrefixType prefixType, final boolean allowReducedSearch) {
         int wordIndex = getWordIndex(prefix);
-        if (wordIndex >= 0) {
-            return getEntriesUsingWord(wordIndex);
+        if (wordIndex < 0) {
+            wordIndex = ~wordIndex;
+            if (wordIndex == numberOfWords) {
+                wordIndex--;
+            }
+        } else if (allowReducedSearch) {
+            final int[] references = getEntryReferencesUsingWord(wordIndex);
+            return getEntriesAt(references, references.length);
         }
         /*
          * Before to search for words in ascending order, we first need to look at little bit
@@ -332,11 +319,20 @@ final class WordIndexReader extends BinaryData {
          * "entry >= 'ABCD'" condition while returns "ABDD". But the previous entry, "ABCC",
          * was a better march, so we need to check for it.
          */
-        wordIndex = ~wordIndex;
         String candidate = getWordAt(wordIndex);
         int commonLength = commonPrefixLength(prefix, candidate);
-        if (commonLength != prefix.length()) {
-            while (candidate.length() != commonLength && wordIndex != 0) {
+        final boolean isAlphabetic = prefixType.isAlphabetic();
+        if (isAlphabetic || commonLength != prefix.length()) {
+            /*
+             * We don't allow to skip this search for Latin characters, because we need to search
+             * for words having a different case. For example the given prefix is all lower-cases
+             * while the dictionary contains the word with upper-case characters, then the later
+             * are located before the current 'wordIndex'.
+             */
+            while (wordIndex != 0) {
+                if (!isAlphabetic && candidate.length() == commonLength) {
+                    break; // The current word matches fully the begining of the prefix.
+                }
                 final String previous = getWordAt(wordIndex-1);
                 final int cl = commonPrefixLength(prefix, previous);
                 if (cl < commonLength) {
@@ -357,7 +353,7 @@ final class WordIndexReader extends BinaryData {
         int[] references = getEntryReferencesUsingWord(wordIndex);
         int numEntries = references.length;
         int minLength = candidate.length();
-        if (commonLength != minLength) {
+        if (commonLength != minLength || !allowReducedSearch) {
             Arrays.sort(references);
             while (++wordIndex != numberOfWords) {
                 candidate = getWordAt(wordIndex);
@@ -366,9 +362,12 @@ final class WordIndexReader extends BinaryData {
                 }
                 final int length = candidate.length();
                 if (length > minLength) {
-                    continue; // Give precedence to shortest words.
+                    if (allowReducedSearch) {
+                        continue; // Give precedence to shortest words.
+                    }
+                } else {
+                    minLength = length;
                 }
-                minLength = length;
                 for (int more : getEntryReferencesUsingWord(wordIndex)) {
                     int insertAt = Arrays.binarySearch(references, 0, numEntries, more);
                     if (insertAt < 0) {
@@ -387,19 +386,22 @@ final class WordIndexReader extends BinaryData {
     }
 
     /**
-     * Returns the length of the prefix which is common to the two given strings.
-     * The comparison is case-sensitive.
+     * Returns the length of the prefix which is also found at the beginning of the given candidate.
+     * The comparison is case-insensitive.
      */
-    private static int commonPrefixLength(final String s1, final String s2) {
-        final int length = Math.min(s1.length(), s2.length());
-        int i = 0;
-        while (i < length) {
-            // No need to use the codePointAt API, since we are looking for exact match.
-            if (s1.charAt(i) != s2.charAt(i)) {
+    private static int commonPrefixLength(final String prefix, final String candidate) {
+        final int n1 = prefix.length();
+        final int n2 = candidate.length();
+        int i1=0, i2=0;
+        while (i1 < n1 && i2 < n2) {
+            final int c1 = prefix.charAt(i1);
+            final int c2 = candidate.charAt(i2);
+            if (!WordComparator.equals(c1, c2)) {
                 break;
             }
-            i++;
+            i1 += Character.charCount(c1);
+            i2 += Character.charCount(c2);
         }
-        return i;
+        return i1;
     }
 }

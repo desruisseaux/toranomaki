@@ -30,14 +30,17 @@ final class PrefixType {
      * Ensures that {@code PrefixType} is initialized to a non-null value.
      */
     PrefixType(final String prefix) {
-        update(prefix);
+        type = CharacterType.forWord(prefix);
     }
 
     /**
      * Update this {@code PrefixType} to a new value.
      */
     void update(final String prefix) {
-        type = CharacterType.forWord(prefix);
+        final CharacterType candidate = CharacterType.forWord(prefix);
+        if (candidate != null) {
+            type = candidate;
+        }
     }
 
     /**
@@ -45,5 +48,12 @@ final class PrefixType {
      */
     CharacterType type() {
         return type;
+    }
+
+    /**
+     * {@code true} if the character type is alphabetic.
+     */
+    boolean isAlphabetic() {
+        return type == CharacterType.ALPHABETIC;
     }
 }

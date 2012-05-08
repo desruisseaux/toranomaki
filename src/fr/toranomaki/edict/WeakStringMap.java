@@ -120,6 +120,7 @@ final class WeakStringMap {
             Element prev = null;
             Element e = table[index];
             while (e != null) {
+                assert ((e.key & MASK) % table.length) == index;
                 if (e == toRemove) {
                     if (prev != null) {
                         prev.next = e.next;
@@ -146,6 +147,7 @@ final class WeakStringMap {
         final Element[] table = this.table;
         final int index = (key & MASK) % table.length;
         for (Element e=table[index]; e!=null; e=e.next) {
+            assert ((e.key & MASK) % table.length) == index;
             if (e.key == key) {
                 return e.get();
             }

@@ -170,30 +170,6 @@ public final class DictionaryReader extends BinaryData {
     }
 
     /**
-     * Returns all entries associated to given word, or an empty array of none.
-     *
-     * @param  word The word to search.
-     * @param  alphabet Identifies the dictionary index where to search the word.
-     * @return All entries associated to the given word.
-     */
-    public Entry[] getEntriesUsingWord(final String word, final Alphabet alphabet) {
-        if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
-        return this.wordIndex[alphabet.ordinal()].getEntriesUsingWord(word);
-    }
-
-    /**
-     * Returns all entries associated to the word at the given index.
-     *
-     * @param  wordIndex Index of the word to search.
-     * @param  alphabet Identifies the dictionary index where to search the word.
-     * @return All entries associated to the word at the given index.
-     */
-    public Entry[] getEntriesUsingWord(final int wordIndex, final Alphabet alphabet) {
-        if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
-        return this.wordIndex[alphabet.ordinal()].getEntriesUsingWord(wordIndex);
-    }
-
-    /**
      * Gets the entry at the given position. This method is for internal usage, either invoked by
      * {@link fr.toranomaki.edict.writer.DictionaryWriter} for verification purpose, or invoked as
      * a callback method for {@link WordIndexReader}.
@@ -254,6 +230,20 @@ public final class DictionaryReader extends BinaryData {
     }
 
     /**
+     * Returns a collection of entries beginning by the given prefix. If no word begin by
+     * the given prefix, then this method will look for shorter character sequences, until
+     * a matching characters sequence is found.
+     *
+     * @param  prefix The prefix.
+     * @param  alphabet Identifies the dictionary index where to search the word.
+     * @return Entries beginning by the given prefix.
+     */
+    public Entry[] getEntriesUsingPrefix(final String prefix, final Alphabet alphabet) {
+        if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
+        return wordIndex[alphabet.ordinal()].getEntriesUsingPrefix(prefix, new PrefixType(prefix), false);
+    }
+
+    /**
      * Searches the best entry matching the given text, or {@code null} if none.
      *
      * @param toSearch       The word to search.
@@ -282,7 +272,7 @@ public final class DictionaryReader extends BinaryData {
             break;
         }
         final PrefixType pt = new PrefixType(racine);
-        final Entry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(racine, pt);
+        final Entry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(racine, pt, true);
         return SearchResult.search(entries, toSearch, pt.type().isKanji, documentOffset);
     }
 }

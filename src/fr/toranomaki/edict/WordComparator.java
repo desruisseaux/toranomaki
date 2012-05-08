@@ -60,11 +60,25 @@ public final class WordComparator implements Comparator<String> {
                         return m1 - m2;
                     }
                 }
-                return c1 - c2;
             }
             i1 += Character.charCount(c1);
             i2 += Character.charCount(c2);
         }
-        return n1 - n2;
+        final int remain = (n1 - i1) - (n2 - i2);
+        if (remain != 0) {
+            return remain;
+        }
+        return s1.compareTo(s2);
+    }
+
+    /**
+     * Compares the given code points for equality, ignoring case. This method is defined in
+     * this {@code WordComparator} class in order to keep the its algorithm close to the above
+     * {@code compare} method, for consistency.
+     */
+    static boolean equals(final int c1, final int c2) {
+        return (c1 == c2)
+            || Character.toUpperCase(c1) == Character.toUpperCase(c2)
+            || Character.toLowerCase(c1) == Character.toLowerCase(c2);
     }
 }

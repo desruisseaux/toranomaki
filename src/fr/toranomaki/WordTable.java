@@ -150,7 +150,7 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
             protected WordElement[] call() {
                 final WordElement[] selected;
                 try {
-                    selected = setContent(dictionary.getEntriesUsingWord(word, alphabet), -1);
+                    selected = setContent(dictionary.getEntriesUsingPrefix(word, alphabet), -1);
                 } catch (Throwable e) {
                     Logging.recoverableException(WordTable.class, "setContent", e);
                     return null;
@@ -208,10 +208,13 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
         WordElement selected = null;
         while (change.next()) {
             if (change.wasAdded()) {
-                final int index = change.getFrom();
+                int index = change.getFrom();
                 if (index >= 0) {
-                    selected = entries.get(change.getList().get(index).getRow());
-                    break;
+                    index = change.getList().get(index).getRow();
+                    if (index < entries.size()) {
+                        selected = entries.get(index);
+                        break;
+                    }
                 }
             }
         }
