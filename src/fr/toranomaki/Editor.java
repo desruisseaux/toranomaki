@@ -14,6 +14,8 @@
  */
 package fr.toranomaki;
 
+import java.util.concurrent.ExecutorService;
+
 import javafx.scene.Node;
 import javafx.scene.control.Control;
 import javafx.scene.control.SplitPane;
@@ -28,7 +30,7 @@ import fr.toranomaki.edict.DictionaryReader;
  *
  * @author Martin Desruisseaux
  */
-final class Editor implements AutoCloseable {
+final class Editor {
     /**
      * The panel showing a description of the selected word.
      */
@@ -47,10 +49,10 @@ final class Editor implements AutoCloseable {
     /**
      * Creates a new instance using the given dictionary for searching words.
      */
-    Editor(final DictionaryReader dictionary) {
+    Editor(final DictionaryReader dictionary, final ExecutorService executor) {
         description = new WordPanel();
         text        = new TextArea();
-        table       = new WordTable(description, dictionary);
+        table       = new WordTable(description, dictionary, executor);
     }
 
     /**
@@ -64,13 +66,5 @@ final class Editor implements AutoCloseable {
         pane.getItems().addAll(desc, text, table.createPane());
         pane.setDividerPositions(0.15, 0.6);
         return pane;
-    }
-
-    /**
-     * Closes the resources used by this editor.
-     */
-    @Override
-    public void close() {
-        table.close();
     }
 }

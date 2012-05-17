@@ -15,6 +15,8 @@
 package fr.toranomaki;
 
 import java.io.IOException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.CountDownLatch;
 
 import javax.swing.JFrame;
@@ -61,14 +63,14 @@ public final class SwingMain extends WindowAdapter {
      */
     public static void main(final String[] args) throws IOException {
         final JFrame frame = new JFrame("Toranomaki");
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            final SwingMain main = new SwingMain(frame);
-            try (WordTable table = main.table) {
-                try {
-                    main.monitor.await();
-                } finally {
-                    main.editor.save();
-                }
+            final SwingMain main = new SwingMain(frame, executor);
+            try {
+                main.monitor.await();
+            } finally {
+                main.editor.save();
+                executor.shutdown();
             }
         } catch (Throwable e) {
             e.printStackTrace(); // For debugging purpose only.
@@ -80,10 +82,10 @@ public final class SwingMain extends WindowAdapter {
     /**
      * Creates a new application.
      */
-    private SwingMain(final JFrame frame) throws IOException {
+    private SwingMain(final JFrame frame, final ExecutorService executor) throws IOException {
         final DictionaryReader dictionary  = new DictionaryReader();
         final WordPanel   description = new WordPanel();
-                          table       = new WordTable(description, dictionary);
+                          table       = new WordTable(description, dictionary, executor);
                           editor      = new SwingEditor(table);
         final JFXPanel    fxDesc      = new JFXPanel();
         final JFXPanel    fxTable     = new JFXPanel();

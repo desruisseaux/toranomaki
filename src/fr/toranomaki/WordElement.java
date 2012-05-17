@@ -24,7 +24,6 @@ import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
 import fr.toranomaki.edict.Priority;
 import fr.toranomaki.edict.PartOfSpeech;
-import fr.toranomaki.edict.DictionaryReader;
 import fr.toranomaki.grammar.CharacterType;
 
 
@@ -85,13 +84,12 @@ final class WordElement {
     /**
      * Creates a new row for the given entry.
      *
-     * @param  dictionary   The dictionary used for building the entry.
-     * @param  entry        The entry.
+     * @param  entry The entry.
      */
-    WordElement(final DictionaryReader dictionary, final Entry entry) {
+    WordElement(final Entry entry) {
         this.entry      = entry;
-        int maskKanji   = isCommon(dictionary, entry, true);
-        int maskReading = isCommon(dictionary, entry, false);
+        int maskKanji   = isCommon(entry, true);
+        int maskReading = isCommon(entry, false);
         if (CharacterType.forWord(entry.getWord(true, WORD_INDEX)) == CharacterType.JOYO_KANJI) {
             maskKanji |= PREFERRED_MASK;
         }
@@ -104,7 +102,7 @@ final class WordElement {
     /**
      * Returns {@link #COMMON_MASK} if the Kanji or reading element is common, or 0 otherwise.
      */
-    private static int isCommon(final DictionaryReader dictionary, final Entry entry, final boolean isKanji) {
+    private static int isCommon(final Entry entry, final boolean isKanji) {
         final short code = entry.getPriority(isKanji, WORD_INDEX);
         if (code != 0) {
             for (final Priority priority : Priority.fromCode(code)) {

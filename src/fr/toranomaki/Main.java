@@ -15,6 +15,9 @@
 package fr.toranomaki;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 import javafx.stage.Stage;
 import javafx.scene.Scene;
@@ -51,6 +54,11 @@ public final class Main extends Application {
     private Editor editor;
 
     /**
+     * The executor to use for performing searches in a background thread.
+     */
+    private ExecutorService executor;
+
+    /**
      * Launches the Toranomaki application.
      *
      * @param args the command line arguments.
@@ -73,8 +81,9 @@ public final class Main extends Application {
     @Override
     public void init() throws IOException {
         final DictionaryReader dictionary = new DictionaryReader();
-        training = new Training(dictionary);
-        editor   = new Editor  (dictionary);
+        executor = Executors.newSingleThreadExecutor();
+        training = new Training(dictionary, executor);
+        editor   = new Editor  (dictionary, executor);
     }
 
     /**
@@ -82,7 +91,14 @@ public final class Main extends Application {
      */
     @Override
     public void stop() {
-        editor.close();
+        executor.shutdown();
+        try {
+            executor.awaitTermination(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            /*
+             * Someone doesn't want to let us sleep.
+             */
+        }
     }
 
     /**

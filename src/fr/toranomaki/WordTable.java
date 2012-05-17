@@ -14,8 +14,6 @@
  */
 package fr.toranomaki;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 
 import javafx.application.Platform;
@@ -39,13 +37,13 @@ import fr.toranomaki.grammar.CharacterType;
 
 
 /**
- * Provides the functionalities for managing a table of words search result.
+ * A table of words. The content of this table can be specified explicitely by a call to
+ * {@link #setContent(Entry[], int)}, or can be set to the result of a search in the whole
+ * dictionary by a call to {@link #setContent(String)}.
  *
  * @author Martin Desruisseaux
  */
-final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
-        ListChangeListener<TablePosition<WordElement,WordElement>>
-{
+final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<TablePosition<WordElement,WordElement>> {
     /**
      * The dictionary to use for searching words.
      */
@@ -73,11 +71,15 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
 
     /**
      * Creates a new instance using the given dictionary for searching words.
+     *
+     * @param description The word panel where to show the description of the selected word.
+     * @param dictionary  The dictionary to use for searching words.
+     * @param executor    The executor to use for performing searches in a background thread.
      */
-    WordTable(final WordPanel description, final DictionaryReader dictionary) {
+    WordTable(final WordPanel description, final DictionaryReader dictionary, final ExecutorService executor) {
         this.description = description;
-        this.dictionary = dictionary;
-        executor = Executors.newSingleThreadExecutor();
+        this.dictionary  = dictionary;
+        this.executor    = executor;
         entries = FXCollections.observableArrayList();
         search = new TextField();
         search.setPromptText("Search word");
@@ -138,7 +140,9 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
 
     /**
      * Sets the table content to the result of the search for the given word.
-     * This method should be invoked from a background thread.
+     * This method must be invoked from the JavaFX thread. It will start the
+     * search in a background thread, then will invoke {@link #setContent(Entry[], int)}
+     * after the search has been completed.
      *
      * @param word The word to search.
      */
@@ -163,7 +167,7 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
 
     /**
      * Sets the table content to the given entries.
-     * This method should be invoked from a background thread.
+     * This method can be invoked from any thread.
      *
      * @param tableEntries The entries to show in the table.
      * @param selectedIndex The index of the entry to show in the description area, or -1 if none.
@@ -171,31 +175,21 @@ final class WordTable implements AutoCloseable, EventHandler<ActionEvent>,
     final WordElement[] setContent(final Entry[] tableEntries, final int selectedIndex) {
         final WordElement[] elements = new WordElement[tableEntries.length];
         for (int i=0; i<tableEntries.length; i++) {
-            elements[i] = new WordElement(dictionary, tableEntries[i]);
+            elements[i] = new WordElement(tableEntries[i]);
         }
         final WordElement selected = (selectedIndex >= 0) ? elements[selectedIndex] : null;
-        Platform.runLater(new Runnable() {
-            @Override public void run() {
-                entries.setAll(elements);
-                description.setSelected(selected);
-            }
-        });
-        return elements;
-    }
-
-    /**
-     * Closes the resources used by this words table.
-     */
-    @Override
-    public void close() {
-        executor.shutdown();
-        try {
-            executor.awaitTermination(2, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            /*
-             * Someone doesn't want to let us sleep.
-             */
+        if (Platform.isFxApplicationThread()) {
+            entries.setAll(elements);
+            description.setSelected(selected);
+        } else {
+            Platform.runLater(new Runnable() {
+                @Override public void run() {
+                    entries.setAll(elements);
+                    description.setSelected(selected);
+                }
+            });
         }
+        return elements;
     }
 
     /**
