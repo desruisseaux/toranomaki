@@ -256,23 +256,8 @@ public final class DictionaryReader extends BinaryData {
         if (toSearch == null || toSearch.isEmpty()) {
             return null;
         }
-        String racine = toSearch;
-        final int length = toSearch.length();
-        for (int i=0; i<length;) {
-            final int c = toSearch.codePointAt(i);
-            if (Character.isIdeographic(c)) {
-                i += Character.charCount(c);
-                continue;
-            }
-            // Found the first non-ideographic character. If we have at least one
-            // ideographic character, we will use is as the root of the words to search.
-            if (i != 0) {
-                racine = toSearch.substring(0, i);
-            }
-            break;
-        }
-        final PrefixType pt = new PrefixType(racine);
-        final Entry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(racine, pt, true);
+        final PrefixType pt = new PrefixType(toSearch);
+        final Entry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(toSearch, pt, true);
         return SearchResult.search(entries, toSearch, pt.type().isKanji, documentOffset);
     }
 }

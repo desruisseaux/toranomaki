@@ -394,8 +394,8 @@ final class WordIndexReader extends BinaryData {
         final int n2 = candidate.length();
         int i1=0, i2=0;
         while (i1 < n1 && i2 < n2) {
-            final int c1 = prefix.charAt(i1);
-            final int c2 = candidate.charAt(i2);
+            final int c1 = prefix   .codePointAt(i1);
+            final int c2 = candidate.codePointAt(i2);
             if (!WordComparator.equals(c1, c2)) {
                 break;
             }
