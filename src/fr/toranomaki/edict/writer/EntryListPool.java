@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.BinaryData;
 import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
 
@@ -64,11 +63,11 @@ final class EntryListPool extends BinaryData {
      * @param buffer         A temporary buffer to use for writing.
      * @param out            Where to flush the buffer.
      */
-    void write(final Map<Entry,Integer> entryPositions,
+    void write(final Map<XMLEntry,Integer> entryPositions,
             final ByteBuffer buffer, final WritableByteChannel out) throws IOException
     {
         for (final EntryList list : lists) {
-            for (final Entry entry : list.entries()) {
+            for (final XMLEntry entry : list.entries()) {
                 if (buffer.remaining() < NUM_BYTES_FOR_ENTRY_POSITION) {
                     writeFully(buffer, out);
                 }

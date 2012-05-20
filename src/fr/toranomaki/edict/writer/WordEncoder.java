@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
 import fr.toranomaki.edict.Alphabet;
 import fr.toranomaki.edict.BinaryData;
@@ -59,13 +58,13 @@ class WordEncoder extends BinaryData {
      * @param entries  The entries for which to create en encoder.
      * @param alphabet Indicates whatever we are adding Japanese words or senses.
      */
-    public WordEncoder(final Collection<Entry> entries, final Alphabet alphabet) {
+    public WordEncoder(final Collection<XMLEntry> entries, final Alphabet alphabet) {
         this.alphabet = alphabet;
         encodingMap = new HashMap<>(MAX_SEQUENCE_LENGTH * entries.size());
         /*
          * Computes the frequencies of character sequences in the given entries.
          */
-        for (final Entry entry : entries) {
+        for (final XMLEntry entry : entries) {
             switch (alphabet) {
                 case JAPANESE: {
                     boolean isKanji = false;

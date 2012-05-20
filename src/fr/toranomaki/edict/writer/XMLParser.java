@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Locale;
@@ -39,7 +40,6 @@ import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.DefaultHandler;
 import org.xml.sax.helpers.XMLReaderFactory;
 
-import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
 import fr.toranomaki.edict.PartOfSpeech;
 import fr.toranomaki.edict.Priority;
@@ -82,7 +82,7 @@ final class XMLParser extends DefaultHandler {
      *
      * @see ElementType#entry
      */
-    private Entry entry;
+    private XMLEntry entry;
 
     /**
      * The next Kanji or reading element to add to the {@linkplain #entry}. The addition
@@ -155,28 +155,27 @@ final class XMLParser extends DefaultHandler {
 
     /**
      * The synonyms and antonyms for an entry. Those values will be written only after we
-     * finished to write every entries in the database, in order to resolve cross-references.
+     * finished to read every entries from the XML file, in order to resolve cross-references.
      * <p>
-     * The keys are the {@link ElementType#ent_seq} value for which the synonym or antonym is
-     * declared. The values are the defining element (Kanji or reading) which will need to be
-     * resolved.
+     * The keys are the entries for which the synonym or antonym is declared.
+     * The values are the defining element (Kanji or reading) which will need to be resolved.
      */
-    private final Map<Integer, Set<String>> synonyms, antonyms;
+    private final Map<XMLEntry, Set<String>> synonyms, antonyms;
 
     /**
      * The list of entries parsed from the XML file.
      */
-    public final List<Entry> entryList;
+    public final List<XMLEntry> entryList;
 
     /**
      * The elements included in the {@link #informationList}.
      */
     static final class Info {
-        final Entry entry;
-        final String word;
-        final String info;
+        final XMLEntry entry;
+        final String   word;
+        final String   info;
 
-        Info(final Entry entry, final String word, final String info) {
+        Info(final XMLEntry entry, final String word, final String info) {
             this.entry = entry;
             this.word  = word;
             this.info  = info;
@@ -211,8 +210,8 @@ final class XMLParser extends DefaultHandler {
         parsedPOS         = new HashMap<>();
         cachedPOS         = new HashMap<>();
         informations      = new HashSet<>();
-        synonyms          = new HashMap<>();
-        antonyms          = new HashMap<>();
+        synonyms          = new IdentityHashMap<>();
+        antonyms          = new IdentityHashMap<>();
         entryList         = new ArrayList<>(130000);
         posList           = new ArrayList<>(128);
         priorityList      = new ArrayList<>(128);
@@ -344,7 +343,7 @@ final class XMLParser extends DefaultHandler {
                     if (entry != null) {
                         throw new DictionaryException("Only one <ent_seq> is allowed inside an <entry> element.");
                     }
-                    entry = new Entry(Integer.parseInt(content));
+                    entry = new XMLEntry(Integer.parseInt(content));
                     break;
                 }
                 /*
@@ -421,8 +420,8 @@ final class XMLParser extends DefaultHandler {
                 /*
                  * Add a synonym or antonym.
                  */
-                case xref: addTo(synonyms, entry.identifier, content); break;
-                case ant:  addTo(antonyms, entry.identifier, content); break;
+                case xref: addTo(synonyms, entry, content); break;
+                case ant:  addTo(antonyms, entry, content); break;
             }
         }
     }
@@ -430,13 +429,13 @@ final class XMLParser extends DefaultHandler {
     /**
      * Adds the given string into the given map. This is an helper method for writing into
      * the {@link #synonyms} and {@link #antonyms} maps. Those information will be written
-     * to the database when {@link #complete()} will be invoked.
+     * to the binary file after all entries has been read.
      */
-    private static void addTo(final Map<Integer, Set<String>> map, final Integer id, final String word) {
-        Set<String> set = map.get(id);
+    private static void addTo(final Map<XMLEntry, Set<String>> map, final XMLEntry entry, final String word) {
+        Set<String> set = map.get(entry);
         if (set == null) {
             set = new HashSet<>();
-            map.put(id, set);
+            map.put(entry, set);
         }
         set.add(word);
     }

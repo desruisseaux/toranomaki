@@ -15,6 +15,7 @@
 package fr.toranomaki.edict;
 
 import static java.lang.Character.*;
+import fr.toranomaki.grammar.AugmentedEntry;
 
 
 /**
@@ -27,7 +28,7 @@ public final class SearchResult {
     /**
      * The entries which were examined for the search.
      */
-    public final Entry[] entries;
+    public final AugmentedEntry[] entries;
 
     /**
      * Index of the selected entry in the {@link #entries} array.
@@ -58,8 +59,8 @@ public final class SearchResult {
     public final boolean isFullMatch;
 
     /**
-     * {@code true} if the word which has been found is a {@linkplain Entry#getDerivedWords()
-     * derived word}.
+     * {@code true} if the word which has been found is a
+     * {@linkplain AugmentedEntry#getDerivedWords() derived word}.
      */
     public final boolean isDerivedWord;
 
@@ -72,7 +73,7 @@ public final class SearchResult {
     /**
      * Creates a new result of word search.
      */
-    private SearchResult(final Entry[] entries, final int selectedIndex, final String word,
+    private SearchResult(final AugmentedEntry[] entries, final int selectedIndex, final String word,
             final int documentOffset, final int matchLength, final boolean isFullMatch,
             final boolean isDerivedWord)
     {
@@ -97,7 +98,7 @@ public final class SearchResult {
      *                       stored in the {@link #documentOffset} field for caller convenience.
      * @return The search result, or {@code null} if none.
      */
-    static SearchResult search(final Entry[] entries, final String toSearch, final boolean isKanji,
+    static SearchResult search(final AugmentedEntry[] entries, final String toSearch, final boolean isKanji,
             final int documentOffset)
     {
         int     matchLength    = 0;
@@ -107,7 +108,7 @@ public final class SearchResult {
         boolean isFullMatch    = false;
         boolean isDerivedWord  = false;
         for (int i=0; i<entries.length; i++) {
-            final Entry candidate = entries[i];
+            final AugmentedEntry candidate = entries[i];
             final String[] derivedWords = candidate.getDerivedWords(isKanji);
             /*
              * First, searches among all Kanji or reading elements declared in the JMdict

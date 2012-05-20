@@ -41,7 +41,7 @@ import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
 
 
 /**
- * Writes the given {@link Entry} instances to the binary file.
+ * Writes the given {@link XMLEntry} instances to the binary file.
  *
  * @author Martin Desruisseaux
  */
@@ -59,7 +59,7 @@ public final class DictionaryWriter extends BinaryData {
     /**
      * The position of each entry in the stream, after the indexes.
      */
-    private final Map<Entry, Integer> entryPositions;
+    private final Map<XMLEntry, Integer> entryPositions;
 
     /**
      * Index of each set of <cite>Part of speech</cite>.
@@ -70,7 +70,7 @@ public final class DictionaryWriter extends BinaryData {
      * Creates a new dictionary writers from the given entries.
      * This constructor creates the binary file immediately.
      */
-    private DictionaryWriter(final List<Entry> entries, final Set<Set<PartOfSpeech>> posSets) throws IOException {
+    private DictionaryWriter(final List<XMLEntry> entries, final Set<Set<PartOfSpeech>> posSets) throws IOException {
         file = getDictionaryFile();
         final ByteBuffer buffer = ByteBuffer.allocate(1024 * NUM_BYTES_FOR_INDEX_ELEMENT);
         buffer.order(BYTE_ORDER);
@@ -131,7 +131,7 @@ public final class DictionaryWriter extends BinaryData {
             }
             entryListPool.write(entryPositions, buffer, out);
             int position = 0;
-            for (final Entry entry : entries) {
+            for (final XMLEntry entry : entries) {
                 assert entryPositions.get(entry) == position : position;
                 position += writeEntry(entry, buffer, out);
             }
@@ -148,9 +148,9 @@ public final class DictionaryWriter extends BinaryData {
      *         operations. This exception is declared only because this method "simulate" write
      *         operations in order to compute the expected pool size.
      */
-    private int computeEntryPositions(final List<Entry> entries) throws IOException {
+    private int computeEntryPositions(final List<XMLEntry> entries) throws IOException {
         int position = 0;
-        for (final Entry entry : entries) {
+        for (final XMLEntry entry : entries) {
             if (entryPositions.put(entry, position) != null) {
                 throw new IllegalArgumentException("Duplicated entry: " + entry);
             }
@@ -221,7 +221,7 @@ public final class DictionaryWriter extends BinaryData {
      * @param  out    Where to flush the buffer if it is full, or {@code null} if the {@code buffer} is null.
      * @return The number of bytes needed for writing the given entry.
      */
-    private int writeEntry(final Entry entry, final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
+    private int writeEntry(final XMLEntry entry, final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
         final int numKanjis   = entry.getCount(true);
         final int numReadings = entry.getCount(false);
         final Sense[] senses  = entry.getSenses();
@@ -311,9 +311,9 @@ public final class DictionaryWriter extends BinaryData {
             }
         }
         System.out.println("Verifying entries");
-        for (final Map.Entry<Entry, Integer> pair : entryPositions.entrySet()) {
-            final Entry expected = pair.getKey();
-            final Entry actual   = reader.getEntryAt(pair.getValue());
+        for (final Map.Entry<XMLEntry, Integer> pair : entryPositions.entrySet()) {
+            final XMLEntry expected = pair.getKey();
+            final Entry actual = reader.getEntryAt(pair.getValue());
             boolean isKanji = true;
             do {
                 final int n = expected.getCount(isKanji);
@@ -345,7 +345,7 @@ public final class DictionaryWriter extends BinaryData {
      * @param actual        The actual value.
      * @throws IOException  If the actual value is not equals to the expected value.
      */
-    private static void assertEquals(final Entry entry, final String comparedValue,
+    private static void assertEquals(final XMLEntry entry, final String comparedValue,
             final Object expected, final Object actual) throws IOException
     {
         if (!expected.equals(actual)) {

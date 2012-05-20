@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
 import fr.toranomaki.edict.Alphabet;
 import fr.toranomaki.edict.BinaryData;
@@ -51,9 +50,9 @@ final class WordToEntries extends BinaryData implements Comparator<EntryList> {
      * @param entries  The entries for which to create en encoder.
      * @param alphabet Indicates whatever we are adding Japanese words or senses.
      */
-    WordToEntries(final Collection<Entry> entries, final Alphabet alphabet) {
+    WordToEntries(final Collection<XMLEntry> entries, final Alphabet alphabet) {
         entriesForWord = new LinkedHashMap<>(2 * entries.size());
-        for (final Entry entry : entries) {
+        for (final XMLEntry entry : entries) {
             switch (alphabet) {
                 case JAPANESE: {
                     boolean isKanji = false;
@@ -79,7 +78,7 @@ final class WordToEntries extends BinaryData implements Comparator<EntryList> {
     /**
      * Adds the given entry to the set of entries associated to the given word.
      */
-    private void add(final String word, final Entry entry) {
+    private void add(final String word, final XMLEntry entry) {
         EntryList entries = entriesForWord.get(word);
         if (entries == null) {
             entries = new EntryList(entry);

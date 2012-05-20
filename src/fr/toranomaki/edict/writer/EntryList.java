@@ -15,7 +15,6 @@
 package fr.toranomaki.edict.writer;
 
 import java.util.Arrays;
-import fr.toranomaki.edict.Entry;
 
 
 /**
@@ -27,7 +26,7 @@ final class EntryList implements Comparable<EntryList> {
     /**
      * The entries included in this list.
      */
-    private Entry[] entries;
+    private XMLEntry[] entries;
 
     /**
      * The list from which this list is a sublist, or {@code null}.
@@ -48,8 +47,8 @@ final class EntryList implements Comparable<EntryList> {
     /**
      * Creates a new list with a single entry
      */
-    EntryList(final Entry entry) {
-        entries = new Entry[] {entry};
+    EntryList(final XMLEntry entry) {
+        entries = new XMLEntry[] {entry};
         isSublistOf = null;
         sublistIndex = 0;
     }
@@ -86,7 +85,7 @@ final class EntryList implements Comparable<EntryList> {
      * Returns the entries. This method returns a direct reference to the internal
      * array without cloning, so do not modify the elements in that array.
      */
-    Entry[] entries() {
+    XMLEntry[] entries() {
         return entries;
     }
 
@@ -94,7 +93,7 @@ final class EntryList implements Comparable<EntryList> {
      * Adds a new element in this list. Note that this method is not
      * expected to be invoked very often.
      */
-    void add(final Entry entry) {
+    void add(final XMLEntry entry) {
         final int length = entries.length;
         entries = Arrays.copyOf(entries, length+1);
         entries[length] = entry;
@@ -116,7 +115,7 @@ final class EntryList implements Comparable<EntryList> {
     @Override
     public int hashCode() {
         int code = 0;
-        for (final Entry entry : entries) {
+        for (final XMLEntry entry : entries) {
             code = code*31 + System.identityHashCode(entry);
         }
         return code;
@@ -129,8 +128,8 @@ final class EntryList implements Comparable<EntryList> {
     @Override
     public boolean equals(final Object other) {
         if (other instanceof EntryList) {
-            final Entry[] ta = entries;
-            final Entry[] oa = ((EntryList) other).entries;
+            final XMLEntry[] ta = entries;
+            final XMLEntry[] oa = ((EntryList) other).entries;
             if (ta.length == oa.length) {
                 for (int i=0; i<ta.length; i++) {
                     if (ta[i] != oa[i]) {
@@ -148,8 +147,8 @@ final class EntryList implements Comparable<EntryList> {
      */
     @Override
     public int compareTo(final EntryList other) {
-        final Entry[] ta = this. entries;
-        final Entry[] oa = other.entries;
+        final XMLEntry[] ta = this. entries;
+        final XMLEntry[] oa = other.entries;
         final int length = Math.min(ta.length, oa.length);
         for (int i=0; i<length; i++) {
             final int id0 = ta[i].identifier;

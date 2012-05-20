@@ -27,7 +27,7 @@ import fr.toranomaki.edict.PartOfSpeech;
  *
  * @author Martin Desruisseaux
  */
-public final class Grammar {
+final class Grammar {
     /**
      * An empty array of strings, for the common cases where no derived words could be computed.
      */

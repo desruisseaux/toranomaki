@@ -18,27 +18,21 @@ import java.util.Locale;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
-import fr.toranomaki.grammar.Grammar;
 
 
 /**
  * Entries consist of Kanji elements, reading elements, general information and sense elements.
  * Each entry must have at least one reading element and one sense element. Others are optional.
  * <p>
+ * The {@link #compareTo(Entry)} method is implemented in order to sort most frequently used
+ * entries first. Note that this comparison method is inconsistent with {@link #equals(Object)}.
+ * <p>
  * <b>Implementation note:</b> a large number of instances of this class may exist in the JVM,
  * so its internal representation have to be compact.
  *
  * @author Martin Desruisseaux
  */
-public final class Entry implements Comparable<Entry> {
-    /**
-     * A unique numeric sequence number for each entry.
-     *
-     * @see ElementType#ent_seq
-     */
-    @Deprecated
-    public final int identifier;
-
+public class Entry implements Comparable<Entry> {
     /**
      * A word or short phrase in Japanese which is written using at least one non-kana character.
      * The Kanji element, or in its absence, the reading element, is the defining component of each
@@ -85,19 +79,9 @@ public final class Entry implements Comparable<Entry> {
     private Object senses;
 
     /**
-     * The derived Kanji or reading words, computed only when first needed.
-     *
-     * @see #getDerivedWords(boolean)
-     */
-    private transient String[] derivedKanji, derivedReading;
-
-    /**
      * Creates an initially empty entry.
-     *
-     * @param ent_seq A unique numeric sequence number for each entry.
      */
-    public Entry(final int ent_seq) {
-        this.identifier = ent_seq;
+    public Entry() {
     }
 
     /**
@@ -107,7 +91,7 @@ public final class Entry implements Comparable<Entry> {
      * @param word     The Kanji or reading element to add. Can not be {@code null}.
      * @param priority The priority of the word being added, or 0 if none.
      */
-    public void add(final boolean isKanji, final String word, final short priority) {
+    public final void add(final boolean isKanji, final String word, final short priority) {
         Objects.requireNonNull(word);
         Object words = isKanji ? kanji : reading;
         final int count; // Number of Kanji or reading elements after this method.
@@ -167,7 +151,7 @@ public final class Entry implements Comparable<Entry> {
      * @param  isKanji {@code true} for the Kanji elements, or {@code false} for the reading elements.
      * @return Number of Kanji or reading elements.
      */
-    public int getCount(final boolean isKanji) {
+    public final int getCount(final boolean isKanji) {
         return getCount(isKanji ? kanji : reading);
     }
 
@@ -198,7 +182,7 @@ public final class Entry implements Comparable<Entry> {
      * @see ElementType#keb
      * @see ElementType#reb
      */
-    public String getWord(final boolean isKanji, final int index) {
+    public final String getWord(final boolean isKanji, final int index) {
         final Object value = isKanji ? kanji : reading;
         if (value != null) {
             if (value instanceof String) {
@@ -236,7 +220,7 @@ public final class Entry implements Comparable<Entry> {
      * @see ElementType#ke_pri
      * @see ElementType#re_pri
      */
-    public short getPriority(final boolean isKanji, int index) {
+    public final short getPriority(final boolean isKanji, int index) {
         final short[] priorities = this.priorities;
         if (priorities != null) {
             final int nk = getCount(kanji);
@@ -291,7 +275,7 @@ public final class Entry implements Comparable<Entry> {
      *
      * @param sense The sense to add (can not be null).
      */
-    public void addSense(final Sense sense) {
+    public final void addSense(final Sense sense) {
         if (senses == null) {
             senses = sense;
         } else if (senses instanceof Sense) {
@@ -337,7 +321,7 @@ public final class Entry implements Comparable<Entry> {
      *
      * @return The senses, or an empty array if none.
      */
-    public Sense[] getSenses() {
+    public final Sense[] getSenses() {
         final Object senses = this.senses;
         Sense[] copy = new Sense[getCount(senses)];
         if (senses instanceof Sense[]) {
@@ -364,7 +348,7 @@ public final class Entry implements Comparable<Entry> {
      *
      * @return The meaning of this entry, or {@code null} if none.
      */
-    public Sense getSenseSummmary() {
+    public final Sense getSenseSummmary() {
         final Object senses = this.senses; // Protect from changes.
         if (senses instanceof Sense[]) {
             return ((Sense[]) senses)[0];
@@ -374,24 +358,8 @@ public final class Entry implements Comparable<Entry> {
     }
 
     /**
-     * Returns the derived words, or an empty array if it doesn't apply to this kind of word.
-     *
-     * @return The derived words, or an empty array if none. <strong>Do not modify</strong>
-     *         the array content, since this method does not clone the array.
-     */
-    synchronized final String[] getDerivedWords(final boolean isKanji) {
-        String[] derived = isKanji ? derivedKanji : derivedReading;
-        if (derived == null) {
-            derived = Grammar.DEFAULT.getDerivedWords(this, isKanji);
-            if (isKanji) derivedKanji = derived;
-            else       derivedReading = derived;
-        }
-        return derived;
-    }
-
-    /**
      * Compares this entry with the given object in order to sort preferred entries first.
-     * If two entry has the same priority, select the shortest word.
+     * If two entries have the same priority, select the shortest word.
      *
      * @param other The other entry.
      * @return -1 if this entry has priority over the given entry, +1 for the converse.

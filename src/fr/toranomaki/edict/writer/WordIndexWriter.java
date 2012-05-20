@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.Path;
 
-import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Sense;
 import fr.toranomaki.edict.Alphabet;
 
@@ -59,7 +58,7 @@ final class WordIndexWriter extends WordEncoder {
      * @param alphabet Indicates whatever we are adding Japanese words or senses.
      * @param buffer   A buffer to use. Its content will be overwritten.
      */
-    public WordIndexWriter(final Collection<Entry> entries, final Alphabet alphabet, final ByteBuffer buffer) {
+    public WordIndexWriter(final Collection<XMLEntry> entries, final Alphabet alphabet, final ByteBuffer buffer) {
         super(entries, alphabet);
         assert buffer.capacity() % NUM_BYTES_FOR_INDEX_ELEMENT == 0;
         this.buffer  = buffer;
@@ -70,7 +69,7 @@ final class WordIndexWriter extends WordEncoder {
          * of an existing word. The values in this map are identical to the keys.
          */
         final SortedMap<EncodedWord,EncodedWord> wordFragments = new TreeMap<>();
-        for (final Entry entry : entries) {
+        for (final XMLEntry entry : entries) {
             switch (alphabet) {
                 case JAPANESE: {
                     boolean isKanji = false;

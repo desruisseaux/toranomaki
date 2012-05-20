@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import fr.toranomaki.grammar.AugmentedEntry;
 
 
 /**
@@ -80,8 +81,8 @@ public final class DictionaryReader extends BinaryData {
      * better to use a value not greater than a power of 2 time the load factor (0.75).
      */
     @SuppressWarnings("serial")
-    private final Map<Integer,Entry> cachedEntries = new LinkedHashMap<Integer,Entry>(1024, 0.75f, true) {
-        @Override protected boolean removeEldestEntry(final Map.Entry<Integer,Entry> eldest) {
+    private final Map<Integer,AugmentedEntry> cachedEntries = new LinkedHashMap<Integer,AugmentedEntry>(1024, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(final Map.Entry<Integer,AugmentedEntry> eldest) {
             return size() > CACHE_SIZE;
         }
     };
@@ -177,9 +178,9 @@ public final class DictionaryReader extends BinaryData {
      * @param  position Entry position, in bytes relative to the beginning of the entry pool.
      * @return The entry at the given index.
      */
-    public Entry getEntryAt(final int position) {
+    public AugmentedEntry getEntryAt(final int position) {
         final Integer key = position;
-        Entry entry = cachedEntries.get(key);
+        AugmentedEntry entry = cachedEntries.get(key);
         if (entry != null) {
             return entry;
         }
@@ -207,7 +208,7 @@ public final class DictionaryReader extends BinaryData {
          * will change the buffer position, which is why we needed to extract all pointers
          * first.
          */
-        entry = new Entry(position);
+        entry = new AugmentedEntry();
         WordIndexReader index = wordIndex[Alphabet.JAPANESE.ordinal()];
         for (int i=0; i<numJapaneses; i++) {
             entry.add(i < numKanjis, index.getWordAtPacked(wordRefs[i]), attributes[i]);
@@ -223,7 +224,7 @@ public final class DictionaryReader extends BinaryData {
         // preference order if the languages are exactly the ones saved in the file, because
         // this situation occurs only when we want to verify the integrity of the binary file.
         if (languages != LANGUAGES) {
-            entry.addSenseSummary(languages);
+            ((Entry) entry).addSenseSummary(languages);
         }
         cachedEntries.put(key, entry);
         return entry;
@@ -238,7 +239,7 @@ public final class DictionaryReader extends BinaryData {
      * @param  alphabet Identifies the dictionary index where to search the word.
      * @return Entries beginning by the given prefix.
      */
-    public Entry[] getEntriesUsingPrefix(final String prefix, final Alphabet alphabet) {
+    public AugmentedEntry[] getEntriesUsingPrefix(final String prefix, final Alphabet alphabet) {
         if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
         return wordIndex[alphabet.ordinal()].getEntriesUsingPrefix(prefix, new PrefixType(prefix), false);
     }
@@ -257,7 +258,7 @@ public final class DictionaryReader extends BinaryData {
             return null;
         }
         final PrefixType pt = new PrefixType(toSearch);
-        final Entry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(toSearch, pt, true);
+        final AugmentedEntry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(toSearch, pt, true);
         return SearchResult.search(entries, toSearch, pt.type().isKanji, documentOffset);
     }
 }

@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
+import fr.toranomaki.grammar.AugmentedEntry;
 
 
 /**
@@ -32,7 +33,7 @@ final class WordIndexReader extends BinaryData {
     /**
      * The array to returns from the search method when no matching entry has been found.
      */
-    static final Entry[] EMPTY_RESULT = new Entry[0];
+    static final AugmentedEntry[] EMPTY_RESULT = new AugmentedEntry[0];
 
     /**
      * The dictionary which contain this index. The {@link DictionaryReader#buffer} shall be
@@ -280,8 +281,8 @@ final class WordIndexReader extends BinaryData {
      * @param references The references to entries.
      * @param length Number of valid elements in the references array.
      */
-    private Entry[] getEntriesAt(final int[] references, final int length) {
-        final Entry[] entries = new Entry[length];
+    private AugmentedEntry[] getEntriesAt(final int[] references, final int length) {
+        final AugmentedEntry[] entries = new AugmentedEntry[length];
         for (int i=0; i<length; i++) {
             entries[i] = dictionary.getEntryAt(references[i]);
         }
@@ -301,7 +302,7 @@ final class WordIndexReader extends BinaryData {
      *         method will not return "Internet access", "Internet address", etc.
      * @return Entries beginning by the given prefix.
      */
-    final Entry[] getEntriesUsingPrefix(final String prefix, final PrefixType prefixType, final boolean allowReducedSearch) {
+    final AugmentedEntry[] getEntriesUsingPrefix(final String prefix, final PrefixType prefixType, final boolean allowReducedSearch) {
         int wordIndex = getWordIndex(prefix);
         if (wordIndex < 0) {
             wordIndex = ~wordIndex;
