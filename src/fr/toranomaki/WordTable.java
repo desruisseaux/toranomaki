@@ -30,9 +30,9 @@ import javafx.event.EventHandler;
 import javafx.event.ActionEvent;
 import javafx.concurrent.Task;
 
-import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Alphabet;
 import fr.toranomaki.edict.DictionaryReader;
+import fr.toranomaki.grammar.AugmentedEntry;
 import fr.toranomaki.grammar.CharacterType;
 
 
@@ -43,7 +43,7 @@ import fr.toranomaki.grammar.CharacterType;
  *
  * @author Martin Desruisseaux
  */
-final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<TablePosition<WordElement,WordElement>> {
+final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<TablePosition<AugmentedEntry,AugmentedEntry>> {
     /**
      * The dictionary to use for searching words.
      */
@@ -52,7 +52,7 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
     /**
      * The entries to show in the table.
      */
-    private final ObservableList<WordElement> entries;
+    private final ObservableList<AugmentedEntry> entries;
 
     /**
      * The field where the user enter the word to search.
@@ -90,32 +90,32 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
      * Creates the widget pane to be shown in the application.
      */
     Pane createPane() {
-        final TableView<WordElement> table = new TableView<>(entries);
-        final ObservableList<TableColumn<WordElement, ?>> columns = table.getColumns();
-        final WordElementValue.DefaultFactory defaultFactory = new WordElementValue.DefaultFactory();
+        final TableView<AugmentedEntry> table = new TableView<>(entries);
+        final ObservableList<TableColumn<AugmentedEntry, ?>> columns = table.getColumns();
+        final EntryCellValue.DefaultFactory defaultFactory = new EntryCellValue.DefaultFactory();
         if (true) { // Kanji elements column
-            final TableColumn<WordElement,WordElement> column = new TableColumn<>("Kanji");
+            final TableColumn<AugmentedEntry,AugmentedEntry> column = new TableColumn<>("Kanji");
             column.setCellFactory(new WordCellFactory(true));
             column.setCellValueFactory(defaultFactory);
             column.setPrefWidth(120);
             columns.add(column);
         }
         if (true) { // Reading elements column
-            final TableColumn<WordElement,WordElement> column = new TableColumn<>("Reading");
+            final TableColumn<AugmentedEntry,AugmentedEntry> column = new TableColumn<>("Reading");
             column.setCellFactory(new WordCellFactory(false));
             column.setCellValueFactory(defaultFactory);
             column.setPrefWidth(200);
             columns.add(column);
         }
         if (true) { // Part Of Speech column
-            final TableColumn<WordElement,String> column = new TableColumn<>("Type");
-            column.setCellValueFactory(new WordElementValue.SenseFactory(true));
+            final TableColumn<AugmentedEntry,String> column = new TableColumn<>("Type");
+            column.setCellValueFactory(new EntryCellValue.SenseFactory(true));
             column.setPrefWidth(70);
             columns.add(column);
         }
         if (true) { // Sense elements column
-            final TableColumn<WordElement,String> column = new TableColumn<>("Sense");
-            column.setCellValueFactory(new WordElementValue.SenseFactory(false));
+            final TableColumn<AugmentedEntry,String> column = new TableColumn<>("Sense");
+            column.setCellValueFactory(new EntryCellValue.SenseFactory(false));
             column.setPrefWidth(300);
             columns.add(column);
         }
@@ -149,17 +149,18 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
     final void setContent(final String word) {
         final CharacterType type = CharacterType.forWord(word);
         final Alphabet alphabet = (type != null) ? type.alphabet : null;
-        final Task<WordElement[]> task = new Task<WordElement[]>() {
+        final Task<AugmentedEntry[]> task = new Task<AugmentedEntry[]>() {
             @Override
-            protected WordElement[] call() {
-                final WordElement[] selected;
+            protected AugmentedEntry[] call() {
+                final AugmentedEntry[] tableEntries;
                 try {
-                    selected = setContent(dictionary.getEntriesUsingPrefix(word, alphabet), -1);
+                    tableEntries = dictionary.getEntriesUsingPrefix(word, alphabet);
+                    setContent(tableEntries, -1);
                 } catch (Throwable e) {
                     Logging.recoverableException(WordTable.class, "setContent", e);
                     return null;
                 }
-                return selected;
+                return tableEntries;
             }
         };
         executor.execute(task);
@@ -172,24 +173,19 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
      * @param tableEntries The entries to show in the table.
      * @param selectedIndex The index of the entry to show in the description area, or -1 if none.
      */
-    final WordElement[] setContent(final Entry[] tableEntries, final int selectedIndex) {
-        final WordElement[] elements = new WordElement[tableEntries.length];
-        for (int i=0; i<tableEntries.length; i++) {
-            elements[i] = new WordElement(tableEntries[i]);
-        }
-        final WordElement selected = (selectedIndex >= 0) ? elements[selectedIndex] : null;
+    final void setContent(final AugmentedEntry[] tableEntries, final int selectedIndex) {
+        final AugmentedEntry selected = (selectedIndex >= 0) ? tableEntries[selectedIndex] : null;
         if (Platform.isFxApplicationThread()) {
-            entries.setAll(elements);
+            entries.setAll(tableEntries);
             description.setSelected(selected);
         } else {
             Platform.runLater(new Runnable() {
                 @Override public void run() {
-                    entries.setAll(elements);
+                    entries.setAll(tableEntries);
                     description.setSelected(selected);
                 }
             });
         }
-        return elements;
     }
 
     /**
@@ -198,8 +194,8 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
      * @param change The change.
      */
     @Override
-    public void onChanged(final Change<? extends TablePosition<WordElement, WordElement>> change) {
-        WordElement selected = null;
+    public void onChanged(final Change<? extends TablePosition<AugmentedEntry,AugmentedEntry>> change) {
+        AugmentedEntry selected = null;
         while (change.next()) {
             if (change.wasAdded()) {
                 int index = change.getFrom();

@@ -36,8 +36,8 @@ import javafx.geometry.Pos;
 import javafx.geometry.VPos;
 import javafx.geometry.Insets;
 
-import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.PartOfSpeech;
+import fr.toranomaki.grammar.AugmentedEntry;
 
 
 /**
@@ -80,7 +80,7 @@ final class WordPanel {
     /**
      * The word element which is currently show.
      */
-    private WordElement currentElement;
+    private AugmentedEntry currentEntry;
 
     /**
      * The cache of flags for each language of interest.
@@ -185,28 +185,27 @@ final class WordPanel {
      * Invoked when a new entry has been selected in the {@link WordTable}.
      * This method must be invoked in the JavaFX thread.
      *
-     * @param word The selected entry, or {@code null} if none.
+     * @param entry The selected entry, or {@code null} if none.
      */
-    final void setSelected(final WordElement word) {
-        if (word != currentElement) {
+    final void setSelected(final AugmentedEntry entry) {
+        if (entry != currentEntry) {
             final List<Node> children = senses.getChildren();
             cachedNodes.addAll(children);
             children.clear();
 
             String readingText  = null;
             String hiraganaText = null;
-            if (word != null) {
-                final Entry entry = word.entry;
-                hiraganaText = entry.getWord(false, WordElement.WORD_INDEX);
-                if ((word.getAnnotationMask(true) & WordElement.PREFERRED_MASK) != 0) {
-                    readingText = entry.getWord(true, WordElement.WORD_INDEX);
+            if (entry != null) {
+                hiraganaText = entry.getWord(false, AugmentedEntry.WORD_INDEX);
+                if ((entry.getAnnotationMask(true) & AugmentedEntry.PREFERRED_MASK) != 0) {
+                    readingText = entry.getWord(true, AugmentedEntry.WORD_INDEX);
                 }
                 if (readingText == null) {
                     readingText = hiraganaText;
                     hiraganaText = null;
                 }
                 int row = 0;
-                for (final Map.Entry<Set<PartOfSpeech>, Map<Locale, CharSequence>> byPos : word.getSenses().entrySet()) {
+                for (final Map.Entry<Set<PartOfSpeech>, Map<Locale,String>> byPos : entry.getSensesDescriptions().entrySet()) {
                     final String partOfSpeech = PartOfSpeech.getDescriptions(byPos.getKey());
                     if (partOfSpeech != null) {
                         Label label = (Label) getCachedNode(POS);
@@ -221,9 +220,9 @@ final class WordPanel {
                         }
                         senses.add(label, 0, row++);
                     }
-                    for (final Map.Entry<Locale, CharSequence> localized : byPos.getValue().entrySet()) {
+                    for (final Map.Entry<Locale,String> localized : byPos.getValue().entrySet()) {
                         final Node   flag = getFlag(localized.getKey().getISO3Language());
-                        final String text = localized.getValue().toString();
+                        final String text = localized.getValue();
                         Label label = (Label) getCachedNode(GLOSS);
                         if (label != null) {
                             label.setText(text);
@@ -240,7 +239,7 @@ final class WordPanel {
             }
             reading .setText(readingText);
             hiragana.setText(hiraganaText);
-            currentElement = word;
+            currentEntry = entry;
         }
     }
 }
