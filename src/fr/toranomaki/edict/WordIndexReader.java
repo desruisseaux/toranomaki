@@ -290,6 +290,41 @@ final class WordIndexReader extends BinaryData {
     }
 
     /**
+     * Returns the entries using all of the given words, in any order.
+     *
+     * @param  words The words to search. Null elements are ignored.
+     * @return Entries using all the given words, or an empty array if none.
+     */
+    public AugmentedEntry[] getEntriesUsingAll(final String... words) {
+        int length = 0;
+        int[] references = null;
+        for (final String word : words) {
+            if (word != null) {
+                final int wordIndex = getWordIndex(word);
+                if (wordIndex >= 0) {
+                    final int[] more = getEntryReferencesUsingWord(wordIndex);
+                    Arrays.sort(more);
+                    if (references == null) {
+                        references = more;
+                        length = more.length;
+                    } else {
+                        // Compute the intersection.
+                        int count=0;
+                        for (int i=0; i<length; i++) {
+                            final int candidate = references[i];
+                            if (Arrays.binarySearch(more, candidate) >= 0) {
+                                references[count++] = candidate;
+                            }
+                        }
+                        length = count;
+                    }
+                }
+            }
+        }
+        return (references != null) ? getEntriesAt(references, length) : EMPTY_RESULT;
+    }
+
+    /**
      * Returns a collection of entries beginning by the given prefix. If no word begin by
      * the given prefix, then this method will look for shorter character sequences, until
      * a matching characters sequence is found.

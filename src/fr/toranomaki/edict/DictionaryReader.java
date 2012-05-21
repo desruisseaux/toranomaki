@@ -149,11 +149,11 @@ public final class DictionaryReader extends BinaryData {
      * "insertion point" with all bits reversed (same convention than
      * {@link java.util.Arrays#binarySearch(Object[], Object)}).
      *
-     * @param  word The word to search.
      * @param  alphabet Identifies the dictionary index where to search the word.
+     * @param  word The word to search.
      * @return The index of the given word, or the insertion point with all bits reversed.
      */
-    public int getWordIndex(final String word, final Alphabet alphabet) {
+    public int getWordIndex(final Alphabet alphabet, final String word) {
         return wordIndex[alphabet.ordinal()].getWordIndex(word);
     }
 
@@ -161,12 +161,12 @@ public final class DictionaryReader extends BinaryData {
      * Returns the word at the given index. The index is typically a value returned by
      * {@link #getWordIndex(String, boolean)}.
      *
-     * @param  wordIndex Index of the word to search.
      * @param  alphabet Identifies the dictionary index where to search the word.
+     * @param  wordIndex Index of the word to search.
      * @return The word at the given index.
      * @throws IndexOutOfBoundsException If the given index is out of bounds.
      */
-    public String getWordAt(final int wordIndex, final Alphabet alphabet) throws IndexOutOfBoundsException {
+    public String getWordAt(final Alphabet alphabet, final int wordIndex) throws IndexOutOfBoundsException {
         return this.wordIndex[alphabet.ordinal()].getWordAt(wordIndex);
     }
 
@@ -231,15 +231,27 @@ public final class DictionaryReader extends BinaryData {
     }
 
     /**
+     * Returns the entries using all of the given words, in any order.
+     *
+     * @param  alphabet Identifies the dictionary index where to search the word.
+     * @param  words The words to search. Null elements are ignored.
+     * @return Entries using all the given words, or an empty array if none.
+     */
+    public AugmentedEntry[] getEntriesUsingAll(final Alphabet alphabet, final String... words) {
+        if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
+        return wordIndex[alphabet.ordinal()].getEntriesUsingAll(words);
+    }
+
+    /**
      * Returns a collection of entries beginning by the given prefix. If no word begin by
      * the given prefix, then this method will look for shorter character sequences, until
      * a matching characters sequence is found.
      *
-     * @param  prefix The prefix.
      * @param  alphabet Identifies the dictionary index where to search the word.
+     * @param  prefix The prefix.
      * @return Entries beginning by the given prefix.
      */
-    public AugmentedEntry[] getEntriesUsingPrefix(final String prefix, final Alphabet alphabet) {
+    public AugmentedEntry[] getEntriesUsingPrefix(final Alphabet alphabet, final String prefix) {
         if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
         return wordIndex[alphabet.ordinal()].getEntriesUsingPrefix(prefix, new PrefixType(prefix), false);
     }

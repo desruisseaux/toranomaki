@@ -296,7 +296,7 @@ public final class DictionaryWriter extends BinaryData {
             final String[] words = table.words.clone();
             Collections.shuffle(Arrays.asList(words));
             for (final String word : words) {
-                final String found = reader.getWordAt(reader.getWordIndex(word, alphabet), alphabet);
+                final String found = reader.getWordAt(alphabet, reader.getWordIndex(alphabet, word));
                 if (!word.equals(found)) {
                     throw new IOException("Verification failed: expected \"" + word + "\" but found \"" + found + "\".");
                 }

@@ -154,7 +154,7 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
             protected AugmentedEntry[] call() {
                 final AugmentedEntry[] tableEntries;
                 try {
-                    tableEntries = dictionary.getEntriesUsingPrefix(word, alphabet);
+                    tableEntries = dictionary.getEntriesUsingPrefix(alphabet, word);
                     setContent(tableEntries, -1);
                 } catch (Throwable e) {
                     Logging.recoverableException(WordTable.class, "setContent", e);

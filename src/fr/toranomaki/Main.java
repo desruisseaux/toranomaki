@@ -46,7 +46,7 @@ public final class Main extends Application {
     /**
      * Controls the panel used for vocabulary training.
      */
-    private Training training;
+    private LearningPane training;
 
     /**
      * Controls the editor pane.
@@ -82,7 +82,7 @@ public final class Main extends Application {
     public void init() throws IOException {
         final DictionaryReader dictionary = new DictionaryReader();
         executor = Executors.newSingleThreadExecutor();
-        training = new Training(dictionary, executor);
+        training = new LearningPane(dictionary, executor);
         editor   = new Editor  (dictionary, executor);
     }
 
