@@ -84,15 +84,8 @@ final class WordCellFactory implements Callback<TableColumn<AugmentedEntry,Augme
             Color  color = Color.BLACK;
             if (item != null) {
                 text = item.getWord(isKanji, WORD_INDEX);
-                if (!isSelected()) {
-                    final int state = item.getAnnotationMask(isKanji);
-                    if ((state & AugmentedEntry.COMMON_MASK) != 0) {
-                        if ((state & AugmentedEntry.PREFERRED_MASK) != 0) {
-                            color = Color.DARKBLUE;
-                        } else {
-                            color = Color.DARKGREEN;
-                        }
-                    }
+                if (!isSelected() && item.isPreferredForm(isKanji)) {
+                    color = Color.DARKBLUE;
                 }
             }
             setText(text);

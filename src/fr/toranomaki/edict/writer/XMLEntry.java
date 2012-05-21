@@ -65,4 +65,19 @@ final class XMLEntry extends Entry {
         }
         xref.put(word, synonym);
     }
+
+    /**
+     * Compares this entry with the given entry for priority order, or {@linkplain #identifier}
+     * has a fallback if the two entries have the same priority.
+     */
+    @Override
+    public int compareTo(final Entry other) {
+        final int c = super.compareTo(other);
+        if (c == 0) {
+            final int id1 = ((XMLEntry) other).identifier;
+            if (identifier < id1) return -1;
+            if (identifier > id1) return +1;
+        }
+        return c;
+    }
 }

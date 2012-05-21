@@ -14,6 +14,9 @@
  */
 package fr.toranomaki.edict;
 
+import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import fr.toranomaki.grammar.GrammaticalClass;
@@ -115,6 +118,11 @@ public enum PartOfSpeech {
      * A value that we can use which doesn't clash with the enum ordinal values.
      */
     static final short FIRST_AVAILABLE_ID = 100;
+
+    /**
+     * A cache of descriptions generated for different collection of <cite>Part Of Speech</cite>.
+     */
+    private static final Map<Set<PartOfSpeech>, String> DESCRIPTIONS = new HashMap<>();
 
     /**
      * A more generic grammatical class for this enum.
@@ -223,27 +231,34 @@ public enum PartOfSpeech {
     /**
      * Returns a comma-separated list of all <cite>part of speech</cite> descriptions.
      *
-     * @param pos The collection of part of speech.
+     * @param pos The collection of part of speech. Must be immutable.
      * @return A comma-separated list, or {@code null} if the given collection is empty.
      */
-    public static String getDescriptions(final Iterable<PartOfSpeech> pos) {
-        CharSequence partOfSpeech = null;
-        for (final PartOfSpeech item : pos) {
-            final String description = item.getDescription();
-            if (partOfSpeech == null) {
-                partOfSpeech = description;
-            } else {
-                final StringBuilder buffer;
-                if (partOfSpeech instanceof StringBuilder) {
-                    buffer = (StringBuilder) partOfSpeech;
+    public static synchronized String getDescriptions(final Set<PartOfSpeech> pos) {
+        String value = DESCRIPTIONS.get(pos);
+        if (value == null) {
+            CharSequence partOfSpeech = null;
+            for (final PartOfSpeech item : pos) {
+                final String description = item.getDescription();
+                if (partOfSpeech == null) {
+                    partOfSpeech = description;
                 } else {
-                    buffer = new StringBuilder(partOfSpeech);
-                    partOfSpeech = buffer;
+                    final StringBuilder buffer;
+                    if (partOfSpeech instanceof StringBuilder) {
+                        buffer = (StringBuilder) partOfSpeech;
+                    } else {
+                        buffer = new StringBuilder(partOfSpeech);
+                        partOfSpeech = buffer;
+                    }
+                    buffer.append(", ").append(description);
                 }
-                buffer.append(", ").append(description);
+            }
+            if (partOfSpeech != null) {
+                value = partOfSpeech.toString();
+                DESCRIPTIONS.put(pos, value);
             }
         }
-        return (partOfSpeech != null) ? partOfSpeech.toString() : null;
+        return value;
     }
 
     /**

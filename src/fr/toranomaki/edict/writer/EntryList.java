@@ -24,7 +24,10 @@ import java.util.Arrays;
  */
 final class EntryList implements Comparable<EntryList> {
     /**
-     * The entries included in this list.
+     * The entries included in this list. This list is initialized to a singleton by the constructor,
+     * then expanded by the {@link #add(XMLEntry)} method for each new entry. After every entries have
+     * been added, this array is {@linkplain #constructionCompleted() sorted} by decreasing order of
+     * priority.
      */
     private XMLEntry[] entries;
 
@@ -45,7 +48,19 @@ final class EntryList implements Comparable<EntryList> {
     int position;
 
     /**
-     * Creates a new list with a single entry
+     * Creates a new list as a sublist of the given list.
+     */
+    private EntryList(final EntryList parent, final int sublistStart, final int sublistEnd) {
+        entries = Arrays.copyOfRange(parent.entries, sublistStart, sublistEnd);
+        isSublistOf  = parent;
+        sublistIndex = sublistStart;
+    }
+
+    /**
+     * Creates a new list initialized to a single entry. The {@link #add(XMLEntry)} can be invoked
+     * after construction in order to add new entries. However, those additional entries shall be
+     * added and the {@link #constructionCompleted()} method invoked before the {@code EntryList}
+     * instance is actually used.
      */
     EntryList(final XMLEntry entry) {
         entries = new XMLEntry[] {entry};
@@ -54,12 +69,25 @@ final class EntryList implements Comparable<EntryList> {
     }
 
     /**
-     * Creates a new list as a sublist of the given list.
+     * Adds a new element in this list. Note that this method is not expected to be invoked very often,
+     * so the algorithm doesn't need to be very efficient. The {@link #constructionCompleted()} method
+     * must be invoked after every entry have been added.
      */
-    private EntryList(final EntryList parent, final int sublistStart, final int sublistEnd) {
-        entries = Arrays.copyOfRange(parent.entries, sublistStart, sublistEnd);
-        isSublistOf  = parent;
-        sublistIndex = sublistStart;
+    void add(final XMLEntry entry) {
+        final int length = entries.length;
+        entries = Arrays.copyOf(entries, length+1);
+        entries[length] = entry;
+    }
+
+    /**
+     * Invoked after all entries have been added in order to sort the entries by priority order.
+     * This is needed for consistency with the algorithm applied in {@link #compareTo(EntryList)}.
+     * <p>
+     * This method must be invoked after the {@code EntryList} construction has been completed,
+     * and the {@code EntryList} shall not be modified anymore after that point.
+     */
+    void constructionCompleted() {
+        Arrays.sort(entries);
     }
 
     /**
@@ -87,16 +115,6 @@ final class EntryList implements Comparable<EntryList> {
      */
     XMLEntry[] entries() {
         return entries;
-    }
-
-    /**
-     * Adds a new element in this list. Note that this method is not
-     * expected to be invoked very often.
-     */
-    void add(final XMLEntry entry) {
-        final int length = entries.length;
-        entries = Arrays.copyOf(entries, length+1);
-        entries[length] = entry;
     }
 
     /**
@@ -143,7 +161,11 @@ final class EntryList implements Comparable<EntryList> {
     }
 
     /**
-     * Compares this list with the given list for order.
+     * Compares this list with the given list for priority order. The {@link #constructionCompleted()}
+     * method must have been invoked at least once before to invoke this method.
+     * <p>
+     * This comparator is used by {@link EntryListPool} constructor, which is invoked at the end
+     * of the {@link WordToEntries#computePositions(WordToEntries[])} method.
      */
     @Override
     public int compareTo(final EntryList other) {
@@ -151,10 +173,10 @@ final class EntryList implements Comparable<EntryList> {
         final XMLEntry[] oa = other.entries;
         final int length = Math.min(ta.length, oa.length);
         for (int i=0; i<length; i++) {
-            final int id0 = ta[i].identifier;
-            final int id1 = oa[i].identifier;
-            if (id0 < id1) return -1;
-            if (id0 > id1) return +1;
+            final int c = ta[i].compareTo(oa[i]);
+            if (c != 0) {
+                return c;
+            }
         }
         return ta.length - oa.length;
     }

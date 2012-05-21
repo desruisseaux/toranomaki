@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.io.InputStream;
 import javafx.scene.Node;
+import javafx.scene.paint.Color;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.text.Font;
@@ -37,6 +38,7 @@ import javafx.geometry.VPos;
 import javafx.geometry.Insets;
 
 import fr.toranomaki.edict.PartOfSpeech;
+import fr.toranomaki.grammar.CharacterType;
 import fr.toranomaki.grammar.AugmentedEntry;
 
 
@@ -62,18 +64,18 @@ final class WordPanel {
     private static final String POS = "POS", GLOSS = "GLOSS";
 
     /**
-     * The label to use for showing the selected reading element. This may be Kanji or Hiragana,
-     * depending which form is the preferred reading element.
+     * The label to use for showing the Kanji of the selected element. Despite its name, this field
+     * may actually contain the reading element if there is no Kanji for the entry to show.
      */
-    private final Label reading;
+    private final Label kanji;
 
     /**
-     * If the {@linkplain #reading} element uses Kanji, the hiragana for that word.
+     * If the {@linkplain #kanji} element uses Kanji, the hiragana for that word.
      */
     private final Label hiragana;
 
     /**
-     * The senses for the {@linkplain #reading} element.
+     * The senses for the {@linkplain #kanji} element.
      */
     private final GridPane senses;
 
@@ -107,17 +109,17 @@ final class WordPanel {
         posInsets   = new Insets(/*top*/ 6, /*right*/ 0, /*bottom*/ 0, /*left*/  6);
         flagInsets  = new Insets(/*top*/ 4, /*right*/ 6, /*bottom*/ 0, /*left*/ 18);
         flags       = new HashMap<>();
+        kanji       = new Label();
         hiragana    = new Label();
-        reading     = new Label();
         senses      = new GridPane();
         cachedNodes = new ArrayList<>();
+        kanji   .setAlignment(Pos.TOP_CENTER);
         hiragana.setAlignment(Pos.BASELINE_CENTER);
-        reading .setAlignment(Pos.TOP_CENTER);
         senses  .setAlignment(Pos.TOP_LEFT);
+        kanji   .setFont(Font.font(null, KANJI_SIZE));
         hiragana.setFont(Font.font(null, HIRAGANA_SIZE));
-        reading .setFont(Font.font(null, KANJI_SIZE));
+        kanji   .setMinWidth(160);
         hiragana.setMinWidth(160);
-        reading .setMinWidth(160);
     }
 
     /**
@@ -131,7 +133,7 @@ final class WordPanel {
 
         final VBox word = new VBox();
         word.setAlignment(Pos.CENTER);
-        word.getChildren().addAll(hiragana, reading);
+        word.getChildren().addAll(hiragana, kanji);
 
         final BorderPane desc = new BorderPane();
         desc.setLeft(word);
@@ -192,16 +194,15 @@ final class WordPanel {
             final List<Node> children = senses.getChildren();
             cachedNodes.addAll(children);
             children.clear();
-
-            String readingText  = null;
+            String kanjiText    = null;
             String hiraganaText = null;
+            boolean isJoyoKanji = false;
             if (entry != null) {
+                isJoyoKanji  = entry.isJoyoKanji();
+                kanjiText    = entry.getWord(true,  AugmentedEntry.WORD_INDEX);
                 hiraganaText = entry.getWord(false, AugmentedEntry.WORD_INDEX);
-                if ((entry.getAnnotationMask(true) & AugmentedEntry.PREFERRED_MASK) != 0) {
-                    readingText = entry.getWord(true, AugmentedEntry.WORD_INDEX);
-                }
-                if (readingText == null) {
-                    readingText = hiraganaText;
+                if (kanjiText == null) {
+                    kanjiText = hiraganaText;
                     hiraganaText = null;
                 }
                 int row = 0;
@@ -237,7 +238,8 @@ final class WordPanel {
                     }
                 }
             }
-            reading .setText(readingText);
+            kanji   .setTextFill(isJoyoKanji ? Color.LIGHTGRAY : Color.BLACK);
+            kanji   .setText(kanjiText);
             hiragana.setText(hiraganaText);
             currentEntry = entry;
         }

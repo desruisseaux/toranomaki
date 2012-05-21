@@ -44,18 +44,24 @@ public final class AugmentedEntry extends Entry {
      * Mask for the bit to set if the Kanji or reading element of the {@linkplain #entry} is common.
      * This mask is used with the value returned by {@link #getAnnotationMask(boolean)}.
      */
-    public static final int COMMON_MASK = 1;
+    private static final int COMMON_MASK = 1;
 
     /**
      * Mask for the bit to set if the Kanji or reading element of the {@linkplain #entry} is the
      * preferred form. This mask is used with the value returned by {@link #getAnnotationMask(boolean)}.
+     * At most one of the Kanji and reading elements can have this bit set.
      */
-    public static final int PREFERRED_MASK = 2;
+    private static final int PREFERRED_MASK = 2;
+
+    /**
+     * The mask to be set if the Kanji elements use only Joyo Kanjis.
+     */
+    private static final int JOYO_KANJIS_MASK = 4;
 
     /**
      * Number of bits used by the above masks.
      */
-    private static final int NUM_MASK_BITS = 2;
+    private static final int NUM_MASK_BITS = 3;
 
     /**
      * If a word has a priority of at least one of the given types, it will be considered common.
@@ -90,6 +96,26 @@ public final class AugmentedEntry extends Entry {
      * Creates an initially empty entry.
      */
     public AugmentedEntry() {
+    }
+
+    /**
+     * Returns {@code true} if the Kanji element use only Joyo Kanjis.
+     *
+     * @return {@code true} if the Kanji element use only Joyo Kanjis.
+     */
+    public boolean isJoyoKanji() {
+        return (getAnnotationMask(true) & JOYO_KANJIS_MASK) != 0;
+    }
+
+    /**
+     * Returns {@code true} if the given element is the preferred form.
+     *
+     * @param  isKanji {@code true} for the Kanji element, or {@code false} for the reading element.
+     * @return {@code true} if the given element is the preferred form.
+     */
+    public boolean isPreferredForm(final boolean isKanji) {
+        final int status = getAnnotationMask(isKanji);
+        return (status & (COMMON_MASK | PREFERRED_MASK)) == (COMMON_MASK | PREFERRED_MASK);
     }
 
     /**
@@ -163,16 +189,18 @@ public final class AugmentedEntry extends Entry {
      *         querying the reading element.
      * @return A combination of the {@code *_MASK} constants for the requested element.
      */
-    public synchronized int getAnnotationMask(final boolean isKanji) {
+    private synchronized int getAnnotationMask(final boolean isKanji) {
         int mask = annotations;
         if (mask == 0) {
             int maskKanji   = isCommon(true);
             int maskReading = isCommon(false);
-            if (CharacterType.forWord(getWord(true, WORD_INDEX)) == CharacterType.JOYO_KANJI) {
+            if (getPriority(false, WORD_INDEX) >= getPriority(true, WORD_INDEX)) {
+                maskReading |= PREFERRED_MASK;
+            } else {
                 maskKanji |= PREFERRED_MASK;
             }
-            if (getPriority(false, WORD_INDEX) > getPriority(true, WORD_INDEX)) {
-                maskReading |= PREFERRED_MASK;
+            if (CharacterType.forWord(getWord(true, WORD_INDEX)) == CharacterType.JOYO_KANJI) {
+                maskKanji |= JOYO_KANJIS_MASK;
             }
             // Combine in a single value. The MIN_VALUE, which has only the rightmost
             // bit set to 1, is used for ensuring that the value is different than 0.

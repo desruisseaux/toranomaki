@@ -41,7 +41,8 @@ final class EntryListPool extends BinaryData {
     final int size;
 
     /**
-     * Creates a new pool of entry lists.
+     * Creates a new pool of entry lists. The elements given to this method can be
+     * in any order, since this constructor will reorder them in priority order.
      */
     EntryListPool(final Collection<EntryList> sublists) {
         lists = sublists.toArray(new EntryList[sublists.size()]);

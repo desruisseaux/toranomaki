@@ -31,7 +31,7 @@ import static fr.toranomaki.edict.writer.WordEncoder.writeFully;
 
 
 /**
- * The mapping from words to entries having this word.
+ * The mapping from words to the entries having this word.
  *
  * @author Martin Desruisseaux
  */
@@ -73,6 +73,13 @@ final class WordToEntries extends BinaryData implements Comparator<EntryList> {
                 default: throw new IllegalArgumentException(String.valueOf(alphabet));
             }
         }
+        /*
+         * Ensures that all lists have their entries sorted in the order expected by
+         * their EntryList.compareTo(EntryList) method.
+         */
+        for (final EntryList list : entriesForWord.values()) {
+            list.constructionCompleted();
+        }
     }
 
     /**
@@ -92,6 +99,10 @@ final class WordToEntries extends BinaryData implements Comparator<EntryList> {
      * Compares the given elements in such a way that shortest lists are sorted first.
      * Shortest lists are first because we want longest lists to overwrite shortest ones,
      * when iterating over the sorted {@code EntryList} array in ascending index order.
+     * <p>
+     * This comparator is used at the beginning of the {@link #computePositions(WordToEntries[])}
+     * method. Note that the {@link EntryList#compareTo(EntryList)} natural comparator is used at
+     * the end of that method too.
      */
     @Override
     public int compare(final EntryList o1, final EntryList o2) {
@@ -108,7 +119,7 @@ final class WordToEntries extends BinaryData implements Comparator<EntryList> {
     static EntryListPool computePositions(final WordToEntries... references) {
         /*
          * Create the collection of all sublists of entries lists. If there is many lists
-         * can produce the same sublist, keep the sublist created by the longest list.
+         * that can produce the same sublist, keep the sublist created by the longest list.
          */
         final Map<EntryList, EntryList> subLists = new HashMap<>(256 * 1024);
         for (final WordToEntries ref : references) {
@@ -147,7 +158,7 @@ final class WordToEntries extends BinaryData implements Comparator<EntryList> {
         }
         /*
          * Finally, computes the position of each list. We will sort first the
-         * references to the entries that are declared first in the XML file.
+         * references to the entries by priority order, then by identifier order.
          */
         return new EntryListPool(subLists.keySet());
     }
