@@ -14,7 +14,6 @@
  */
 package fr.toranomaki.edict.writer;
 
-import java.util.Map;
 import java.util.Arrays;
 import java.util.Collection;
 import java.io.IOException;
@@ -59,19 +58,16 @@ final class EntryListPool extends BinaryData {
      * Writes the list of entries (actually references to entries).
      * This list is shared by all {@link WordToEntries} instances.
      *
-     * @param entryPositions A map of entries to their location in the stream.
-     * @param buffer         A temporary buffer to use for writing.
-     * @param out            Where to flush the buffer.
+     * @param buffer  A temporary buffer to use for writing.
+     * @param out     Where to flush the buffer.
      */
-    void write(final Map<XMLEntry,Integer> entryPositions,
-            final ByteBuffer buffer, final WritableByteChannel out) throws IOException
-    {
+    void write(final ByteBuffer buffer, final WritableByteChannel out) throws IOException {
         for (final EntryList list : lists) {
             for (final XMLEntry entry : list.entries()) {
                 if (buffer.remaining() < NUM_BYTES_FOR_ENTRY_POSITION) {
                     writeFully(buffer, out);
                 }
-                int reference = entryPositions.get(entry);
+                int reference = entry.position;
                 for (int i=NUM_BYTES_FOR_ENTRY_POSITION; --i>=0;) {
                     buffer.put((byte) reference);
                     reference >>= Byte.SIZE;

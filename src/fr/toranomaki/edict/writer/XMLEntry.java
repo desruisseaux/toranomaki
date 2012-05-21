@@ -14,15 +14,14 @@
  */
 package fr.toranomaki.edict.writer;
 
+import java.util.Map;
+import java.util.HashMap;
 import fr.toranomaki.edict.Entry;
 
 
 /**
  * An entry read from the XML file. This class contains temporary information which will not be
  * written in the binary file, or which will be written in a different way.
- *
- * @todo Not yet completed. There is many fields we can move in this class, basically everything
- *       declared as <code>Map(XMLEntry, ...)</code> could be replaced by a field here.
  *
  * @author Martin Desruisseaux
  */
@@ -35,11 +34,35 @@ final class XMLEntry extends Entry {
     public final int identifier;
 
     /**
+     * The synonyms and antonyms for an entry. Those values will be written only after we
+     * finished to read every entries from the XML file, in order to resolve cross-references.
+     */
+    private Map<String, Boolean> xref;
+
+    /**
+     * The position of this entry in the binery stream, after the indexes.
+     */
+    int position;
+
+    /**
      * Creates an initially empty entry.
      *
      * @param ent_seq A unique numeric sequence number for each entry.
      */
     public XMLEntry(final int ent_seq) {
         this.identifier = ent_seq;
+    }
+
+    /**
+     * Adds the given string into the map of synonyms or antonyms. This is an helper method for
+     * writing into the {@link #synonyms} and {@link #antonyms} maps. Those information will be
+     * written to the binary file after all entries has been read.
+     */
+    final void addXRef(final String word, final boolean synonym) {
+        Map<String, Boolean> xref = this.xref;
+        if (xref == null) {
+            this.xref = xref = new HashMap<>();
+        }
+        xref.put(word, synonym);
     }
 }

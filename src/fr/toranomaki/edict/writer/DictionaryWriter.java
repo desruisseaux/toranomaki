@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.List;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.HashMap;
 import java.util.Locale;
 import java.io.IOException;
@@ -57,11 +56,6 @@ public final class DictionaryWriter extends BinaryData {
     private final WordTable[] wordTables;
 
     /**
-     * The position of each entry in the stream, after the indexes.
-     */
-    private final Map<XMLEntry, Integer> entryPositions;
-
-    /**
      * Index of each set of <cite>Part of speech</cite>.
      */
     private final Map<Set<PartOfSpeech>, Integer> partOfSpeechMap;
@@ -96,7 +90,6 @@ public final class DictionaryWriter extends BinaryData {
             wordToEntries[i] = new WordToEntries(entries, alphabets[i]);
         }
         final EntryListPool entryListPool = WordToEntries.computePositions(wordToEntries);
-        entryPositions = new IdentityHashMap<>(entries.size());
         final int entryPoolLength = computeEntryPositions(entries);
         /*
          * In order to write the entries, we will need references to a set of "part of speech".
@@ -129,10 +122,10 @@ public final class DictionaryWriter extends BinaryData {
                 wordIndex[i].writeIndex(wordTables[i], out);
                 wordToEntries[i].write(wordTables[i].words, buffer, out);
             }
-            entryListPool.write(entryPositions, buffer, out);
+            entryListPool.write(buffer, out);
             int position = 0;
             for (final XMLEntry entry : entries) {
-                assert entryPositions.get(entry) == position : position;
+                assert entry.position == position : position;
                 position += writeEntry(entry, buffer, out);
             }
             assert position == entryPoolLength;
@@ -151,9 +144,8 @@ public final class DictionaryWriter extends BinaryData {
     private int computeEntryPositions(final List<XMLEntry> entries) throws IOException {
         int position = 0;
         for (final XMLEntry entry : entries) {
-            if (entryPositions.put(entry, position) != null) {
-                throw new IllegalArgumentException("Duplicated entry: " + entry);
-            }
+            assert entry.position == 0 : entry;
+            entry.position = position;
             position += writeEntry(entry, null, null);
         }
         return position;
@@ -294,7 +286,7 @@ public final class DictionaryWriter extends BinaryData {
     /**
      * Verifies all index, then verifies entries.
      */
-    private void verify() throws IOException {
+    private void verify(final List<XMLEntry> entries) throws IOException {
         System.out.println("Verifying index");
         final DictionaryReader reader = new DictionaryReader(file, LANGUAGES);
         final Alphabet[] alphabets = Alphabet.values();
@@ -311,9 +303,8 @@ public final class DictionaryWriter extends BinaryData {
             }
         }
         System.out.println("Verifying entries");
-        for (final Map.Entry<XMLEntry, Integer> pair : entryPositions.entrySet()) {
-            final XMLEntry expected = pair.getKey();
-            final Entry actual = reader.getEntryAt(pair.getValue());
+        for (final XMLEntry expected : entries) {
+            final Entry actual = reader.getEntryAt(expected.position);
             boolean isKanji = true;
             do {
                 final int n = expected.getCount(isKanji);
@@ -367,6 +358,6 @@ public final class DictionaryWriter extends BinaryData {
             parser.parse(in);
         }
         final DictionaryWriter writer = new DictionaryWriter(parser.entryList, parser.getPartOfSpeechSets());
-        writer.verify();
+        writer.verify(parser.entryList);
     }
 }
