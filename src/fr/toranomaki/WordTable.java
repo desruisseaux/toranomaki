@@ -122,6 +122,7 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
         @SuppressWarnings({"unchecked", "rawtypes"})
         final ListChangeListener<TablePosition> listener = (ListChangeListener) this;
         table.getSelectionModel().getSelectedCells().addListener(listener);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         final BorderPane pane = new BorderPane();
         pane.setCenter(table);
         pane.setBottom(search);

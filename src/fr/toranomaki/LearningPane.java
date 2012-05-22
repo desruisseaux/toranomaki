@@ -16,6 +16,7 @@ package fr.toranomaki;
 
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
+import java.io.IOException;
 
 import javafx.scene.Node;
 import javafx.scene.layout.VBox;
@@ -38,6 +39,11 @@ import fr.toranomaki.grammar.AugmentedEntry;
  */
 final class LearningPane implements EventHandler<ActionEvent> {
     /**
+     * Identifiers used for the "Known", "Unknown" and "New word" buttons.
+     */
+    private static final String KNOWN="KNOWN", UNKNOWN="UNKNOWN", NEW_WORD="NEW_WORD";
+
+    /**
      * The list of words to use for the training.
      */
     private final WordTable table;
@@ -49,9 +55,15 @@ final class LearningPane implements EventHandler<ActionEvent> {
     private final WordPanel query;
 
     /**
-     * The list of words to learn.
+     * The list of words to learn. This list is sorted from easiest to more difficult words,
+     * words, as indicated by the user by clicking on the "Known" or "Unknown" buttons.
      */
     private LearningWord[] wordsToLearn;
+
+    /**
+     * Index of the word currently show.
+     */
+    private int wordIndex;
 
     /**
      * The random number generator to use for selecting the words to submit to the user.
@@ -59,27 +71,41 @@ final class LearningPane implements EventHandler<ActionEvent> {
     private final Random random;
 
     /**
-     * Creates a new instance using the given dictionary for searching the words to ask.
+     * {@code true} if the list of words has been modified.
      */
-    LearningPane(final DictionaryReader dictionary, final ExecutorService executor) {
-        query = new WordPanel();
-        table = new WordTable(query, dictionary, executor);
-        random = new Random();
-        /*
-         * FOR TESTING PURPOSE ONLY
-         */
-        wordsToLearn = new LearningWord[] {
-            new LearningWord("明日", "あした"),
-            new LearningWord("知る", "しる")
-        };
+    private boolean modified;
+
+    /**
+     * Creates a new instance using the given dictionary for searching the words to ask.
+     *
+     * @throws IOException If an error occurred while loading the list of words.
+     */
+    LearningPane(final DictionaryReader dictionary, final ExecutorService executor) throws IOException {
+        query        = new WordPanel();
+        table        = new WordTable(query, dictionary, executor);
+        random       = new Random();
+        wordsToLearn = LearningWord.load();
+        showNextWord();
+    }
+
+    /**
+     * Saves the list of words if it has been modified.
+     */
+    final void save() {
+        if (modified) try {
+            LearningWord.save(wordsToLearn);
+        } catch (IOException e) {
+            Logging.possibleDataLost(e);
+        }
     }
 
     /**
      * Show the next word to submit to the user.
      */
     private void showNextWord() {
-        int index = random.nextInt(wordsToLearn.length); // TODO: give more weight to first entries.
-        final AugmentedEntry entry = wordsToLearn[index].getEntry(table.dictionary);
+        final int last = wordIndex;
+        wordIndex = random.nextInt(wordsToLearn.length); // TODO: give more weight to last entries.
+        final AugmentedEntry entry = wordsToLearn[wordIndex].getEntry(table.dictionary);
         query.setSelected(entry);
     }
 
@@ -87,14 +113,15 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * Creates the widget pane to be shown in the application.
      */
     final Node createPane() {
-        final Button known   = new Button("Known");
-        final Button unknown = new Button("Unknown");
+        final Button known   = new Button("Known");      known.setId(   KNOWN); known  .setOnAction(this);
+        final Button unknown = new Button("Unknown");  unknown.setId( UNKNOWN); unknown.setOnAction(this);
+        final Button newWord = new Button("New word"); newWord.setId(NEW_WORD); newWord.setOnAction(this);
         final TilePane buttons = new TilePane();
         buttons.setHgap(9);
         buttons.setPrefRows(1);
         buttons.setPrefColumns(2);
         buttons.setAlignment(Pos.CENTER);
-        buttons.getChildren().addAll(known, unknown);
+        buttons.getChildren().addAll(known, unknown, newWord);
 
         final VBox group  = new VBox(18);
         group.getChildren().addAll(query.createPane(), buttons);
@@ -102,9 +129,6 @@ final class LearningPane implements EventHandler<ActionEvent> {
         final SplitPane pane = new SplitPane();
         pane.setOrientation(Orientation.VERTICAL);
         pane.getItems().addAll(group, table.createPane());
-
-        known.setOnAction(this);
-        unknown.setOnAction(this);
         return pane;
     }
 
@@ -113,7 +137,51 @@ final class LearningPane implements EventHandler<ActionEvent> {
      */
     @Override
     public void handle(final ActionEvent event) {
-        // TODO: more work to do here.
-        showNextWord();
+        final LearningWord[] wordsToLearn = this.wordsToLearn; // Protect from changes.
+        final int            wordIndex    = this.wordIndex;
+        switch (((Node) event.getSource()).getId()) {
+            default: {
+                throw new AssertionError();
+            }
+            /*
+             * If the user identified the current word as "easy", move it up in our list
+             * of words. This will decrease the chances that the word is picked again by
+             * the 'showNextWord()' method.
+             */
+            case KNOWN: {
+                if (wordIndex != 0) {
+                    final LearningWord word = wordsToLearn[wordIndex];
+                    wordsToLearn[wordIndex] = wordsToLearn[wordIndex-1];
+                    wordsToLearn[wordIndex-1] = word;
+                    modified = true;
+                }
+                showNextWord();
+                break;
+            }
+            /*
+             * If the user identified the current word as "difficult", move it straight
+             * to the end of our list of words. This will give to this word high chance
+             * to be picked again by the 'showNextWord()' method.
+             */
+            case UNKNOWN: {
+                final int length = wordsToLearn.length - (wordIndex+1);
+                if (length != 0) {
+                    final LearningWord word = wordsToLearn[wordIndex];
+                    System.arraycopy(wordsToLearn, wordIndex+1, wordsToLearn, wordIndex, length);
+                    wordsToLearn[wordsToLearn.length - 1] = word;
+                    modified = true;
+                }
+                showNextWord();
+                break;
+            }
+            /*
+             * If the user selected a new word to learn, ask confirmation and add it to
+             * out list.
+             */
+            case NEW_WORD: {
+                // TODO
+                break;
+            }
+        }
     }
 }

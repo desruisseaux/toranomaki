@@ -30,7 +30,7 @@ import fr.toranomaki.edict.DictionaryReader;
  *
  * @author Martin Desruisseaux
  */
-final class Editor {
+final class EditorPane {
     /**
      * The panel showing a description of the selected word.
      */
@@ -49,7 +49,7 @@ final class Editor {
     /**
      * Creates a new instance using the given dictionary for searching words.
      */
-    Editor(final DictionaryReader dictionary, final ExecutorService executor) {
+    EditorPane(final DictionaryReader dictionary, final ExecutorService executor) {
         description = new WordPanel();
         text        = new TextArea();
         table       = new WordTable(description, dictionary, executor);

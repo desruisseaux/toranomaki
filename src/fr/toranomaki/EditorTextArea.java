@@ -24,7 +24,6 @@ import java.io.Writer;
 import java.io.IOException;
 
 import fr.toranomaki.edict.SearchResult;
-import static fr.toranomaki.edict.BinaryData.getDirectory;
 
 
 /**
@@ -33,24 +32,7 @@ import static fr.toranomaki.edict.BinaryData.getDirectory;
  *
  * @author Martin Desruisseaux
  */
-class EditorTextArea {
-    /**
-     * The encoding of the file to be saved.
-     */
-    private static final String FILE_ENCODING = "UTF-8";
-
-    /**
-     * The <cite>byte order mark</cite> used to signal endianness of UTF-8 text files. This mark
-     * is also used for indicating to softwares (Notepad on Windows, TextEdit of MacOS) that the
-     * file is encoded in UTF-8.
-     * <p>
-     * The Unicode value is {@value}. The corresponding bytes sequence is
-     * {@code 0xEF}, {@code 0xBB}, {@code 0xBF}.
-     *
-     * @see <a href="http://en.wikipedia.org/wiki/Byte_order_mark">Byte order mark on Wikipedia</a>
-     */
-    private static final char BYTE_ORDER_MARK = '\uFEFF';
-
+class EditorTextArea extends Data {
     /**
      * The approximative length of the longest entry in Kanji characters.
      */

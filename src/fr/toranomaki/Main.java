@@ -51,7 +51,7 @@ public final class Main extends Application {
     /**
      * Controls the editor pane.
      */
-    private Editor editor;
+    private EditorPane editor;
 
     /**
      * The executor to use for performing searches in a background thread.
@@ -83,7 +83,7 @@ public final class Main extends Application {
         final DictionaryReader dictionary = new DictionaryReader();
         executor = Executors.newSingleThreadExecutor();
         training = new LearningPane(dictionary, executor);
-        editor   = new Editor  (dictionary, executor);
+        editor   = new EditorPane  (dictionary, executor);
     }
 
     /**
@@ -92,6 +92,7 @@ public final class Main extends Application {
     @Override
     public void stop() {
         executor.shutdown();
+        training.save();
         try {
             executor.awaitTermination(2, TimeUnit.SECONDS);
         } catch (InterruptedException e) {

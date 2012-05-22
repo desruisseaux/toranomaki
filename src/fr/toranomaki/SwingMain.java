@@ -73,7 +73,7 @@ public final class SwingMain extends WindowAdapter {
                 executor.shutdown();
             }
         } catch (Throwable e) {
-            e.printStackTrace(); // For debugging purpose only.
+            Logging.possibleDataLost(e);
         } finally {
             frame.dispose();
         }

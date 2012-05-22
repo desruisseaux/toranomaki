@@ -17,16 +17,11 @@ package fr.toranomaki.edict;
 import java.util.Locale;
 import java.io.IOException;
 import java.io.EOFException;
-import java.io.FileNotFoundException;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.Files;
 import java.nio.ByteOrder;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
+import fr.toranomaki.Data;
 
 
 /**
@@ -36,7 +31,7 @@ import java.nio.channels.ReadableByteChannel;
  *
  * @author Martin Desruisseaux
  */
-public abstract class BinaryData {
+public abstract class BinaryData extends Data {
     /**
      * Arbitrary magic number. The value on the right side of {@code +} is the version number,
      * to be incremented every time we apply an incompatible change in the file format.
@@ -112,49 +107,6 @@ public abstract class BinaryData {
      * For subclass constructors only.
      */
     protected BinaryData() {
-    }
-
-    /**
-     * Returns the dictionary installation directory. This method returns the first of the
-     * following choices:
-     * <p>
-     * <ul>
-     *   <li>If the {@code "toranomaki.dir"} property is set, returns that directory.</li>
-     *   <li>Otherwise if this application is bundled in a JAR file, returns the directory
-     *       that contain the JAR file.</li>
-     *   <li>Otherwise returns the user directory.</li>
-     * </ul>
-     * <p>
-     * If every cases, this method verify that the directory exists before to return it.
-     *
-     * @return The application directory.
-     * @throws IOException In an error occurred while getting the application directory.
-     */
-    public static Path getDirectory() throws IOException {
-        Path directory;
-        final String property = System.getProperty("toranomaki.dir");
-        if (property != null) {
-            directory = Paths.get(property);
-        } else {
-            URL url = BinaryData.class.getResource("BinaryData.class");
-            if ("jar".equals(url.getProtocol())) {
-                String path = url.getPath();
-                path = path.substring(0, path.indexOf('!'));
-                url = new URL(path);
-                try {
-                    directory = Paths.get(url.toURI());
-                } catch (URISyntaxException e) {
-                    throw new MalformedURLException(e.getLocalizedMessage());
-                }
-                directory = directory.getParent();
-            } else {
-                directory = Paths.get(System.getProperty("user.dir", "."));
-            }
-        }
-        if (!Files.isDirectory(directory)) {
-            throw new FileNotFoundException(directory.toString());
-        }
-        return directory;
     }
 
     /**

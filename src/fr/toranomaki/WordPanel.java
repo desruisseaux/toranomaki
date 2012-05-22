@@ -238,7 +238,7 @@ final class WordPanel {
                     }
                 }
             }
-            kanji   .setTextFill(isJoyoKanji ? Color.LIGHTGRAY : Color.BLACK);
+            kanji   .setTextFill(isJoyoKanji ? Color.BLACK : Color.LIGHTGRAY);
             kanji   .setText(kanjiText);
             hiragana.setText(hiraganaText);
             currentEntry = entry;

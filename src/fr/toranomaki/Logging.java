@@ -54,4 +54,13 @@ public final class Logging {
         record.setLoggerName(LOGGER.getName());
         LOGGER.log(record);
     }
+
+    /**
+     * Invoked when a serious error occurred which may result in lost of data.
+     *
+     * @param error The error.
+     */
+    public static void possibleDataLost(final Throwable error) {
+        error.printStackTrace(); // TODO: report to the user.
+    }
 }
