@@ -38,7 +38,6 @@ import javafx.geometry.VPos;
 import javafx.geometry.Insets;
 
 import fr.toranomaki.edict.PartOfSpeech;
-import fr.toranomaki.grammar.CharacterType;
 import fr.toranomaki.grammar.AugmentedEntry;
 
 
@@ -196,9 +195,9 @@ final class WordPanel {
             children.clear();
             String kanjiText    = null;
             String hiraganaText = null;
-            boolean isJoyoKanji = false;
+            boolean isUncommon = false;
             if (entry != null) {
-                isJoyoKanji  = entry.isJoyoKanji();
+                isUncommon   = entry.isUncommonKanji();
                 kanjiText    = entry.getWord(true,  AugmentedEntry.WORD_INDEX);
                 hiraganaText = entry.getWord(false, AugmentedEntry.WORD_INDEX);
                 if (kanjiText == null) {
@@ -238,10 +237,17 @@ final class WordPanel {
                     }
                 }
             }
-            kanji   .setTextFill(isJoyoKanji ? Color.BLACK : Color.LIGHTGRAY);
+            kanji   .setTextFill(isUncommon ? Color.LIGHTGRAY : Color.BLACK);
             kanji   .setText(kanjiText);
             hiragana.setText(hiraganaText);
             currentEntry = entry;
         }
+    }
+
+    /**
+     * Returns the currently selected entry, or {@code null} if none.
+     */
+    final AugmentedEntry getSelected() {
+        return currentEntry;
     }
 }

@@ -16,6 +16,7 @@ package fr.toranomaki;
 
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
+import java.util.logging.Level;
 import java.io.IOException;
 
 import javafx.scene.Node;
@@ -61,6 +62,11 @@ final class LearningPane implements EventHandler<ActionEvent> {
     private LearningWord[] wordsToLearn;
 
     /**
+     * Number of valid entries in {@link #wordsToLearn}.
+     */
+    private int wordsToLearnCount;
+
+    /**
      * Index of the word currently show.
      */
     private int wordIndex;
@@ -85,6 +91,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
         table        = new WordTable(query, dictionary, executor);
         random       = new Random();
         wordsToLearn = LearningWord.load();
+        wordsToLearnCount = wordsToLearn.length;
         showNextWord();
     }
 
@@ -93,7 +100,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
      */
     final void save() {
         if (modified) try {
-            LearningWord.save(wordsToLearn);
+            LearningWord.save(wordsToLearn, wordsToLearnCount);
         } catch (IOException e) {
             Logging.possibleDataLost(e);
         }
@@ -103,9 +110,26 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * Show the next word to submit to the user.
      */
     private void showNextWord() {
-        final int last = wordIndex;
-        wordIndex = random.nextInt(wordsToLearn.length); // TODO: give more weight to last entries.
-        final AugmentedEntry entry = wordsToLearn[wordIndex].getEntry(table.dictionary);
+        AugmentedEntry entry = null;
+        final LearningWord[] wordsToLearn = this.wordsToLearn; // Protect from changes.
+        int last = wordIndex;
+        while (wordsToLearnCount != 0) {
+            wordIndex = random.nextInt(wordsToLearnCount); // TODO: give more weight to last entries.
+            if (wordIndex != last || wordsToLearnCount == 1) {
+                final LearningWord word = wordsToLearn[wordIndex];
+                entry = word.getEntry(table.dictionary);
+                if (entry != null) {
+                    break; // Found the next word to show.
+                }
+                // Missing entry (should not happen).
+                Logging.LOGGER.log(Level.WARNING, "No dictionary entry found for {0}.", word);
+                System.arraycopy(wordsToLearn, wordIndex+1, wordsToLearn, wordIndex, --wordsToLearnCount - wordIndex);
+                wordsToLearn[wordsToLearnCount] = null;
+                if (last > wordIndex) {
+                    last--;
+                }
+            }
+        }
         query.setSelected(entry);
     }
 
@@ -138,7 +162,6 @@ final class LearningPane implements EventHandler<ActionEvent> {
     @Override
     public void handle(final ActionEvent event) {
         final LearningWord[] wordsToLearn = this.wordsToLearn; // Protect from changes.
-        final int            wordIndex    = this.wordIndex;
         switch (((Node) event.getSource()).getId()) {
             default: {
                 throw new AssertionError();
@@ -150,9 +173,9 @@ final class LearningPane implements EventHandler<ActionEvent> {
              */
             case KNOWN: {
                 if (wordIndex != 0) {
-                    final LearningWord word = wordsToLearn[wordIndex];
-                    wordsToLearn[wordIndex] = wordsToLearn[wordIndex-1];
-                    wordsToLearn[wordIndex-1] = word;
+                    final LearningWord word = wordsToLearn[  wordIndex];
+                    wordsToLearn[wordIndex] = wordsToLearn[--wordIndex];
+                    wordsToLearn[wordIndex] = word;
                     modified = true;
                 }
                 showNextWord();
@@ -164,11 +187,11 @@ final class LearningPane implements EventHandler<ActionEvent> {
              * to be picked again by the 'showNextWord()' method.
              */
             case UNKNOWN: {
-                final int length = wordsToLearn.length - (wordIndex+1);
+                final int length = wordsToLearnCount - (wordIndex+1);
                 if (length != 0) {
                     final LearningWord word = wordsToLearn[wordIndex];
                     System.arraycopy(wordsToLearn, wordIndex+1, wordsToLearn, wordIndex, length);
-                    wordsToLearn[wordsToLearn.length - 1] = word;
+                    wordsToLearn[wordIndex = wordsToLearnCount - 1] = word;
                     modified = true;
                 }
                 showNextWord();
@@ -179,7 +202,10 @@ final class LearningPane implements EventHandler<ActionEvent> {
              * out list.
              */
             case NEW_WORD: {
-                // TODO
+                final AugmentedEntry entry = query.getSelected();
+                if (entry != null) {
+                    new NewWordDialog(entry).show();
+                }
                 break;
             }
         }

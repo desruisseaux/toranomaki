@@ -54,9 +54,9 @@ public final class AugmentedEntry extends Entry {
     private static final int PREFERRED_MASK = 2;
 
     /**
-     * The mask to be set if the Kanji elements use only Joyo Kanjis.
+     * The mask to be set if the Kanji elements use at least one non-Joyo Kanji.
      */
-    private static final int JOYO_KANJIS_MASK = 4;
+    private static final int UNCOMMON_KANJI_MASK = 4;
 
     /**
      * Number of bits used by the above masks.
@@ -99,12 +99,12 @@ public final class AugmentedEntry extends Entry {
     }
 
     /**
-     * Returns {@code true} if the Kanji element use only Joyo Kanjis.
+     * Returns {@code true} if the Kanji element uses at least one non-Joyo Kanji.
      *
-     * @return {@code true} if the Kanji element use only Joyo Kanjis.
+     * @return {@code true} if the Kanji element uses at least one non-Joyo Kanji.
      */
-    public boolean isJoyoKanji() {
-        return (getAnnotationMask(true) & JOYO_KANJIS_MASK) != 0;
+    public boolean isUncommonKanji() {
+        return (getAnnotationMask(true) & UNCOMMON_KANJI_MASK) != 0;
     }
 
     /**
@@ -199,8 +199,8 @@ public final class AugmentedEntry extends Entry {
             } else {
                 maskKanji |= PREFERRED_MASK;
             }
-            if (CharacterType.forWord(getWord(true, WORD_INDEX)) == CharacterType.JOYO_KANJI) {
-                maskKanji |= JOYO_KANJIS_MASK;
+            if (CharacterType.forWord(getWord(true, WORD_INDEX)) == CharacterType.KANJI) {
+                maskKanji |= UNCOMMON_KANJI_MASK;
             }
             // Combine in a single value. The MIN_VALUE, which has only the rightmost
             // bit set to 1, is used for ensuring that the value is different than 0.

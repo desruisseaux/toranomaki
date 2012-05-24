@@ -14,6 +14,7 @@
  */
 package fr.toranomaki;
 
+import java.util.Arrays;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.Objects;
@@ -128,15 +129,16 @@ final class LearningWord extends Data {
      *
      * @throws IOException If an error occurred while saving.
      */
-    static void save(final LearningWord[] words) throws IOException {
+    static void save(final LearningWord[] words, final int count) throws IOException {
         final File file = getFile();
-        if (words.length == 0) {
+        if (count == 0) {
             file.delete();
         } else {
             final String lineSeparator = System.lineSeparator();
             try (Writer out = new OutputStreamWriter(new FileOutputStream(file), FILE_ENCODING)) {
                 out.write(BYTE_ORDER_MARK);
-                for (final LearningWord word : words) {
+                for (int i=0; i<count; i++) {
+                    final LearningWord word = words[i];
                     if (word.kanji != null) {
                         out.write(word.kanji);
                     }
@@ -154,13 +156,15 @@ final class LearningWord extends Data {
      * Returns the entry associated with this word to learn.
      *
      * @param  dictionary The dictionary to use for fetching the word when needed.
-     * @return The entry for the word to learn.
+     * @return The entry for the word to learn, or {@code null} if none.
      */
     public AugmentedEntry getEntry(final DictionaryReader dictionary) {
         if (entry == null) {
             final AugmentedEntry[] candidates = dictionary.getEntriesUsingAll(Alphabet.JAPANESE, kanji, reading);
-            if (candidates.length != 1) {
-                // TODO! Need to report to the user here.
+            switch (candidates.length) {
+                case 0: return null;
+                case 1: break;
+                case 2: Arrays.sort(candidates); break; // Highest priority first.
             }
             entry = candidates[0];
         }
