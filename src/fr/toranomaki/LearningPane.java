@@ -20,8 +20,10 @@ import java.util.logging.Level;
 import java.io.IOException;
 
 import javafx.scene.Node;
+import javafx.scene.text.Font;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.TilePane;
+import javafx.scene.control.Label;
 import javafx.scene.control.Button;
 import javafx.scene.control.SplitPane;
 import javafx.geometry.Pos;
@@ -31,6 +33,7 @@ import javafx.event.EventHandler;
 
 import fr.toranomaki.edict.DictionaryReader;
 import fr.toranomaki.grammar.AugmentedEntry;
+import javafx.geometry.Insets;
 
 
 /**
@@ -50,10 +53,16 @@ final class LearningPane implements EventHandler<ActionEvent> {
     private final WordTable table;
 
     /**
+     * The description of a word selected in the {@linkplain #table},
+     * or the word which is being asked to the user.
+     */
+    private final WordPanel description;
+
+    /**
      * A selected word to submit to the user.
      * The user will need to tell whatever he know that word or not.
      */
-    private final WordPanel query;
+    private final Label query;
 
     /**
      * The list of words to learn. This list is sorted from easiest to more difficult words,
@@ -87,8 +96,9 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * @throws IOException If an error occurred while loading the list of words.
      */
     LearningPane(final DictionaryReader dictionary, final ExecutorService executor) throws IOException {
-        query        = new WordPanel();
-        table        = new WordTable(query, dictionary, executor);
+        description  = new WordPanel();
+        table        = new WordTable(description, dictionary, executor);
+        query        = new Label();
         random       = new Random();
         wordsToLearn = LearningWord.load();
         wordsToLearnCount = wordsToLearn.length;
@@ -107,6 +117,42 @@ final class LearningPane implements EventHandler<ActionEvent> {
     }
 
     /**
+     * Creates the widget pane to be shown in the application.
+     */
+    final Node createPane() {
+        query.setAlignment(Pos.CENTER);
+        query.setFont(Font.font(null, 24));
+
+        final Button known   = new Button("Known");      known.setId(   KNOWN); known  .setOnAction(this);
+        final Button unknown = new Button("Unknown");  unknown.setId( UNKNOWN); unknown.setOnAction(this);
+        final Button newWord = new Button("New word"); newWord.setId(NEW_WORD); newWord.setOnAction(this);
+        known  .setMaxWidth(100);
+        unknown.setMaxWidth(100);
+        newWord.setMaxWidth(100);
+        final TilePane buttons = new TilePane();
+        buttons.setHgap(9);
+        buttons.setPrefRows(1);
+        buttons.setPrefColumns(2);
+        buttons.setAlignment(Pos.CENTER);
+        buttons.getChildren().addAll(known, unknown, newWord);
+
+        final Insets margin = new Insets(12);
+        VBox.setMargin(query,   margin);
+        VBox.setMargin(buttons, margin);
+        final VBox centerPane = new VBox();
+        centerPane.setAlignment(Pos.CENTER);
+        centerPane.getChildren().addAll(query, buttons);
+
+        final Node desc = description.createPane();
+        SplitPane.setResizableWithParent(desc, false);
+        final SplitPane pane = new SplitPane();
+        pane.setOrientation(Orientation.VERTICAL);
+        pane.getItems().addAll(desc, centerPane, table.createPane());
+        pane.setDividerPositions(0.15, 0.6);
+        return pane;
+    }
+
+    /**
      * Show the next word to submit to the user.
      */
     private void showNextWord() {
@@ -119,7 +165,9 @@ final class LearningPane implements EventHandler<ActionEvent> {
                 final LearningWord word = wordsToLearn[wordIndex];
                 entry = word.getEntry(table.dictionary);
                 if (entry != null) {
-                    break; // Found the next word to show.
+                    // Found the next word to show.
+                    query.setText(word.getQueryText());
+                    break;
                 }
                 // Missing entry (should not happen).
                 Logging.LOGGER.log(Level.WARNING, "No dictionary entry found for {0}.", word);
@@ -130,30 +178,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
                 }
             }
         }
-        query.setSelected(entry);
-    }
-
-    /**
-     * Creates the widget pane to be shown in the application.
-     */
-    final Node createPane() {
-        final Button known   = new Button("Known");      known.setId(   KNOWN); known  .setOnAction(this);
-        final Button unknown = new Button("Unknown");  unknown.setId( UNKNOWN); unknown.setOnAction(this);
-        final Button newWord = new Button("New word"); newWord.setId(NEW_WORD); newWord.setOnAction(this);
-        final TilePane buttons = new TilePane();
-        buttons.setHgap(9);
-        buttons.setPrefRows(1);
-        buttons.setPrefColumns(2);
-        buttons.setAlignment(Pos.CENTER);
-        buttons.getChildren().addAll(known, unknown, newWord);
-
-        final VBox group  = new VBox(18);
-        group.getChildren().addAll(query.createPane(), buttons);
-
-        final SplitPane pane = new SplitPane();
-        pane.setOrientation(Orientation.VERTICAL);
-        pane.getItems().addAll(group, table.createPane());
-        return pane;
+        description.setSelected(entry);
     }
 
     /**
@@ -202,7 +227,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
              * out list.
              */
             case NEW_WORD: {
-                final AugmentedEntry entry = query.getSelected();
+                final AugmentedEntry entry = description.getSelected();
                 if (entry != null) {
                     new NewWordDialog(entry).show();
                 }

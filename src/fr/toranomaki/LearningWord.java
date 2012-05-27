@@ -153,6 +153,14 @@ final class LearningWord extends Data {
     }
 
     /**
+     * Returns the text to ask to the user for training purpose.
+     * If there is no reading element, fallback on the Kanji element.
+     */
+    public String getQueryText() {
+        return (reading != null) ? reading : kanji;
+    }
+
+    /**
      * Returns the entry associated with this word to learn.
      *
      * @param  dictionary The dictionary to use for fetching the word when needed.

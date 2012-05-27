@@ -16,6 +16,7 @@ package fr.toranomaki;
 
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import javafx.scene.Node;
 import javafx.stage.Modality;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
@@ -25,9 +26,11 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.TilePane;
 import javafx.scene.layout.BorderPane;
 import javafx.collections.ObservableList;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
+import javafx.geometry.Pos;
 
 import fr.toranomaki.grammar.AugmentedEntry;
-import javafx.geometry.Pos;
 
 
 /**
@@ -35,7 +38,12 @@ import javafx.geometry.Pos;
  *
  * @author Martin Desruisseaux
  */
-final class NewWordDialog {
+final class NewWordDialog implements EventHandler<ActionEvent> {
+    /**
+     * Identifiers used for the "Add" and "Cancel" buttons.
+     */
+    private static final String ADD="ADD", CANCEL="CANCEL";
+
     /**
      * The Kanji elements declared in the entry to add.
      * There is often only one choice.
@@ -47,6 +55,8 @@ final class NewWordDialog {
      * There is often only one choice.
      */
     private final ChoiceBox<String> rebChoices;
+
+    private Stage stage;
 
     /**
      * Creates a new dialog for the given entry.
@@ -92,9 +102,13 @@ final class NewWordDialog {
 
         final Button confirm = new Button("Add");
         final Button cancel  = new Button("Cancel");
-        final TilePane buttons = new TilePane();
+        confirm.setId(ADD);
+        cancel .setId(CANCEL);
         confirm.setMaxWidth(120);
         cancel .setMaxWidth(120);
+        confirm.setOnAction(this);
+        cancel .setOnAction(this);
+        final TilePane buttons = new TilePane();
         buttons.setPrefColumns(2);
         buttons.setHgap(15);
         buttons.getChildren().addAll(confirm, cancel);
@@ -109,10 +123,25 @@ final class NewWordDialog {
         pane.setCenter(grid);
         pane.setBottom(buttons);
 
-        final Stage ds = new Stage();
-        ds.initModality(Modality.APPLICATION_MODAL);
-        ds.setScene(new Scene(pane));
-        ds.setResizable(false);
-        ds.show();
+        stage = new Stage();
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.setScene(new Scene(pane));
+        stage.setResizable(false);
+        stage.show();
+    }
+
+    /**
+     * Invoked when a button has been pressed.
+     */
+    @Override
+    public void handle(final ActionEvent event) {
+        stage.close();
+        switch (((Node) event.getSource()).getId()) {
+            default: throw new AssertionError();
+            case CANCEL: break;
+            case ADD: {
+                break;
+            }
+        }
     }
 }
