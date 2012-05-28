@@ -55,8 +55,15 @@ public final class AugmentedEntry extends Entry {
 
     /**
      * The mask to be set if the Kanji elements use at least one non-Joyo Kanji.
+     * This mask apply only to the Kanji element.
      */
     private static final int UNCOMMON_KANJI_MASK = 4;
+
+    /**
+     * The mask to be set if the entry is used for training.
+     * We arbitrarily set this bit on the reading element only.
+     */
+    private static final int LEARNING_WORD = 4;
 
     /**
      * Number of bits used by the above masks.
@@ -96,6 +103,29 @@ public final class AugmentedEntry extends Entry {
      * Creates an initially empty entry.
      */
     public AugmentedEntry() {
+    }
+
+    /**
+     * Declares that this entry is used for user training.
+     *
+     * @param kanji   The preferred Kanji element.
+     * @param reading The preferred reading element.
+     */
+    public synchronized void setLearningWord(final String kanji, final String reading) {
+        getAnnotationMask(false); // For annotation computation.
+        annotations |= LEARNING_WORD;
+        setPreferred(true,  kanji);
+        setPreferred(false, reading);
+    }
+
+    /**
+     * Returns {@code true} if this entry is used for user training.
+     * Such entry have the highest priority.
+     *
+     * @return {@code true} if this entry is used for user training.
+     */
+    public boolean isLearningWord() {
+        return (getAnnotationMask(false) & LEARNING_WORD) != 0;
     }
 
     /**
@@ -226,5 +256,18 @@ public final class AugmentedEntry extends Entry {
             }
         }
         return 0;
+    }
+
+    /**
+     * Compares this entry with the given object in order to sort learning words first.
+     */
+    @Override
+    public int compareTo(final Entry other) {
+        final boolean ln1 = isLearningWord();
+        final boolean ln2 = (other instanceof AugmentedEntry) && ((AugmentedEntry) other).isLearningWord();
+        if (ln1 != ln2) {
+            return ln1 ? -1 : +1;
+        }
+        return super.compareTo(other);
     }
 }

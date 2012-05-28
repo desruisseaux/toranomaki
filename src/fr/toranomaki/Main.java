@@ -147,7 +147,9 @@ public final class Main extends Application {
         bar.setUseSystemMenuBar(true);
         pane.setTop(bar);
 
-        stage.setScene(new Scene(pane, 800, 600));
+        final Scene scene = new Scene(pane, 800, 600);
+        System.out.println(scene.getMnemonics());
+        stage.setScene(scene);
         stage.show();
     }
 }

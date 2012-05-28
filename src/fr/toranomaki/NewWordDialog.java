@@ -14,6 +14,7 @@
  */
 package fr.toranomaki;
 
+import java.util.List;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import javafx.scene.Node;
@@ -45,6 +46,11 @@ final class NewWordDialog implements EventHandler<ActionEvent> {
     private static final String ADD="ADD", CANCEL="CANCEL";
 
     /**
+     * The entry which may be added to the list of words to learn.
+     */
+    private final AugmentedEntry entry;
+
+    /**
      * The Kanji elements declared in the entry to add.
      * There is often only one choice.
      */
@@ -56,12 +62,22 @@ final class NewWordDialog implements EventHandler<ActionEvent> {
      */
     private final ChoiceBox<String> rebChoices;
 
+    /**
+     * The window showing the dialog.
+     */
     private Stage stage;
+
+    /**
+     * Where to add the new word.
+     */
+    private final List<LearningWord> addTo;
 
     /**
      * Creates a new dialog for the given entry.
      */
-    NewWordDialog(final AugmentedEntry entry) {
+    NewWordDialog(final AugmentedEntry entry, final List<LearningWord> addTo) {
+        this.entry = entry;
+        this.addTo = addTo;
         kebChoices = new ChoiceBox<>();
         rebChoices = new ChoiceBox<>();
         kebChoices.setMaxWidth(200);
@@ -104,6 +120,8 @@ final class NewWordDialog implements EventHandler<ActionEvent> {
         final Button cancel  = new Button("Cancel");
         confirm.setId(ADD);
         cancel .setId(CANCEL);
+        confirm.setDefaultButton(true);
+        cancel .setCancelButton(true);
         confirm.setMaxWidth(120);
         cancel .setMaxWidth(120);
         confirm.setOnAction(this);
@@ -140,6 +158,11 @@ final class NewWordDialog implements EventHandler<ActionEvent> {
             default: throw new AssertionError();
             case CANCEL: break;
             case ADD: {
+                final String kanji   = kebChoices.getSelectionModel().getSelectedItem();
+                final String reading = rebChoices.getSelectionModel().getSelectedItem();
+                final LearningWord word = new LearningWord(kanji, reading);
+                entry.setLearningWord(kanji, reading);
+                addTo.add(word);
                 break;
             }
         }

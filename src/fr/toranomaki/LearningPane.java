@@ -14,26 +14,31 @@
  */
 package fr.toranomaki;
 
+import java.util.List;
 import java.util.Random;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 import java.io.IOException;
 
 import javafx.scene.Node;
 import javafx.scene.text.Font;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.TilePane;
 import javafx.scene.control.Label;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.ButtonBase;
 import javafx.geometry.Pos;
+import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 
 import fr.toranomaki.edict.DictionaryReader;
 import fr.toranomaki.grammar.AugmentedEntry;
-import javafx.geometry.Insets;
 
 
 /**
@@ -43,9 +48,33 @@ import javafx.geometry.Insets;
  */
 final class LearningPane implements EventHandler<ActionEvent> {
     /**
-     * Identifiers used for the "Known", "Unknown" and "New word" buttons.
+     * The panel which describe the word which has been asked to the user.
      */
-    private static final String KNOWN="KNOWN", UNKNOWN="UNKNOWN", NEW_WORD="NEW_WORD";
+    private final class WordDescription extends WordPanel {
+        /**
+         * Enables the "add word" button only if the selected word is a new word.
+         */
+        @Override
+        void setSelected(AugmentedEntry entry) {
+            if (entry == null) {
+                // If the user did a search in the table of words, then cleared the search,
+                // go back to the state where he choose if the word was "easy" or "hard".
+                setButtonDisabled(wordsToLearn.isEmpty(), true);
+            } else {
+                final boolean isLearningWord = entry.isLearningWord();
+                setButtonDisabled(!isLearningWord, isLearningWord);
+                if (isLearningWord && !translate.isSelected()) {
+                    entry = null; // If the user didn't asked for a translation, hide it.
+                }
+            }
+            super.setSelected(entry);
+        }
+    }
+
+    /**
+     * Identifiers used for the "Easy", "Hard", "Translate" and "New word" buttons.
+     */
+    private static final String EASY="EASY", HARD="HARD", TRANSLATE="TRANSLATE", NEW_WORD="NEW_WORD";
 
     /**
      * The list of words to use for the training.
@@ -65,15 +94,20 @@ final class LearningPane implements EventHandler<ActionEvent> {
     private final Label query;
 
     /**
-     * The list of words to learn. This list is sorted from easiest to more difficult words,
-     * words, as indicated by the user by clicking on the "Known" or "Unknown" buttons.
+     * The buttons displayed below the query label.
      */
-    private LearningWord[] wordsToLearn;
+    private final Button easy, hard, newWord;
 
     /**
-     * Number of valid entries in {@link #wordsToLearn}.
+     * The checkbox for asking to show the translation.
      */
-    private int wordsToLearnCount;
+    private final CheckBox translate;
+
+    /**
+     * The list of words to learn. This list is sorted from easiest to more difficult words,
+     * words, as indicated by the user by clicking on the "Easy" or "Hard" buttons.
+     */
+    private final List<LearningWord> wordsToLearn;
 
     /**
      * Index of the word currently show.
@@ -96,12 +130,15 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * @throws IOException If an error occurred while loading the list of words.
      */
     LearningPane(final DictionaryReader dictionary, final ExecutorService executor) throws IOException {
-        description  = new WordPanel();
+        description  = new WordDescription();
         table        = new WordTable(description, dictionary, executor);
         query        = new Label();
+        easy         = new Button("Easy");        easy     .setId(EASY);
+        hard         = new Button("Hard");        hard     .setId(HARD);
+        newWord      = new Button("New word");    newWord  .setId(NEW_WORD);
+        translate    = new CheckBox("Translate"); translate.setId(TRANSLATE);
         random       = new Random();
         wordsToLearn = LearningWord.load();
-        wordsToLearnCount = wordsToLearn.length;
         showNextWord();
     }
 
@@ -110,7 +147,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
      */
     final void save() {
         if (modified) try {
-            LearningWord.save(wordsToLearn, wordsToLearnCount);
+            LearningWord.save(wordsToLearn);
         } catch (IOException e) {
             Logging.possibleDataLost(e);
         }
@@ -120,28 +157,29 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * Creates the widget pane to be shown in the application.
      */
     final Node createPane() {
-        query.setAlignment(Pos.CENTER);
-        query.setFont(Font.font(null, 24));
-
-        final Button known   = new Button("Known");      known.setId(   KNOWN); known  .setOnAction(this);
-        final Button unknown = new Button("Unknown");  unknown.setId( UNKNOWN); unknown.setOnAction(this);
-        final Button newWord = new Button("New word"); newWord.setId(NEW_WORD); newWord.setOnAction(this);
-        known  .setMaxWidth(100);
-        unknown.setMaxWidth(100);
-        newWord.setMaxWidth(100);
+        query    .setAlignment(Pos.CENTER);
+        query    .setFont(Font.font(null, 24));
+        easy     .setOnAction(this);
+        hard     .setOnAction(this);
+        newWord  .setOnAction(this);
+        translate.setOnAction(this);
+        easy     .setMaxWidth(100);
+        hard     .setMaxWidth(100);
+        newWord  .setMaxWidth(100);
         final TilePane buttons = new TilePane();
         buttons.setHgap(9);
         buttons.setPrefRows(1);
         buttons.setPrefColumns(2);
         buttons.setAlignment(Pos.CENTER);
-        buttons.getChildren().addAll(known, unknown, newWord);
+        buttons.getChildren().addAll(easy, hard, newWord);
 
         final Insets margin = new Insets(12);
-        VBox.setMargin(query,   margin);
-        VBox.setMargin(buttons, margin);
+        VBox.setMargin(query,     margin);
+        VBox.setMargin(translate, margin);
+        VBox.setMargin(buttons,   margin);
         final VBox centerPane = new VBox();
         centerPane.setAlignment(Pos.CENTER);
-        centerPane.getChildren().addAll(query, buttons);
+        centerPane.getChildren().addAll(query, translate, buttons);
 
         final Node desc = description.createPane();
         SplitPane.setResizableWithParent(desc, false);
@@ -149,7 +187,35 @@ final class LearningPane implements EventHandler<ActionEvent> {
         pane.setOrientation(Orientation.VERTICAL);
         pane.getItems().addAll(desc, centerPane, table.createPane());
         pane.setDividerPositions(0.15, 0.6);
+
+        pane.setOnKeyTyped(new EventHandler<KeyEvent>() {
+            @Override public void handle(final KeyEvent key) {
+                handleShurcut(key.getCharacter().toUpperCase());
+            }
+        });
         return pane;
+    }
+
+    /**
+     * Enable or disable the buttons.
+     *
+     * @param knowledge {@code true} for disabling the "Easy" and "Hard" buttons.
+     * @param addition  {@code true} for disabling the "New word" button.
+     */
+    final void setButtonDisabled(final boolean knowledge, final boolean addition) {
+        easy   .setDisable(knowledge);
+        hard   .setDisable(knowledge);
+        newWord.setDisable(addition);
+    }
+
+    /**
+     * Returns the current entry, or {@code null} if none.
+     */
+    private AugmentedEntry getEntry() {
+        if (wordsToLearn.isEmpty()) {
+            return null;
+        }
+        return wordsToLearn.get(wordIndex).getEntry(table.dictionary);
     }
 
     /**
@@ -157,22 +223,21 @@ final class LearningPane implements EventHandler<ActionEvent> {
      */
     private void showNextWord() {
         AugmentedEntry entry = null;
-        final LearningWord[] wordsToLearn = this.wordsToLearn; // Protect from changes.
         int last = wordIndex;
-        while (wordsToLearnCount != 0) {
-            wordIndex = random.nextInt(wordsToLearnCount); // TODO: give more weight to last entries.
-            if (wordIndex != last || wordsToLearnCount == 1) {
-                final LearningWord word = wordsToLearn[wordIndex];
+        while (!wordsToLearn.isEmpty()) {
+            wordIndex = random.nextInt(wordsToLearn.size()); // TODO: give more weight to last entries.
+            if (wordIndex != last || wordsToLearn.size() == 1) {
+                final LearningWord word = wordsToLearn.get(wordIndex);
                 entry = word.getEntry(table.dictionary);
                 if (entry != null) {
                     // Found the next word to show.
                     query.setText(word.getQueryText());
+                    translate.setSelected(false);
                     break;
                 }
                 // Missing entry (should not happen).
                 Logging.LOGGER.log(Level.WARNING, "No dictionary entry found for {0}.", word);
-                System.arraycopy(wordsToLearn, wordIndex+1, wordsToLearn, wordIndex, --wordsToLearnCount - wordIndex);
-                wordsToLearn[wordsToLearnCount] = null;
+                wordsToLearn.remove(wordIndex);
                 if (last > wordIndex) {
                     last--;
                 }
@@ -186,8 +251,14 @@ final class LearningPane implements EventHandler<ActionEvent> {
      */
     @Override
     public void handle(final ActionEvent event) {
-        final LearningWord[] wordsToLearn = this.wordsToLearn; // Protect from changes.
-        switch (((Node) event.getSource()).getId()) {
+        handle(((Node) event.getSource()).getId());
+    }
+
+    /**
+     * Implementation of {@link #handle(ActionEvent)}.
+     */
+    private void handle(final String id) {
+        switch (id) {
             default: {
                 throw new AssertionError();
             }
@@ -196,11 +267,9 @@ final class LearningPane implements EventHandler<ActionEvent> {
              * of words. This will decrease the chances that the word is picked again by
              * the 'showNextWord()' method.
              */
-            case KNOWN: {
+            case EASY: {
                 if (wordIndex != 0) {
-                    final LearningWord word = wordsToLearn[  wordIndex];
-                    wordsToLearn[wordIndex] = wordsToLearn[--wordIndex];
-                    wordsToLearn[wordIndex] = word;
+                    Collections.swap(wordsToLearn, wordIndex, --wordIndex);
                     modified = true;
                 }
                 showNextWord();
@@ -211,12 +280,13 @@ final class LearningPane implements EventHandler<ActionEvent> {
              * to the end of our list of words. This will give to this word high chance
              * to be picked again by the 'showNextWord()' method.
              */
-            case UNKNOWN: {
-                final int length = wordsToLearnCount - (wordIndex+1);
-                if (length != 0) {
-                    final LearningWord word = wordsToLearn[wordIndex];
-                    System.arraycopy(wordsToLearn, wordIndex+1, wordsToLearn, wordIndex, length);
-                    wordsToLearn[wordIndex = wordsToLearnCount - 1] = word;
+            case HARD: {
+                final int last = wordsToLearn.size() - 1;
+                if (wordIndex != last) {
+                    final LearningWord word = wordsToLearn.get(wordIndex);
+                    wordsToLearn.remove(wordIndex);
+                    wordsToLearn.add(word);
+                    wordIndex = last;
                     modified = true;
                 }
                 showNextWord();
@@ -229,9 +299,39 @@ final class LearningPane implements EventHandler<ActionEvent> {
             case NEW_WORD: {
                 final AugmentedEntry entry = description.getSelected();
                 if (entry != null) {
-                    new NewWordDialog(entry).show();
+                    new NewWordDialog(entry, wordsToLearn).show();
+                    modified = true;
                 }
                 break;
+            }
+            /*
+             * The user asked to show or hide the translation.
+             */
+            case TRANSLATE: {
+                description.setSelected(getEntry());
+            }
+        }
+    }
+
+    /**
+     * Handles a key which has been pressed.
+     */
+    final void handleShurcut(final String key) {
+        for (int i=0; i<4; i++) {
+            final ButtonBase button;
+            switch (i) {
+                case 0: button = translate; break;
+                case 1: button = easy;      break;
+                case 2: button = hard;      break;
+                case 3: button = newWord;   break;
+                default: throw new AssertionError(i);
+            }
+            if (button.getText().startsWith(key)) {
+                if (button instanceof CheckBox) {
+                    final CheckBox c = ((CheckBox) button);
+                    c.setSelected(!c.isSelected());
+                }
+                handle(button.getId());
             }
         }
     }

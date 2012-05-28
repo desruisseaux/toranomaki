@@ -146,6 +146,28 @@ public class Entry implements Comparable<Entry> {
     }
 
     /**
+     * Sets the work to show first in the list. If the given word is not found,
+     * then this method does nothing.
+     *
+     * @param isKanji   {@code true} for the Kanji element, or {@code false} for the reading element.
+     * @param preferred The word to declare as the preferred element.
+     */
+    public void setPreferred(final boolean isKanji, final String preferred) {
+        final Object elements = isKanji ? kanji : reading;
+        if (elements instanceof String[]) {
+            final String[] array = (String[]) elements;
+            for (int i=0; i<array.length; i++) {
+                final String candidate = array[i];
+                if (candidate.equals(preferred)) {
+                    System.arraycopy(array, 0, array, 1, i);
+                    array[0] = candidate;
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
      * Returns the number of Kanji or reading elements.
      *
      * @param  isKanji {@code true} for the Kanji elements, or {@code false} for the reading elements.
@@ -158,7 +180,7 @@ public class Entry implements Comparable<Entry> {
     /**
      * Implementation of {@link #getCount(boolean)} used when field to query is known in advance.
      *
-     * @param value The value of the {@link #kanji} or {@link #reading} field.
+     * @param  value The value of the {@link #kanji} or {@link #reading} field.
      * @return Number of Kanji or reading elements.
      */
     private static int getCount(final Object value) {

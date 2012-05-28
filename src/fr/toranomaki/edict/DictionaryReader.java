@@ -16,6 +16,7 @@ package fr.toranomaki.edict;
 
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Arrays;
 import java.util.Locale;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -271,6 +272,7 @@ public final class DictionaryReader extends BinaryData {
         }
         final PrefixType pt = new PrefixType(toSearch);
         final AugmentedEntry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(toSearch, pt, true);
+        Arrays.sort(entries); // Move entries with highest priority first.
         return SearchResult.search(entries, toSearch, pt.type().isKanji, documentOffset);
     }
 }

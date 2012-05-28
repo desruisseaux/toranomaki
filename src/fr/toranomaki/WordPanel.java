@@ -46,7 +46,7 @@ import fr.toranomaki.grammar.AugmentedEntry;
  *
  * @author Martin Desruisseaux
  */
-final class WordPanel {
+class WordPanel {
     /**
      * For size for Latin, Hiragana or Kanji characters.
      */
@@ -188,7 +188,7 @@ final class WordPanel {
      *
      * @param entry The selected entry, or {@code null} if none.
      */
-    final void setSelected(final AugmentedEntry entry) {
+    void setSelected(final AugmentedEntry entry) {
         if (entry != currentEntry) {
             final List<Node> children = senses.getChildren();
             cachedNodes.addAll(children);

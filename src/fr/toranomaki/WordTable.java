@@ -14,6 +14,7 @@
  */
 package fr.toranomaki;
 
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 
 import javafx.application.Platform;
@@ -156,6 +157,7 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
                 final AugmentedEntry[] tableEntries;
                 try {
                     tableEntries = dictionary.getEntriesUsingPrefix(alphabet, word);
+                    Arrays.sort(tableEntries);
                     setContent(tableEntries, -1);
                 } catch (Throwable e) {
                     Logging.recoverableException(WordTable.class, "setContent", e);

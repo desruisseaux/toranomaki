@@ -14,9 +14,11 @@
  */
 package fr.toranomaki;
 
-import java.util.Arrays;
 import java.util.Set;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Objects;
 import java.io.File;
 import java.io.FileInputStream;
@@ -93,7 +95,7 @@ final class LearningWord extends Data {
      * @return The words, never empty.
      * @throws IOException If an error occurred while loading the words.
      */
-    static LearningWord[] load() throws IOException {
+    static List<LearningWord> load() throws IOException {
         final Set<LearningWord> words = new LinkedHashSet<>(64);
         final File file = getFile();
         if (file.isFile()) {
@@ -121,7 +123,7 @@ final class LearningWord extends Data {
         if (words.isEmpty()) {
             words.add(new LearningWord("お早う", "おはよう"));
         }
-        return words.toArray(new LearningWord[words.size()]);
+        return new ArrayList<>(words);
     }
 
     /**
@@ -129,16 +131,15 @@ final class LearningWord extends Data {
      *
      * @throws IOException If an error occurred while saving.
      */
-    static void save(final LearningWord[] words, final int count) throws IOException {
+    static void save(final List<LearningWord> words) throws IOException {
         final File file = getFile();
-        if (count == 0) {
+        if (words.isEmpty()) {
             file.delete();
         } else {
             final String lineSeparator = System.lineSeparator();
             try (Writer out = new OutputStreamWriter(new FileOutputStream(file), FILE_ENCODING)) {
                 out.write(BYTE_ORDER_MARK);
-                for (int i=0; i<count; i++) {
-                    final LearningWord word = words[i];
+                for (final LearningWord word : words) {
                     if (word.kanji != null) {
                         out.write(word.kanji);
                     }
@@ -175,6 +176,7 @@ final class LearningWord extends Data {
                 case 2: Arrays.sort(candidates); break; // Highest priority first.
             }
             entry = candidates[0];
+            entry.setLearningWord(kanji, reading);
         }
         return entry;
     }
