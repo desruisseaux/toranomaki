@@ -22,8 +22,6 @@ import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextArea;
 import javafx.geometry.Orientation;
 
-import fr.toranomaki.edict.DictionaryReader;
-
 
 /**
  * The text editor, together with the table of word search results on the bottom.
@@ -49,7 +47,7 @@ final class EditorPane {
     /**
      * Creates a new instance using the given dictionary for searching words.
      */
-    EditorPane(final DictionaryReader dictionary, final ExecutorService executor) {
+    EditorPane(final Dictionary dictionary, final ExecutorService executor) {
         description = new WordPanel();
         text        = new TextArea();
         table       = new WordTable(description, dictionary, executor);

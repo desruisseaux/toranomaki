@@ -32,7 +32,6 @@ import javafx.event.ActionEvent;
 import javafx.concurrent.Task;
 
 import fr.toranomaki.edict.Alphabet;
-import fr.toranomaki.edict.DictionaryReader;
 import fr.toranomaki.grammar.AugmentedEntry;
 import fr.toranomaki.grammar.CharacterType;
 
@@ -48,7 +47,7 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
     /**
      * The dictionary to use for searching words.
      */
-    final DictionaryReader dictionary;
+    final Dictionary dictionary;
 
     /**
      * The entries to show in the table.
@@ -77,7 +76,7 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
      * @param dictionary  The dictionary to use for searching words.
      * @param executor    The executor to use for performing searches in a background thread.
      */
-    WordTable(final WordPanel description, final DictionaryReader dictionary, final ExecutorService executor) {
+    WordTable(final WordPanel description, final Dictionary dictionary, final ExecutorService executor) {
         this.description = description;
         this.dictionary  = dictionary;
         this.executor    = executor;

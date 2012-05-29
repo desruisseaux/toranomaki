@@ -23,6 +23,7 @@ import java.io.Reader;
 
 import fr.toranomaki.Logging;
 import fr.toranomaki.edict.Alphabet;
+import static fr.toranomaki.Data.FILE_ENCODING;
 
 
 /**
@@ -96,7 +97,7 @@ public enum CharacterType {
         } else {
             int offset = 0;
             kanji = new char[2136]; // Officiel number of Joyo Kanji.
-            try (final Reader reader = new InputStreamReader(in, "UTF-8")) {
+            try (final Reader reader = new InputStreamReader(in, FILE_ENCODING)) {
                 int expected;
                 while ((expected = kanji.length - offset) > 0) {
                     int upper = reader.read(kanji, offset, expected);

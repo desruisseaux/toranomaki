@@ -31,8 +31,6 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.application.Application;
 
-import fr.toranomaki.edict.DictionaryReader;
-
 
 /**
  * The main application entry point. This is the entry point we would use if the
@@ -43,6 +41,11 @@ import fr.toranomaki.edict.DictionaryReader;
  * @author Martin Desruisseaux
  */
 public final class Main extends Application {
+    /**
+     * The application-wide dictionary.
+     */
+    private Dictionary dictionary;
+
     /**
      * Controls the panel used for vocabulary training.
      */
@@ -80,10 +83,10 @@ public final class Main extends Application {
      */
     @Override
     public void init() throws IOException {
-        final DictionaryReader dictionary = new DictionaryReader();
-        executor = Executors.newSingleThreadExecutor();
-        training = new LearningPane(dictionary, executor);
-        editor   = new EditorPane  (dictionary, executor);
+        dictionary = new Dictionary();
+        executor   = Executors.newSingleThreadExecutor();
+        training   = new LearningPane(dictionary, executor);
+        editor     = new EditorPane  (dictionary, executor);
     }
 
     /**
@@ -92,7 +95,11 @@ public final class Main extends Application {
     @Override
     public void stop() {
         executor.shutdown();
-        training.save();
+        try {
+            dictionary.save();
+        } catch (IOException e) {
+            Logging.possibleDataLost(e);
+        }
         try {
             executor.awaitTermination(2, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
@@ -147,9 +154,7 @@ public final class Main extends Application {
         bar.setUseSystemMenuBar(true);
         pane.setTop(bar);
 
-        final Scene scene = new Scene(pane, 800, 600);
-        System.out.println(scene.getMnemonics());
-        stage.setScene(scene);
+        stage.setScene(new Scene(pane, 800, 600));
         stage.show();
     }
 }

@@ -37,7 +37,6 @@ import javafx.geometry.Orientation;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 
-import fr.toranomaki.edict.DictionaryReader;
 import fr.toranomaki.grammar.AugmentedEntry;
 
 
@@ -59,7 +58,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
             if (entry == null) {
                 // If the user did a search in the table of words, then cleared the search,
                 // go back to the state where he choose if the word was "easy" or "hard".
-                setButtonDisabled(wordsToLearn.isEmpty(), true);
+                setButtonDisabled(getWordsToLearn().isEmpty(), true);
             } else {
                 final boolean isLearningWord = entry.isLearningWord();
                 setButtonDisabled(!isLearningWord, isLearningWord);
@@ -104,12 +103,6 @@ final class LearningPane implements EventHandler<ActionEvent> {
     private final CheckBox translate;
 
     /**
-     * The list of words to learn. This list is sorted from easiest to more difficult words,
-     * words, as indicated by the user by clicking on the "Easy" or "Hard" buttons.
-     */
-    private final List<LearningWord> wordsToLearn;
-
-    /**
      * Index of the word currently show.
      */
     private int wordIndex;
@@ -120,16 +113,11 @@ final class LearningPane implements EventHandler<ActionEvent> {
     private final Random random;
 
     /**
-     * {@code true} if the list of words has been modified.
-     */
-    private boolean modified;
-
-    /**
      * Creates a new instance using the given dictionary for searching the words to ask.
      *
      * @throws IOException If an error occurred while loading the list of words.
      */
-    LearningPane(final DictionaryReader dictionary, final ExecutorService executor) throws IOException {
+    LearningPane(final Dictionary dictionary, final ExecutorService executor) throws IOException {
         description  = new WordDescription();
         table        = new WordTable(description, dictionary, executor);
         query        = new Label();
@@ -138,19 +126,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
         newWord      = new Button("New word");    newWord  .setId(NEW_WORD);
         translate    = new CheckBox("Translate"); translate.setId(TRANSLATE);
         random       = new Random();
-        wordsToLearn = LearningWord.load();
         showNextWord();
-    }
-
-    /**
-     * Saves the list of words if it has been modified.
-     */
-    final void save() {
-        if (modified) try {
-            LearningWord.save(wordsToLearn);
-        } catch (IOException e) {
-            Logging.possibleDataLost(e);
-        }
     }
 
     /**
@@ -209,9 +185,17 @@ final class LearningPane implements EventHandler<ActionEvent> {
     }
 
     /**
+     * Returns the list of words to learn.
+     */
+    final List<LearningWord> getWordsToLearn() {
+        return table.dictionary.wordsToLearn;
+    }
+
+    /**
      * Returns the current entry, or {@code null} if none.
      */
     private AugmentedEntry getEntry() {
+        final List<LearningWord> wordsToLearn = getWordsToLearn();
         if (wordsToLearn.isEmpty()) {
             return null;
         }
@@ -222,6 +206,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * Show the next word to submit to the user.
      */
     private void showNextWord() {
+        final List<LearningWord> wordsToLearn = getWordsToLearn();
         AugmentedEntry entry = null;
         int last = wordIndex;
         while (!wordsToLearn.isEmpty()) {
@@ -258,6 +243,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * Implementation of {@link #handle(ActionEvent)}.
      */
     private void handle(final String id) {
+        final List<LearningWord> wordsToLearn = getWordsToLearn();
         switch (id) {
             default: {
                 throw new AssertionError();
@@ -270,7 +256,6 @@ final class LearningPane implements EventHandler<ActionEvent> {
             case EASY: {
                 if (wordIndex != 0) {
                     Collections.swap(wordsToLearn, wordIndex, --wordIndex);
-                    modified = true;
                 }
                 showNextWord();
                 break;
@@ -287,7 +272,6 @@ final class LearningPane implements EventHandler<ActionEvent> {
                     wordsToLearn.remove(wordIndex);
                     wordsToLearn.add(word);
                     wordIndex = last;
-                    modified = true;
                 }
                 showNextWord();
                 break;
@@ -300,7 +284,6 @@ final class LearningPane implements EventHandler<ActionEvent> {
                 final AugmentedEntry entry = description.getSelected();
                 if (entry != null) {
                     new NewWordDialog(entry, wordsToLearn).show();
-                    modified = true;
                 }
                 break;
             }

@@ -29,8 +29,6 @@ import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.layout.StackPane;
 
-import fr.toranomaki.edict.DictionaryReader;
-
 
 /**
  * The entry point as a Swing application. Ideally we would make a pure JavaFX application.
@@ -83,7 +81,7 @@ public final class SwingMain extends WindowAdapter {
      * Creates a new application.
      */
     private SwingMain(final JFrame frame, final ExecutorService executor) throws IOException {
-        final DictionaryReader dictionary  = new DictionaryReader();
+        final Dictionary dictionary  = new Dictionary();
         final WordPanel   description = new WordPanel();
                           table       = new WordTable(description, dictionary, executor);
                           editor      = new SwingEditor(table);

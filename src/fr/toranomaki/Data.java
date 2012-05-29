@@ -31,9 +31,10 @@ import java.nio.file.Paths;
  */
 public abstract class Data {
     /**
-     * The encoding of the file to be saved.
+     * The encoding of the file to be saved. This encoding applies only to text files,
+     * it doesn't apply to the dictionary file (which is a binary format).
      */
-    static final String FILE_ENCODING = "UTF-8";
+    public static final String FILE_ENCODING = "UTF-8";
 
     /**
      * The <cite>byte order mark</cite> used to signal endianness of UTF-8 text files. This mark
@@ -45,7 +46,7 @@ public abstract class Data {
      *
      * @see <a href="http://en.wikipedia.org/wiki/Byte_order_mark">Byte order mark on Wikipedia</a>
      */
-    static final char BYTE_ORDER_MARK = '\uFEFF';
+    public static final char BYTE_ORDER_MARK = '\uFEFF';
 
     /**
      * For subclasses constructor only.

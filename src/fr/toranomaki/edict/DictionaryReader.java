@@ -31,7 +31,7 @@ import fr.toranomaki.grammar.AugmentedEntry;
  *
  * @author Martin Desruisseaux
  */
-public final class DictionaryReader extends BinaryData {
+public class DictionaryReader extends BinaryData {
     /**
      * The cache capacity. This value is arbitrary, but we are better to use a value
      * not greater than a power of 2 time the load factor (0.75).
@@ -154,7 +154,7 @@ public final class DictionaryReader extends BinaryData {
      * @param  word The word to search.
      * @return The index of the given word, or the insertion point with all bits reversed.
      */
-    public int getWordIndex(final Alphabet alphabet, final String word) {
+    public final int getWordIndex(final Alphabet alphabet, final String word) {
         return wordIndex[alphabet.ordinal()].getWordIndex(word);
     }
 
@@ -167,7 +167,7 @@ public final class DictionaryReader extends BinaryData {
      * @return The word at the given index.
      * @throws IndexOutOfBoundsException If the given index is out of bounds.
      */
-    public String getWordAt(final Alphabet alphabet, final int wordIndex) throws IndexOutOfBoundsException {
+    public final String getWordAt(final Alphabet alphabet, final int wordIndex) throws IndexOutOfBoundsException {
         return this.wordIndex[alphabet.ordinal()].getWordAt(wordIndex);
     }
 
@@ -179,7 +179,7 @@ public final class DictionaryReader extends BinaryData {
      * @param  position Entry position, in bytes relative to the beginning of the entry pool.
      * @return The entry at the given index.
      */
-    public AugmentedEntry getEntryAt(final int position) {
+    public final AugmentedEntry getEntryAt(final int position) {
         final Integer key = position;
         AugmentedEntry entry = cachedEntries.get(key);
         if (entry != null) {
@@ -238,7 +238,7 @@ public final class DictionaryReader extends BinaryData {
      * @param  words The words to search. Null elements are ignored.
      * @return Entries using all the given words, or an empty array if none.
      */
-    public AugmentedEntry[] getEntriesUsingAll(final Alphabet alphabet, final String... words) {
+    public final AugmentedEntry[] getEntriesUsingAll(final Alphabet alphabet, final String... words) {
         if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
         return wordIndex[alphabet.ordinal()].getEntriesUsingAll(words);
     }
@@ -252,7 +252,7 @@ public final class DictionaryReader extends BinaryData {
      * @param  prefix The prefix.
      * @return Entries beginning by the given prefix.
      */
-    public AugmentedEntry[] getEntriesUsingPrefix(final Alphabet alphabet, final String prefix) {
+    public final AugmentedEntry[] getEntriesUsingPrefix(final Alphabet alphabet, final String prefix) {
         if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
         return wordIndex[alphabet.ordinal()].getEntriesUsingPrefix(prefix, new PrefixType(prefix), false);
     }
@@ -266,7 +266,7 @@ public final class DictionaryReader extends BinaryData {
      *        {@link SearchResult#documentOffset} field for caller convenience.
      * @return The search result, or {@code null} if none.
      */
-    public SearchResult searchBest(final String toSearch, final int documentOffset) {
+    public final SearchResult searchBest(final String toSearch, final int documentOffset) {
         if (toSearch == null || toSearch.isEmpty()) {
             return null;
         }
