@@ -14,7 +14,6 @@
  */
 package fr.toranomaki;
 
-import java.util.List;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import javafx.scene.Node;
@@ -70,12 +69,12 @@ final class NewWordDialog implements EventHandler<ActionEvent> {
     /**
      * Where to add the new word.
      */
-    private final List<LearningWord> addTo;
+    private final Dictionary addTo;
 
     /**
      * Creates a new dialog for the given entry.
      */
-    NewWordDialog(final AugmentedEntry entry, final List<LearningWord> addTo) {
+    NewWordDialog(final AugmentedEntry entry, final Dictionary addTo) {
         this.entry = entry;
         this.addTo = addTo;
         kebChoices = new ChoiceBox<>();

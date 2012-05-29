@@ -283,7 +283,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
             case NEW_WORD: {
                 final AugmentedEntry entry = description.getSelected();
                 if (entry != null) {
-                    new NewWordDialog(entry, wordsToLearn).show();
+                    new NewWordDialog(entry, table.dictionary).show();
                 }
                 break;
             }

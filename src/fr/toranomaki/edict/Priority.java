@@ -190,15 +190,14 @@ public final class Priority implements Comparable<Priority> {
      *
      * @return The priority of the given type and rank.
      */
-    public Priority intern() {
-        synchronized (Priority.class) {
-            final Priority existing = CACHE.get(this);
-            if (existing != null) {
-                return existing;
-            }
-            CACHE.put(this, this);
-            return this;
+    private Priority intern() {
+        assert Thread.holdsLock(Priority.class);
+        final Priority existing = CACHE.get(this);
+        if (existing != null) {
+            return existing;
         }
+        CACHE.put(this, this);
+        return this;
     }
 
     /**

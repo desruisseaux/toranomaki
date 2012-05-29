@@ -154,7 +154,7 @@ public class DictionaryReader extends BinaryData {
      * @param  word The word to search.
      * @return The index of the given word, or the insertion point with all bits reversed.
      */
-    public final int getWordIndex(final Alphabet alphabet, final String word) {
+    public final synchronized int getWordIndex(final Alphabet alphabet, final String word) {
         return wordIndex[alphabet.ordinal()].getWordIndex(word);
     }
 
@@ -167,7 +167,7 @@ public class DictionaryReader extends BinaryData {
      * @return The word at the given index.
      * @throws IndexOutOfBoundsException If the given index is out of bounds.
      */
-    public final String getWordAt(final Alphabet alphabet, final int wordIndex) throws IndexOutOfBoundsException {
+    public final synchronized String getWordAt(final Alphabet alphabet, final int wordIndex) throws IndexOutOfBoundsException {
         return this.wordIndex[alphabet.ordinal()].getWordAt(wordIndex);
     }
 
@@ -179,7 +179,7 @@ public class DictionaryReader extends BinaryData {
      * @param  position Entry position, in bytes relative to the beginning of the entry pool.
      * @return The entry at the given index.
      */
-    public final AugmentedEntry getEntryAt(final int position) {
+    public final synchronized AugmentedEntry getEntryAt(final int position) {
         final Integer key = position;
         AugmentedEntry entry = cachedEntries.get(key);
         if (entry != null) {
@@ -227,6 +227,7 @@ public class DictionaryReader extends BinaryData {
         if (languages != LANGUAGES) {
             ((Entry) entry).addSenseSummary(languages);
         }
+        entryCreated(entry);
         cachedEntries.put(key, entry);
         return entry;
     }
@@ -238,7 +239,7 @@ public class DictionaryReader extends BinaryData {
      * @param  words The words to search. Null elements are ignored.
      * @return Entries using all the given words, or an empty array if none.
      */
-    public final AugmentedEntry[] getEntriesUsingAll(final Alphabet alphabet, final String... words) {
+    public final synchronized AugmentedEntry[] getEntriesUsingAll(final Alphabet alphabet, final String... words) {
         if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
         return wordIndex[alphabet.ordinal()].getEntriesUsingAll(words);
     }
@@ -252,7 +253,7 @@ public class DictionaryReader extends BinaryData {
      * @param  prefix The prefix.
      * @return Entries beginning by the given prefix.
      */
-    public final AugmentedEntry[] getEntriesUsingPrefix(final Alphabet alphabet, final String prefix) {
+    public final synchronized AugmentedEntry[] getEntriesUsingPrefix(final Alphabet alphabet, final String prefix) {
         if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
         return wordIndex[alphabet.ordinal()].getEntriesUsingPrefix(prefix, new PrefixType(prefix), false);
     }
@@ -266,7 +267,7 @@ public class DictionaryReader extends BinaryData {
      *        {@link SearchResult#documentOffset} field for caller convenience.
      * @return The search result, or {@code null} if none.
      */
-    public final SearchResult searchBest(final String toSearch, final int documentOffset) {
+    public final synchronized SearchResult searchBest(final String toSearch, final int documentOffset) {
         if (toSearch == null || toSearch.isEmpty()) {
             return null;
         }
@@ -274,5 +275,15 @@ public class DictionaryReader extends BinaryData {
         final AugmentedEntry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(toSearch, pt, true);
         Arrays.sort(entries); // Move entries with highest priority first.
         return SearchResult.search(entries, toSearch, pt.type().isKanji, documentOffset);
+    }
+
+    /**
+     * Invoked by {@link #getEntryAt(int)} when a new entry has been created.
+     * The default implementation does nothing. Subclasses can override this
+     * method is they need to perform some additional processing on the entry.
+     *
+     * @param entry The new entry.
+     */
+    protected void entryCreated(final AugmentedEntry entry) {
     }
 }

@@ -19,6 +19,8 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.HashMap;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -29,6 +31,7 @@ import java.io.Writer;
 import java.io.IOException;
 
 import fr.toranomaki.edict.DictionaryReader;
+import fr.toranomaki.grammar.AugmentedEntry;
 import fr.toranomaki.grammar.CharacterType;
 
 
@@ -58,6 +61,14 @@ final class Dictionary extends DictionaryReader {
      * in order to detect if this list has changed.
      */
     private final LearningWord[] initialWordsToLearn;
+
+    /**
+     * The {@link LearningWord} instance for a given Kanji or reading element.
+     * The values are either {@code LearningWord} or {@code LearningWord[]}.
+     * This map is used when a {@linkplain #entryCreated new entry is created},
+     * in order to detect if that entry is a learning word.
+     */
+    private final Map<String,Object> elementsToLearn;
 
     /**
      * Creates a new dictionary instance. After the dictionary has been initialized, this
@@ -98,6 +109,44 @@ final class Dictionary extends DictionaryReader {
         }
         wordsToLearn = new ArrayList<>(words);
         initialWordsToLearn = wordsToLearn.toArray(new LearningWord[wordsToLearn.size()]);
+        elementsToLearn = new HashMap<>(words.size());
+        for (final LearningWord word : initialWordsToLearn) {
+            addToMap(word, true);
+            addToMap(word, false);
+        }
+    }
+
+    /**
+     * Adds the Kanji or reading elements of the given word to the map of elements.
+     * This map is used when a {@linkplain #entryCreated new entry is created}, in
+     * order to detect if that entry is a learning word.
+     */
+    private void addToMap(final LearningWord word, final boolean isKanji) {
+        final String element = word.getElement(isKanji);
+        if (element != null) {
+            final Object old = elementsToLearn.put(element, word);
+            if (old != null) {
+                LearningWord[] array;
+                if (old instanceof LearningWord) {
+                    array = new LearningWord[] {(LearningWord) old, word};
+                } else {
+                    array = (LearningWord[]) old;
+                    final int length = array.length;
+                    array = Arrays.copyOf(array, length + 1);
+                    array[length] = word;
+                }
+                elementsToLearn.put(element, array);
+            }
+        }
+    }
+
+    /**
+     * Adds a new word to the list of words to learn.
+     */
+    final synchronized void add(final LearningWord word) {
+        wordsToLearn.add(word);
+        addToMap(word, true);
+        addToMap(word, false);
     }
 
     /**
@@ -112,7 +161,7 @@ final class Dictionary extends DictionaryReader {
      *
      * @throws IOException If an error occurred while saving.
      */
-    final void save() throws IOException {
+    final synchronized void save() throws IOException {
         if (wordsToLearn.equals(Arrays.asList(initialWordsToLearn))) {
             return;  // No change in the list of words, so do nothing.
         }
@@ -130,5 +179,43 @@ final class Dictionary extends DictionaryReader {
                 out.write(lineSeparator);
             }
         }
+    }
+
+    /**
+     * Invoked by {@link #getEntryAt(int)} when a new entry has been created.
+     * This method verifies if the new word is one of the learning words.
+     */
+    @Override
+    protected void entryCreated(final AugmentedEntry entry) {
+        boolean isKanji = true;
+        do {
+            final int count = entry.getCount(isKanji);
+            for (int i=0; i<count; i++) {
+                final Object value = elementsToLearn.get(entry.getWord(isKanji, i));
+                if (value != null) {
+                    /*
+                     * Found one or many LearningWord instances which contain a Kanji or
+                     * reading elements equals to one of the Kanji or reading elements of
+                     * the new entry.
+                     */
+                    final LearningWord[] array;
+                    final int length;
+                    if (value instanceof LearningWord[]) {
+                        array  = (LearningWord[]) value;
+                        length = array.length;
+                    } else {
+                        array  = null;
+                        length = 1;
+                    }
+                    for (int j=0; j<length; j++) {
+                        final LearningWord word = (array != null) ? array[i] : (LearningWord) value;
+                        if (word.isForEntry(entry, isKanji)) {
+                            entry.setLearningWord(word.kanji, word.reading);
+                            return;
+                        }
+                    }
+                }
+            }
+        } while ((isKanji = !isKanji) == false);
     }
 }

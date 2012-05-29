@@ -36,6 +36,8 @@ final class LearningWord extends Data {
     /**
      * The Kanji and reading elements, or {@code null} if none. Those strings are used for locating
      * the entry in the database. They also identified the preferred elements to display.
+     *
+     * @see #getElement(boolean)
      */
     final String kanji, reading;
 
@@ -70,6 +72,16 @@ final class LearningWord extends Data {
     }
 
     /**
+     * Returns the Kanji or reading elements.
+     *
+     * @param  isKanji {@code true} for the Kanji element, or {@code false} for the reading element.
+     * @return The requested element, or {@code null} if none.
+     */
+    public String getElement(final boolean isKanji) {
+        return isKanji ? kanji : reading;
+    }
+
+    /**
      * Returns the entry associated with this word to learn.
      *
      * @param  dictionary The dictionary to use for fetching the word when needed.
@@ -84,9 +96,27 @@ final class LearningWord extends Data {
                 case 2: Arrays.sort(candidates); break; // Highest priority first.
             }
             entry = candidates[0];
-            entry.setLearningWord(kanji, reading);
+            assert entry.isLearningWord();
         }
         return entry;
+    }
+
+    /**
+     * Returns {@code true} if the Kanji or reading element of this {@code LearningWord} is
+     * contained in the given entry.
+     */
+    final boolean isForEntry(final AugmentedEntry entry, final boolean isKanji) {
+        final String element = getElement(isKanji);
+        final int count = entry.getCount(isKanji);
+        if (element == null && count == 0) {
+            return true;
+        }
+        for (int i=0; i<count; i++) {
+            if (element.equals(entry.getWord(isKanji, i))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
