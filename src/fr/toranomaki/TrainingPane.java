@@ -47,30 +47,6 @@ import fr.toranomaki.grammar.AugmentedEntry;
  */
 final class TrainingPane implements EventHandler<ActionEvent> {
     /**
-     * The panel which describe the word which has been asked to the user.
-     */
-    private final class WordDescription extends WordPanel {
-        /**
-         * Enables the "add word" button only if the selected word is a new word.
-         */
-        @Override
-        void setSelected(AugmentedEntry entry) {
-            if (entry == null) {
-                // If the user did a search in the table of words, then cleared the search,
-                // go back to the state where he choose if the word was "easy" or "hard".
-                setButtonDisabled(getWordsToLearn().isEmpty(), true);
-            } else {
-                final boolean isWordToLearn = entry.isWordToLearn();
-                setButtonDisabled(!isWordToLearn, isWordToLearn);
-                if (isWordToLearn && !translate.isSelected()) {
-                    entry = null; // If the user didn't asked for a translation, hide it.
-                }
-            }
-            super.setSelected(entry);
-        }
-    }
-
-    /**
      * Identifiers used for the "Easy", "Medium", "Hard", "Translate", "List words" and "Add word" buttons.
      */
     private static final String EASY="EASY", MEDIUM="MEDIUM", HARD="HARD",
@@ -188,7 +164,31 @@ final class TrainingPane implements EventHandler<ActionEvent> {
     }
 
     /**
-     * Enable or disable the buttons.
+     * The panel which describe the word which has been asked to the user.
+     */
+    private final class WordDescription extends WordPanel {
+        /**
+         * Enables the "add word" button only if the selected word is a new word.
+         */
+        @Override
+        void setSelected(AugmentedEntry entry) {
+            if (entry == null) {
+                // If the user did a search in the table of words, then cleared the search,
+                // go back to the state where he choose if the word was "easy" or "hard".
+                setButtonDisabled(getWordsToLearn().isEmpty(), true);
+            } else {
+                final boolean isWordToLearn = entry.isWordToLearn();
+                setButtonDisabled(!isWordToLearn, isWordToLearn);
+                if (isWordToLearn && !translate.isSelected()) {
+                    entry = null; // If the user didn't asked for a translation, hide it.
+                }
+            }
+            super.setSelected(entry);
+        }
+    }
+
+    /**
+     * Enables or disables the buttons.
      *
      * @param knowledge {@code true} for disabling the "Easy" and "Hard" buttons.
      * @param addition  {@code true} for disabling the "New word" button.
@@ -227,7 +227,8 @@ final class TrainingPane implements EventHandler<ActionEvent> {
         AugmentedEntry entry = null;
         int last = wordIndex;
         while (!wordsToLearn.isEmpty()) {
-            wordIndex = random.nextInt(wordsToLearn.size()); // TODO: give more weight to last entries.
+            final int size = wordsToLearn.size();
+            wordIndex = Math.min(size-1, (int) Math.sqrt(size*size * random.nextDouble()));
             if (wordIndex != last || wordsToLearn.size() == 1) {
                 final WordToLearn word = wordsToLearn.get(wordIndex);
                 entry = word.getEntry(table.dictionary);
