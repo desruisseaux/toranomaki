@@ -17,6 +17,7 @@ package fr.toranomaki;
 import java.util.List;
 import java.util.Random;
 import java.util.Collections;
+import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 import java.io.IOException;
@@ -95,36 +96,43 @@ final class TrainingPane implements EventHandler<ActionEvent> {
      * @throws IOException If an error occurred while loading the list of words.
      */
     TrainingPane(final Dictionary dictionary, final ExecutorService executor) throws IOException {
+        final ResourceBundle resources = ResourceBundle.getBundle("fr/toranomaki/Resources");
         description  = new WordDescription();
         table        = new WordTable(description, dictionary, executor);
         query        = new Label();
-        easy         = new Button("Easy");        easy     .setId(EASY);
-        medium       = new Button("Medium");      medium   .setId(MEDIUM);
-        hard         = new Button("Hard");        hard     .setId(HARD);
-        listWords    = new Button("List");        listWords.setId(LIST_WORDS);
-        addWord      = new Button("Add");         addWord  .setId(ADD_WORD);
-        translate    = new CheckBox("Translate"); translate.setId(TRANSLATE);
+        easy         = (Button)   createButton(EASY,       resources, false);
+        medium       = (Button)   createButton(MEDIUM,     resources, false);
+        hard         = (Button)   createButton(HARD,       resources, false);
+        listWords    = (Button)   createButton(LIST_WORDS, resources, false);
+        addWord      = (Button)   createButton(ADD_WORD,   resources, false);
+        translate    = (CheckBox) createButton(TRANSLATE,  resources, true);
         random       = new Random();
         showNextWord();
+    }
+
+    /**
+     * Creates a new button with a label fetched from the resource bundle using the given key.
+     */
+    private ButtonBase createButton(final String id, final ResourceBundle resources, final boolean checkbox) {
+        final String label = resources.getString(id);
+        final ButtonBase button;
+        if (checkbox) {
+            button = new CheckBox(label);
+        } else {
+            button = new Button(label);
+            button.setMaxWidth(100);
+        }
+        button.setId(id);
+        button.setOnAction(this);
+        return button;
     }
 
     /**
      * Creates the widget pane to be shown in the application.
      */
     final Node createPane() {
-        query    .setAlignment(Pos.CENTER);
-        query    .setFont(Font.font(null, 24));
-        easy     .setOnAction(this);
-        medium   .setOnAction(this);
-        hard     .setOnAction(this);
-        listWords.setOnAction(this);
-        addWord  .setOnAction(this);
-        translate.setOnAction(this);
-        easy     .setMaxWidth(100);
-        medium   .setMaxWidth(100);
-        hard     .setMaxWidth(100);
-        listWords.setMaxWidth(100);
-        addWord  .setMaxWidth(100);
+        query.setAlignment(Pos.CENTER);
+        query.setFont(Font.font(null, 24));
 
         final TilePane buttons = new TilePane();
         buttons.setHgap(9);
