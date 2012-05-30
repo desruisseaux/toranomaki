@@ -102,7 +102,7 @@ public final class SwingMain extends WindowAdapter {
                 final StackPane stack = new StackPane();
                 stack.getChildren().add(description.createPane());
                 fxDesc.setScene(new Scene(stack));
-                fxTable.setScene(new Scene(table.createPane()));
+                fxTable.setScene(new Scene(table.createPane(null)));
             }
         });
     }

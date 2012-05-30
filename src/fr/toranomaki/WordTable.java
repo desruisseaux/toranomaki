@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 
 import javafx.application.Platform;
+import javafx.scene.Node;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.control.TextField;
@@ -88,8 +89,11 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
 
     /**
      * Creates the widget pane to be shown in the application.
+     *
+     * @param buttons Custom buttons to put on the right side of the search field,
+     *        or {@code null} if none.
      */
-    Pane createPane() {
+    Pane createPane(final Node customButtons) {
         final TableView<AugmentedEntry> table = new TableView<>(entries);
         final ObservableList<TableColumn<AugmentedEntry, ?>> columns = table.getColumns();
         final EntryCellValue.DefaultFactory defaultFactory = new EntryCellValue.DefaultFactory();
@@ -125,7 +129,15 @@ final class WordTable implements EventHandler<ActionEvent>, ListChangeListener<T
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         final BorderPane pane = new BorderPane();
         pane.setCenter(table);
-        pane.setBottom(search);
+
+        Node searchBar = search;
+        if (customButtons != null) {
+            final BorderPane p = new BorderPane();
+            p.setCenter(searchBar);
+            p.setRight(customButtons);
+            searchBar = p;
+        }
+        pane.setBottom(searchBar);
         return pane;
     }
 

@@ -71,9 +71,10 @@ final class TrainingPane implements EventHandler<ActionEvent> {
     }
 
     /**
-     * Identifiers used for the "Easy", "Hard", "Translate" and "New word" buttons.
+     * Identifiers used for the "Easy", "Medium", "Hard", "Translate", "List words" and "Add word" buttons.
      */
-    private static final String EASY="EASY", HARD="HARD", TRANSLATE="TRANSLATE", NEW_WORD="NEW_WORD";
+    private static final String EASY="EASY", MEDIUM="MEDIUM", HARD="HARD",
+            TRANSLATE="TRANSLATE", LIST_WORDS="LIST_WORDS", ADD_WORD="ADD_WORD";
 
     /**
      * The list of words to use for the training.
@@ -95,7 +96,7 @@ final class TrainingPane implements EventHandler<ActionEvent> {
     /**
      * The buttons displayed below the query label.
      */
-    private final Button easy, hard, newWord;
+    private final Button easy, medium, hard, listWords, addWord;
 
     /**
      * The checkbox for asking to show the translation.
@@ -122,8 +123,10 @@ final class TrainingPane implements EventHandler<ActionEvent> {
         table        = new WordTable(description, dictionary, executor);
         query        = new Label();
         easy         = new Button("Easy");        easy     .setId(EASY);
+        medium       = new Button("Medium");      medium   .setId(MEDIUM);
         hard         = new Button("Hard");        hard     .setId(HARD);
-        newWord      = new Button("New word");    newWord  .setId(NEW_WORD);
+        listWords    = new Button("List");        listWords.setId(LIST_WORDS);
+        addWord      = new Button("Add");         addWord  .setId(ADD_WORD);
         translate    = new CheckBox("Translate"); translate.setId(TRANSLATE);
         random       = new Random();
         showNextWord();
@@ -136,18 +139,23 @@ final class TrainingPane implements EventHandler<ActionEvent> {
         query    .setAlignment(Pos.CENTER);
         query    .setFont(Font.font(null, 24));
         easy     .setOnAction(this);
+        medium   .setOnAction(this);
         hard     .setOnAction(this);
-        newWord  .setOnAction(this);
+        listWords.setOnAction(this);
+        addWord  .setOnAction(this);
         translate.setOnAction(this);
         easy     .setMaxWidth(100);
+        medium   .setMaxWidth(100);
         hard     .setMaxWidth(100);
-        newWord  .setMaxWidth(100);
+        listWords.setMaxWidth(100);
+        addWord  .setMaxWidth(100);
+
         final TilePane buttons = new TilePane();
         buttons.setHgap(9);
         buttons.setPrefRows(1);
-        buttons.setPrefColumns(2);
+        buttons.setPrefColumns(3);
         buttons.setAlignment(Pos.CENTER);
-        buttons.getChildren().addAll(easy, hard, newWord);
+        buttons.getChildren().addAll(easy, medium, hard);
 
         final Insets margin = new Insets(12);
         VBox.setMargin(query,     margin);
@@ -157,11 +165,18 @@ final class TrainingPane implements EventHandler<ActionEvent> {
         centerPane.setAlignment(Pos.CENTER);
         centerPane.getChildren().addAll(query, translate, buttons);
 
+        final TilePane searchButtons = new TilePane();
+        searchButtons.setHgap(3);
+        searchButtons.setPrefRows(1);
+        searchButtons.setPrefColumns(2);
+        searchButtons.getChildren().addAll(listWords, addWord);
+        searchButtons.setMaxWidth(TilePane.USE_PREF_SIZE);
+
         final Node desc = description.createPane();
         SplitPane.setResizableWithParent(desc, false);
         final SplitPane pane = new SplitPane();
         pane.setOrientation(Orientation.VERTICAL);
-        pane.getItems().addAll(desc, centerPane, table.createPane());
+        pane.getItems().addAll(desc, centerPane, table.createPane(searchButtons));
         pane.setDividerPositions(0.15, 0.6);
 
         pane.setOnKeyTyped(new EventHandler<KeyEvent>() {
@@ -179,9 +194,11 @@ final class TrainingPane implements EventHandler<ActionEvent> {
      * @param addition  {@code true} for disabling the "New word" button.
      */
     final void setButtonDisabled(final boolean knowledge, final boolean addition) {
-        easy   .setDisable(knowledge);
-        hard   .setDisable(knowledge);
-        newWord.setDisable(addition);
+        easy     .setDisable(knowledge);
+        medium   .setDisable(knowledge);
+        hard     .setDisable(knowledge);
+        translate.setDisable(knowledge);
+        addWord  .setDisable(addition);
     }
 
     /**
@@ -261,6 +278,17 @@ final class TrainingPane implements EventHandler<ActionEvent> {
                 break;
             }
             /*
+             * If the user identified the current word as of medium difficulty, move it up a
+             * little bit in our list. This is a much less drastic move than for "hard" words.
+             */
+            case MEDIUM: {
+                if (wordIndex != wordsToLearn.size() - 1) {
+                    Collections.swap(wordsToLearn, wordIndex, ++wordIndex);
+                }
+                showNextWord();
+                break;
+            }
+            /*
              * If the user identified the current word as "difficult", move it straight
              * to the end of our list of words. This will give to this word high chance
              * to be picked again by the 'showNextWord()' method.
@@ -277,10 +305,21 @@ final class TrainingPane implements EventHandler<ActionEvent> {
                 break;
             }
             /*
+             * The user asked to show the list of words to learn.
+             */
+            case LIST_WORDS: {
+                final AugmentedEntry[] entries = new AugmentedEntry[wordsToLearn.size()];
+                for (int i=0; i<entries.length; i++) {
+                    entries[i] = wordsToLearn.get(i).getEntry(table.dictionary);
+                }
+                table.setContent(entries, wordIndex);
+                break;
+            }
+            /*
              * If the user selected a new word to learn, ask confirmation and add it to
              * out list.
              */
-            case NEW_WORD: {
+            case ADD_WORD: {
                 final AugmentedEntry entry = description.getSelected();
                 if (entry != null) {
                     new NewWordDialog(entry, table.dictionary).show();
@@ -305,8 +344,8 @@ final class TrainingPane implements EventHandler<ActionEvent> {
             switch (i) {
                 case 0: button = translate; break;
                 case 1: button = easy;      break;
-                case 2: button = hard;      break;
-                case 3: button = newWord;   break;
+                case 2: button = medium;    break;
+                case 3: button = hard;      break;
                 default: throw new AssertionError(i);
             }
             if (button.getText().startsWith(key)) {

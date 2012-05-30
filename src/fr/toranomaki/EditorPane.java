@@ -61,7 +61,7 @@ final class EditorPane {
         SplitPane.setResizableWithParent(desc, false);
         final SplitPane pane = new SplitPane();
         pane.setOrientation(Orientation.VERTICAL);
-        pane.getItems().addAll(desc, text, table.createPane());
+        pane.getItems().addAll(desc, text, table.createPane(null));
         pane.setDividerPositions(0.15, 0.6);
         return pane;
     }
