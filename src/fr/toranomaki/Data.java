@@ -76,7 +76,7 @@ public abstract class Data {
         if (property != null) {
             directory = Paths.get(property);
         } else {
-            URL url = Data.class.getResource("DataStore.class");
+            URL url = Data.class.getResource("Data.class");
             if ("jar".equals(url.getProtocol())) {
                 String path = url.getPath();
                 path = path.substring(0, path.indexOf('!'));

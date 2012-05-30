@@ -27,7 +27,7 @@ import fr.toranomaki.grammar.AugmentedEntry;
  *
  * @author Martin Desruisseaux
  */
-final class LearningWord extends Data {
+final class WordToLearn extends Data {
     /**
      * The entry, which will be fetched from the database when first needed.
      */
@@ -44,7 +44,7 @@ final class LearningWord extends Data {
     /**
      * Creates a new word to learn for the given Kanji and reading elements.
      */
-    LearningWord(final String kanji, final String reading) {
+    WordToLearn(final String kanji, final String reading) {
         this.kanji   = trim(kanji);
         this.reading = trim(reading);
     }
@@ -96,13 +96,13 @@ final class LearningWord extends Data {
                 case 2: Arrays.sort(candidates); break; // Highest priority first.
             }
             entry = candidates[0];
-            assert entry.isLearningWord();
+            assert entry.isWordToLearn();
         }
         return entry;
     }
 
     /**
-     * Returns {@code true} if the Kanji or reading element of this {@code LearningWord} is
+     * Returns {@code true} if the Kanji or reading element of this {@code WordToLearn} is
      * contained in the given entry.
      */
     final boolean isForEntry(final AugmentedEntry entry, final boolean isKanji) {
@@ -124,8 +124,8 @@ final class LearningWord extends Data {
      */
     @Override
     public boolean equals(final Object obj) {
-        if (obj instanceof LearningWord) {
-            final LearningWord other = (LearningWord) obj;
+        if (obj instanceof WordToLearn) {
+            final WordToLearn other = (WordToLearn) obj;
             return Objects.equals(kanji,   other.kanji) &&
                    Objects.equals(reading, other.reading);
         }

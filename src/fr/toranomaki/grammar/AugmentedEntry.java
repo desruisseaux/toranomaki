@@ -63,7 +63,7 @@ public final class AugmentedEntry extends Entry {
      * The mask to be set if the entry is used for training.
      * We arbitrarily set this bit on the reading element only.
      */
-    private static final int LEARNING_WORD = 4;
+    private static final int WORD_TO_LEARN = 4;
 
     /**
      * Number of bits used by the above masks.
@@ -111,9 +111,9 @@ public final class AugmentedEntry extends Entry {
      * @param kanji   The preferred Kanji element.
      * @param reading The preferred reading element.
      */
-    public synchronized void setLearningWord(final String kanji, final String reading) {
+    public synchronized void setWordToLearn(final String kanji, final String reading) {
         getAnnotationMask(false); // For annotation computation.
-        annotations |= LEARNING_WORD;
+        annotations |= WORD_TO_LEARN;
         setPreferred(true,  kanji);
         setPreferred(false, reading);
     }
@@ -124,8 +124,8 @@ public final class AugmentedEntry extends Entry {
      *
      * @return {@code true} if this entry is used for user training.
      */
-    public boolean isLearningWord() {
-        return (getAnnotationMask(false) & LEARNING_WORD) != 0;
+    public boolean isWordToLearn() {
+        return (getAnnotationMask(false) & WORD_TO_LEARN) != 0;
     }
 
     /**
@@ -259,12 +259,12 @@ public final class AugmentedEntry extends Entry {
     }
 
     /**
-     * Compares this entry with the given object in order to sort learning words first.
+     * Compares this entry with the given object in order to sort first the words to learn.
      */
     @Override
     public int compareTo(final Entry other) {
-        final boolean ln1 = isLearningWord();
-        final boolean ln2 = (other instanceof AugmentedEntry) && ((AugmentedEntry) other).isLearningWord();
+        final boolean ln1 = isWordToLearn();
+        final boolean ln2 = (other instanceof AugmentedEntry) && ((AugmentedEntry) other).isWordToLearn();
         if (ln1 != ln2) {
             return ln1 ? -1 : +1;
         }

@@ -44,7 +44,7 @@ import fr.toranomaki.grammar.CharacterType;
  */
 final class Dictionary extends DictionaryReader {
     /**
-     * The separator character to use when saving the list of learning words.
+     * The separator character to use when saving the list of words to learn.
      * This is the separator to put between Kanji and reading elements.
      */
     private static final char SEPARATOR = '\t';
@@ -53,34 +53,34 @@ final class Dictionary extends DictionaryReader {
      * The list of words to learn. This list is sorted from easiest to more difficult words,
      * words, as indicated by the user by clicking on the "Easy" or "Hard" buttons.
      */
-    final List<LearningWord> wordsToLearn;
+    final List<WordToLearn> wordsToLearn;
 
     /**
      * A snapshot of the {@link #wordsToLearn} list at construction time.
      * This is used before to {@linkplain #save() save} the list of words
      * in order to detect if this list has changed.
      */
-    private final LearningWord[] initialWordsToLearn;
+    private final WordToLearn[] initialWordsToLearn;
 
     /**
-     * The {@link LearningWord} instance for a given Kanji or reading element.
-     * The values are either {@code LearningWord} or {@code LearningWord[]}.
+     * The {@link WordToLearn} instance for a given Kanji or reading element.
+     * The values are either {@code WordToLearn} or {@code WordToLearn[]}.
      * This map is used when a {@linkplain #entryCreated new entry is created},
-     * in order to detect if that entry is a learning word.
+     * in order to detect if that entry is a word to learn.
      */
     private final Map<String,Object> elementsToLearn;
 
     /**
      * Creates a new dictionary instance. After the dictionary has been initialized, this
-     * constructors loads  the list of learning words from the last saved session. If no
+     * constructors loads the list of words to learn from the last saved session. If no
      * session was found, creates a single arbitrary word. This is needed because
-     * {@link LearningPane} is not designed for working with an empty list.
+     * {@link TrainingPane} is not designed for working with an empty list.
      *
      * @throws IOException If an error occurred while reading the file.
      */
     public Dictionary() throws IOException {
         super();
-        final Set<LearningWord> words = new LinkedHashSet<>(64);
+        final Set<WordToLearn> words = new LinkedHashSet<>(64);
         final File file = getFile();
         if (file.isFile()) {
             try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(file), FILE_ENCODING))) {
@@ -99,18 +99,18 @@ final class Dictionary extends DictionaryReader {
                                 s = CharacterType.forWord(line).isKanji ? line.length()-1 : 0;
                             }
                         }
-                        words.add(new LearningWord(line.substring(0,s), line.substring(s+1)));
+                        words.add(new WordToLearn(line.substring(0,s), line.substring(s+1)));
                     }
                 }
             }
         }
         if (words.isEmpty()) {
-            words.add(new LearningWord("お早う", "おはよう"));
+            words.add(new WordToLearn("お早う", "おはよう"));
         }
         wordsToLearn = new ArrayList<>(words);
-        initialWordsToLearn = wordsToLearn.toArray(new LearningWord[wordsToLearn.size()]);
+        initialWordsToLearn = wordsToLearn.toArray(new WordToLearn[wordsToLearn.size()]);
         elementsToLearn = new HashMap<>(words.size());
-        for (final LearningWord word : initialWordsToLearn) {
+        for (final WordToLearn word : initialWordsToLearn) {
             addToMap(word, true);
             addToMap(word, false);
         }
@@ -119,18 +119,18 @@ final class Dictionary extends DictionaryReader {
     /**
      * Adds the Kanji or reading elements of the given word to the map of elements.
      * This map is used when a {@linkplain #entryCreated new entry is created}, in
-     * order to detect if that entry is a learning word.
+     * order to detect if that entry is a word to learn.
      */
-    private void addToMap(final LearningWord word, final boolean isKanji) {
+    private void addToMap(final WordToLearn word, final boolean isKanji) {
         final String element = word.getElement(isKanji);
         if (element != null) {
             final Object old = elementsToLearn.put(element, word);
             if (old != null) {
-                LearningWord[] array;
-                if (old instanceof LearningWord) {
-                    array = new LearningWord[] {(LearningWord) old, word};
+                WordToLearn[] array;
+                if (old instanceof WordToLearn) {
+                    array = new WordToLearn[] {(WordToLearn) old, word};
                 } else {
-                    array = (LearningWord[]) old;
+                    array = (WordToLearn[]) old;
                     final int length = array.length;
                     array = Arrays.copyOf(array, length + 1);
                     array[length] = word;
@@ -143,7 +143,7 @@ final class Dictionary extends DictionaryReader {
     /**
      * Adds a new word to the list of words to learn.
      */
-    final synchronized void add(final LearningWord word) {
+    final synchronized void add(final WordToLearn word) {
         wordsToLearn.add(word);
         addToMap(word, true);
         addToMap(word, false);
@@ -153,11 +153,11 @@ final class Dictionary extends DictionaryReader {
      * Returns the file in which to save the words list.
      */
     private static File getFile() throws IOException {
-        return getDirectory().resolve("LearningWords.txt").toFile();
+        return getDirectory().resolve("WordsToLearn.txt").toFile();
     }
 
     /**
-     * Saves the list of learning words.
+     * Saves the list of words to learn.
      *
      * @throws IOException If an error occurred while saving.
      */
@@ -168,7 +168,7 @@ final class Dictionary extends DictionaryReader {
         final String lineSeparator = System.lineSeparator();
         try (Writer out = new OutputStreamWriter(new FileOutputStream(getFile()), FILE_ENCODING)) {
             out.write(BYTE_ORDER_MARK);
-            for (final LearningWord word : wordsToLearn) {
+            for (final WordToLearn word : wordsToLearn) {
                 if (word.kanji != null) {
                     out.write(word.kanji);
                 }
@@ -183,7 +183,7 @@ final class Dictionary extends DictionaryReader {
 
     /**
      * Invoked by {@link #getEntryAt(int)} when a new entry has been created.
-     * This method verifies if the new word is one of the learning words.
+     * This method verifies if the new word is one of the words to learn.
      */
     @Override
     protected void entryCreated(final AugmentedEntry entry) {
@@ -194,23 +194,23 @@ final class Dictionary extends DictionaryReader {
                 final Object value = elementsToLearn.get(entry.getWord(isKanji, i));
                 if (value != null) {
                     /*
-                     * Found one or many LearningWord instances which contain a Kanji or
+                     * Found one or many WordToLearn instances which contain a Kanji or
                      * reading elements equals to one of the Kanji or reading elements of
                      * the new entry.
                      */
-                    final LearningWord[] array;
+                    final WordToLearn[] array;
                     final int length;
-                    if (value instanceof LearningWord[]) {
-                        array  = (LearningWord[]) value;
+                    if (value instanceof WordToLearn[]) {
+                        array  = (WordToLearn[]) value;
                         length = array.length;
                     } else {
                         array  = null;
                         length = 1;
                     }
                     for (int j=0; j<length; j++) {
-                        final LearningWord word = (array != null) ? array[i] : (LearningWord) value;
+                        final WordToLearn word = (array != null) ? array[i] : (WordToLearn) value;
                         if (word.isForEntry(entry, isKanji)) {
-                            entry.setLearningWord(word.kanji, word.reading);
+                            entry.setWordToLearn(word.kanji, word.reading);
                             return;
                         }
                     }

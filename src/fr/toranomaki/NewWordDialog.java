@@ -159,8 +159,8 @@ final class NewWordDialog implements EventHandler<ActionEvent> {
             case ADD: {
                 final String kanji   = kebChoices.getSelectionModel().getSelectedItem();
                 final String reading = rebChoices.getSelectionModel().getSelectedItem();
-                final LearningWord word = new LearningWord(kanji, reading);
-                entry.setLearningWord(kanji, reading);
+                final WordToLearn word = new WordToLearn(kanji, reading);
+                entry.setWordToLearn(kanji, reading);
                 addTo.add(word);
                 break;
             }

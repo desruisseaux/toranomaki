@@ -45,7 +45,7 @@ import fr.toranomaki.grammar.AugmentedEntry;
  *
  * @author Martin Desruisseaux
  */
-final class LearningPane implements EventHandler<ActionEvent> {
+final class TrainingPane implements EventHandler<ActionEvent> {
     /**
      * The panel which describe the word which has been asked to the user.
      */
@@ -60,9 +60,9 @@ final class LearningPane implements EventHandler<ActionEvent> {
                 // go back to the state where he choose if the word was "easy" or "hard".
                 setButtonDisabled(getWordsToLearn().isEmpty(), true);
             } else {
-                final boolean isLearningWord = entry.isLearningWord();
-                setButtonDisabled(!isLearningWord, isLearningWord);
-                if (isLearningWord && !translate.isSelected()) {
+                final boolean isWordToLearn = entry.isWordToLearn();
+                setButtonDisabled(!isWordToLearn, isWordToLearn);
+                if (isWordToLearn && !translate.isSelected()) {
                     entry = null; // If the user didn't asked for a translation, hide it.
                 }
             }
@@ -117,7 +117,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
      *
      * @throws IOException If an error occurred while loading the list of words.
      */
-    LearningPane(final Dictionary dictionary, final ExecutorService executor) throws IOException {
+    TrainingPane(final Dictionary dictionary, final ExecutorService executor) throws IOException {
         description  = new WordDescription();
         table        = new WordTable(description, dictionary, executor);
         query        = new Label();
@@ -187,7 +187,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
     /**
      * Returns the list of words to learn.
      */
-    final List<LearningWord> getWordsToLearn() {
+    final List<WordToLearn> getWordsToLearn() {
         return table.dictionary.wordsToLearn;
     }
 
@@ -195,7 +195,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * Returns the current entry, or {@code null} if none.
      */
     private AugmentedEntry getEntry() {
-        final List<LearningWord> wordsToLearn = getWordsToLearn();
+        final List<WordToLearn> wordsToLearn = getWordsToLearn();
         if (wordsToLearn.isEmpty()) {
             return null;
         }
@@ -206,13 +206,13 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * Show the next word to submit to the user.
      */
     private void showNextWord() {
-        final List<LearningWord> wordsToLearn = getWordsToLearn();
+        final List<WordToLearn> wordsToLearn = getWordsToLearn();
         AugmentedEntry entry = null;
         int last = wordIndex;
         while (!wordsToLearn.isEmpty()) {
             wordIndex = random.nextInt(wordsToLearn.size()); // TODO: give more weight to last entries.
             if (wordIndex != last || wordsToLearn.size() == 1) {
-                final LearningWord word = wordsToLearn.get(wordIndex);
+                final WordToLearn word = wordsToLearn.get(wordIndex);
                 entry = word.getEntry(table.dictionary);
                 if (entry != null) {
                     // Found the next word to show.
@@ -243,7 +243,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
      * Implementation of {@link #handle(ActionEvent)}.
      */
     private void handle(final String id) {
-        final List<LearningWord> wordsToLearn = getWordsToLearn();
+        final List<WordToLearn> wordsToLearn = getWordsToLearn();
         switch (id) {
             default: {
                 throw new AssertionError();
@@ -268,7 +268,7 @@ final class LearningPane implements EventHandler<ActionEvent> {
             case HARD: {
                 final int last = wordsToLearn.size() - 1;
                 if (wordIndex != last) {
-                    final LearningWord word = wordsToLearn.get(wordIndex);
+                    final WordToLearn word = wordsToLearn.get(wordIndex);
                     wordsToLearn.remove(wordIndex);
                     wordsToLearn.add(word);
                     wordIndex = last;

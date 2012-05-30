@@ -85,7 +85,7 @@ final class WordCellFactory implements Callback<TableColumn<AugmentedEntry,Augme
             if (item != null) {
                 text = item.getWord(isKanji, WORD_INDEX);
                 if (!isSelected()) {
-                    if (item.isLearningWord()) {
+                    if (item.isWordToLearn()) {
                         if (!isKanji) {
                             color = Color.DARKGREEN;
                         }
