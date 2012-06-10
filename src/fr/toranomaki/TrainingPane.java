@@ -55,6 +55,15 @@ final class TrainingPane implements EventHandler<ActionEvent> {
     private static final int NUM_PRIORITY_WORDS = 10;
 
     /**
+     * The standard deviation of the Gaussian distribution of random numbers to pickup
+     * for selecting a word. This determine the probability that the easiest words are
+     * selected, compared to the probability that the most "difficult" words are selected.
+     * A value of 1 means that "easiest" word has 37% of the probability of "difficult" words.
+     * For values 1.5, 1.75 and 2, the probabilities are 11%, 5% and 2% respectively.
+     */
+    private static final double STANDARD_DEVIATION = 1.75;
+
+    /**
      * Identifiers used for the "Easy", "Medium", "Hard", "Translate", "List words" and "Add word" buttons.
      */
     private static final String EASY="EASY", MEDIUM="MEDIUM", HARD="HARD",
@@ -247,7 +256,7 @@ final class TrainingPane implements EventHandler<ActionEvent> {
                 wordIndex = size - random.nextInt(NUM_PRIORITY_WORDS) - 1;
             } else {
                 size -= NUM_PRIORITY_WORDS;
-                wordIndex = (int) Math.sqrt(size*size * random.nextDouble());
+                wordIndex = ((int) (Math.abs(random.nextGaussian()) * size / STANDARD_DEVIATION)) % size;
             }
             if (wordIndex != last || size <= 1) {
                 final WordToLearn word = wordsToLearn.get(wordIndex);
