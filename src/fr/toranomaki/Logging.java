@@ -58,6 +58,21 @@ public final class Logging {
     /**
      * Invoked when a serious error occurred which may result in lost of data.
      *
+     * @param classe  The class where the error occurred.
+     * @param method  The method name where the error occurred.
+     * @param message The error.
+     */
+    public static void possibleDataLost(final Class<?> classe, final String method, final String message) {
+        final LogRecord record = new LogRecord(Level.WARNING, message);
+        record.setSourceClassName(classe.getName());
+        record.setSourceMethodName(method);
+        record.setLoggerName(LOGGER.getName());
+        LOGGER.log(record);
+    }
+
+    /**
+     * Invoked when a serious error occurred which may result in lost of data.
+     *
      * @param error The error.
      */
     public static void possibleDataLost(final Throwable error) {

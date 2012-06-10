@@ -85,7 +85,7 @@ final class Dictionary extends DictionaryReader {
         if (file.isFile()) {
             try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(file), FILE_ENCODING))) {
                 String line; while ((line = in.readLine()) != null) {
-                    if (!(line = line.trim()).isEmpty()) {
+                    if (!line.trim().isEmpty()) {
                         if (line.charAt(0) == BYTE_ORDER_MARK) {
                             line = line.substring(1).trim();
                             if (line.isEmpty()) continue;
@@ -96,7 +96,16 @@ final class Dictionary extends DictionaryReader {
                             if (s <= 0) {
                                 // Should not happen neither, unless the user edited the file.
                                 // We have a single word; try to guess if it is Kanji or reading.
-                                s = CharacterType.forWord(line).isKanji ? line.length()-1 : 0;
+                                final String kanji, reading;
+                                if (CharacterType.forWord(line).isKanji) {
+                                    kanji = line;
+                                    reading = null;
+                                } else {
+                                    reading = line;
+                                    kanji = null;
+                                }
+                                words.add(new WordToLearn(kanji, reading));
+                                continue;
                             }
                         }
                         words.add(new WordToLearn(line.substring(0,s), line.substring(s+1)));
@@ -209,7 +218,7 @@ final class Dictionary extends DictionaryReader {
                     }
                     for (int j=0; j<length; j++) {
                         final WordToLearn word = (array != null) ? array[i] : (WordToLearn) value;
-                        if (word.isForEntry(entry, isKanji)) {
+                        if (word.isForEntry(entry, isKanji) && word.isForEntry(entry, !isKanji)) {
                             entry.setWordToLearn(word.kanji, word.reading);
                             return;
                         }

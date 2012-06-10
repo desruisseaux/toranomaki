@@ -15,6 +15,7 @@
 package fr.toranomaki;
 
 import java.util.List;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.Collections;
 import java.util.ResourceBundle;
@@ -47,6 +48,12 @@ import fr.toranomaki.grammar.AugmentedEntry;
  * @author Martin Desruisseaux
  */
 final class TrainingPane implements EventHandler<ActionEvent> {
+    /**
+     * Number of words to ask in priority for the training. A value of 10 means that
+     * the training will ask one of the 10 most difficult words most of the time.
+     */
+    private static final int NUM_PRIORITY_WORDS = 10;
+
     /**
      * Identifiers used for the "Easy", "Medium", "Hard", "Translate", "List words" and "Add word" buttons.
      */
@@ -235,9 +242,14 @@ final class TrainingPane implements EventHandler<ActionEvent> {
         AugmentedEntry entry = null;
         int last = wordIndex;
         while (!wordsToLearn.isEmpty()) {
-            final int size = wordsToLearn.size();
-            wordIndex = Math.min(size-1, (int) Math.sqrt(size*size * random.nextDouble()));
-            if (wordIndex != last || wordsToLearn.size() == 1) {
+            int size = wordsToLearn.size();
+            if (size > NUM_PRIORITY_WORDS && random.nextBoolean()) {
+                wordIndex = size - random.nextInt(NUM_PRIORITY_WORDS) - 1;
+            } else {
+                size -= NUM_PRIORITY_WORDS;
+                wordIndex = (int) Math.sqrt(size*size * random.nextDouble());
+            }
+            if (wordIndex != last || size <= 1) {
                 final WordToLearn word = wordsToLearn.get(wordIndex);
                 entry = word.getEntry(table.dictionary);
                 if (entry != null) {
@@ -281,7 +293,12 @@ final class TrainingPane implements EventHandler<ActionEvent> {
              */
             case EASY: {
                 if (wordIndex != 0) {
-                    Collections.swap(wordsToLearn, wordIndex, --wordIndex);
+                    int n = random.nextInt(Math.min(wordIndex, NUM_PRIORITY_WORDS)) + 1;
+                    final WordToLearn word = wordsToLearn.get(wordIndex);
+                    do {
+                        wordsToLearn.set(wordIndex, wordsToLearn.get(--wordIndex));
+                    } while (--n != 0);
+                    wordsToLearn.set(wordIndex, word);
                 }
                 showNextWord();
                 break;
@@ -317,9 +334,20 @@ final class TrainingPane implements EventHandler<ActionEvent> {
              * The user asked to show the list of words to learn.
              */
             case LIST_WORDS: {
-                final AugmentedEntry[] entries = new AugmentedEntry[wordsToLearn.size()];
-                for (int i=0; i<entries.length; i++) {
-                    entries[i] = wordsToLearn.get(i).getEntry(table.dictionary);
+                AugmentedEntry[] entries = new AugmentedEntry[wordsToLearn.size()];
+                int n=0;
+                for (int i=entries.length; --i>=0;) {
+                    entries[n] = wordsToLearn.get(i).getEntry(table.dictionary);
+                    if (entries[n] == null) {
+                        Logging.possibleDataLost(TrainingPane.class, "handle",
+                                "Can't find the entry for " + wordsToLearn.get(i));
+                        wordsToLearn.remove(i);
+                        continue;
+                    }
+                    n++;
+                }
+                if (n != entries.length) {
+                    entries = Arrays.copyOf(entries, n);
                 }
                 table.setContent(entries, wordIndex);
                 break;

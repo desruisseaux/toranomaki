@@ -17,8 +17,6 @@ package fr.toranomaki;
 import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.List;
-import java.util.ArrayList;
 import java.util.Locale;
 import java.io.InputStream;
 import javafx.scene.Node;
@@ -53,16 +51,6 @@ class WordPanel {
     private static final int LATIN_SIZE=12, HIRAGANA_SIZE=16, KANJI_SIZE=24;
 
     /**
-     * Identifiers associated to {@linkplain #cachedNodes cached nodes}. Those identifiers are
-     * used for distinguish <cite>Part of Speech</cite> and <cite>glossary</cite> from other
-     * kind of nodes. The other kind of nodes are flags, which uses the 3 letters language code
-     * as their identifier.
-     *
-     * @see Node#id
-     */
-    private static final String POS = "POS", GLOSS = "GLOSS";
-
-    /**
      * The label to use for showing the Kanji of the selected element. Despite its name, this field
      * may actually contain the reading element if there is no Kanji for the entry to show.
      */
@@ -95,13 +83,6 @@ class WordPanel {
     private final Insets posInsets, flagInsets;
 
     /**
-     * A cache of nodes, used when there is frequent addition and removal of elements.
-     * This is used for updating the content of the {@link #senses} pane. This cache
-     * should never grow very big. It typically contains less than 20 elements.
-     */
-    private final List<Node> cachedNodes;
-
-    /**
      * Creates a new instance for showing word descriptions.
      */
     WordPanel() {
@@ -111,7 +92,6 @@ class WordPanel {
         kanji       = new Label();
         hiragana    = new Label();
         senses      = new GridPane();
-        cachedNodes = new ArrayList<>();
         kanji   .setAlignment(Pos.TOP_CENTER);
         hiragana.setAlignment(Pos.BASELINE_CENTER);
         senses  .setAlignment(Pos.TOP_LEFT);
@@ -142,43 +122,25 @@ class WordPanel {
     }
 
     /**
-     * Returns a cached nodes for the given ID. The returned node is removed from the cache.
-     */
-    private Node getCachedNode(final String id) {
-        for (int i=cachedNodes.size(); --i>=0;) {
-            final Node node = cachedNodes.get(i);
-            if (id.equals(node.getId())) {
-                cachedNodes.remove(i);
-                return node;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Returns the flag for the given language, or {@code null} if none. This method will try to
-     * return a cached node if possible. If a new node needs to be created, its layout constraint
-     * (except position) will be set. Those constraints are defined in order to simulate the
-     * bullets in a list.
+     * Returns the flag for the given language, or {@code null} if none.
+     * If a new node needs to be created, its layout constraint (except position) will be set.
+     * Those constraints are defined in order to simulate the bullets in a list.
      */
     private Node getFlag(final String language) {
-        Node node = getCachedNode(language);
-        if (node == null) {
-            Image flag = flags.get(language);
-            if (flag == null) {
-                final InputStream in = WordPanel.class.getResourceAsStream(language + ".png");
-                if (in != null) {
-                    flag = new Image(in);
-                    flags.put(language, flag);
-                }
-            }
-            if (flag != null) {
-                node = new ImageView(flag);
-                GridPane.setValignment(node, VPos.TOP);
-                GridPane.setMargin(node, flagInsets);
-                node.setId(language);
+        Image flag = flags.get(language);
+        if (flag == null) {
+            final InputStream in = WordPanel.class.getResourceAsStream(language + ".png");
+            if (in != null) {
+                flag = new Image(in);
+                flags.put(language, flag);
             }
         }
+        if (flag == null) {
+            return null;
+        }
+        final Node node = new ImageView(flag);
+        GridPane.setValignment(node, VPos.TOP);
+        GridPane.setMargin(node, flagInsets);
         return node;
     }
 
@@ -190,9 +152,7 @@ class WordPanel {
      */
     void setSelected(final AugmentedEntry entry) {
         if (entry != currentEntry) {
-            final List<Node> children = senses.getChildren();
-            cachedNodes.addAll(children);
-            children.clear();
+            senses.getChildren().clear();
             String kanjiText    = null;
             String hiraganaText = null;
             boolean isUncommon = false;
@@ -208,30 +168,18 @@ class WordPanel {
                 for (final Map.Entry<Set<PartOfSpeech>, Map<Locale,String>> byPos : entry.getSensesDescriptions().entrySet()) {
                     final String partOfSpeech = PartOfSpeech.getDescriptions(byPos.getKey());
                     if (partOfSpeech != null) {
-                        Label label = (Label) getCachedNode(POS);
-                        if (label != null) {
-                            label.setText(partOfSpeech);
-                        } else {
-                            label = new Label(partOfSpeech);
-                            label.setFont(Font.font(null, FontWeight.BOLD, LATIN_SIZE));
-                            GridPane.setMargin(label, posInsets);
-                            GridPane.setColumnSpan(label, 2);
-                            label.setId(POS);
-                        }
+                        final Label label = new Label(partOfSpeech);
+                        label.setFont(Font.font(null, FontWeight.BOLD, LATIN_SIZE));
+                        GridPane.setMargin(label, posInsets);
+                        GridPane.setColumnSpan(label, 2);
                         senses.add(label, 0, row++);
                     }
                     for (final Map.Entry<Locale,String> localized : byPos.getValue().entrySet()) {
                         final Node   flag = getFlag(localized.getKey().getISO3Language());
                         final String text = localized.getValue();
-                        Label label = (Label) getCachedNode(GLOSS);
-                        if (label != null) {
-                            label.setText(text);
-                        } else {
-                            label = new Label(text);
-                            label.setWrapText(true);
-                            GridPane.setHgrow(label, Priority.ALWAYS);
-                            label.setId(GLOSS);
-                        }
+                        final Label label = new Label(text);
+                        label.setWrapText(true);
+                        GridPane.setHgrow(label, Priority.ALWAYS);
                         senses.add(flag,  0, row);
                         senses.add(label, 1, row++);
                     }

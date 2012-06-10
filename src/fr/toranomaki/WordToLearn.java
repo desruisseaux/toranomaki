@@ -108,8 +108,8 @@ final class WordToLearn extends Data {
     final boolean isForEntry(final AugmentedEntry entry, final boolean isKanji) {
         final String element = getElement(isKanji);
         final int count = entry.getCount(isKanji);
-        if (element == null && count == 0) {
-            return true;
+        if (element == null) {
+            return (count == 0);
         }
         for (int i=0; i<count; i++) {
             if (element.equals(entry.getWord(isKanji, i))) {
@@ -145,6 +145,6 @@ final class WordToLearn extends Data {
      */
     @Override
     public String toString() {
-        return "WordToLearn[" + reading + ']';
+        return "WordToLearn[" + kanji + ", " + reading + ']';
     }
 }
