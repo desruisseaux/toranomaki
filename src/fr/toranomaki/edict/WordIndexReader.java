@@ -128,7 +128,7 @@ final class WordIndexReader extends BinaryData {
         buffer.clear().limit(seqPoolSize);
         readFully(in, buffer);
         charSequences   = new String(buffer.array(), 0, seqPoolSize, alphabet.encoding);
-        stringBuilder   = new StringBuilder();
+        stringBuilder   = new StringBuilder(32);
         wordByIteration = new String[256]; // Must be a power of 2.
         entryListRefStartPosition = bufferStartPosition + numberOfWords*NUM_BYTES_FOR_INDEX_ELEMENT + poolSize;
     }

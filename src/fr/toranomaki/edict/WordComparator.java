@@ -40,6 +40,8 @@ public final class WordComparator implements Comparator<String> {
      *
      * @param s1 The first string to compare.
      * @param s2 The second string to compare.
+     * @return -1 for sorting {@code s1} before {@code s2}, +1 for the converse,
+     *         or 0 if both string are equal.
      */
     @Override
     public int compare(final String s1, final String s2) {

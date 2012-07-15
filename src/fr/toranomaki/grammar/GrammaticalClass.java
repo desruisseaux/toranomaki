@@ -100,6 +100,8 @@ public enum GrammaticalClass {
 
     /**
      * Returns the localized label to display in the widget.
+     *
+     * @return The localized label suitable for GUI.
      */
     @Override
     public synchronized String toString() {

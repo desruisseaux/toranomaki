@@ -143,7 +143,10 @@ public final class SearchResult {
                     // the current candidate word is not fully matched, discart the candidate.
                     continue;
                 }
-                if (isFullMatch || !candidateFullMatch) {
+                if (candidateFullMatch && !isFullMatch) {
+                    // If the candidate fully matches the begining of the word to search, and if
+                    // it was not the case of our previous best word, we will take that candidate.
+                } else {
                     if (si < matchLength) {
                         // If there is less matching characters than our best match, reject.
                         continue;
@@ -155,6 +158,10 @@ public final class SearchResult {
                         }
                         // If the candidate is a derived word while our best match was a JMdict word, reject.
                         if (!isDerivedWord && variant >= 0) {
+                            continue;
+                        }
+                        // Keep the word having highest priority.
+                        if (indexBest >= 0 && candidate.compareTo(entries[indexBest]) >= 0) {
                             continue;
                         }
                     }

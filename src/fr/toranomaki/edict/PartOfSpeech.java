@@ -17,7 +17,6 @@ package fr.toranomaki.edict;
 import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.regex.Pattern;
 import fr.toranomaki.grammar.GrammaticalClass;
 
@@ -166,17 +165,10 @@ public enum PartOfSpeech {
     }
 
     /**
-     * Returns the value to use as a primary key in the database for this enum.
-     */
-    final short getIdentifier() {
-        return (short) (ordinal() + 1);
-    }
-
-    /**
      * Reformats the given buffer in a more friendly way.
      * This method is the converse of {@link #parseLabel(String)}.
      */
-    static String formatLabel(final StringBuilder buffer) {
+    private static String formatLabel(final StringBuilder buffer) {
         for (int i=buffer.length(); --i>=0;) {
             char c = buffer.charAt(i);
             switch (c) {
@@ -186,14 +178,6 @@ public enum PartOfSpeech {
             buffer.setCharAt(i, c);
         }
         return buffer.toString();
-    }
-
-    /**
-     * Returns the enum for the value stored in the database {@code "description"} column.
-     * This method is the converse of {@link #formatLabel(StringBuilder)}.
-     */
-    static PartOfSpeech parseLabel(final String description) {
-        return valueOf(description.toUpperCase(Locale.ENGLISH).replace(' ', '_'));
     }
 
     /**
@@ -273,6 +257,8 @@ public enum PartOfSpeech {
 
     /**
      * Returns a string representation of this enum suitable for use in a graphical user interface.
+     *
+     * @return The text to show in the GUI.
      */
     @Override
     public String toString() {
