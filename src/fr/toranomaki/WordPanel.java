@@ -48,7 +48,7 @@ class WordPanel {
     /**
      * For size for Latin, Hiragana or Kanji characters.
      */
-    private static final int LATIN_SIZE=12, HIRAGANA_SIZE=16, KANJI_SIZE=24;
+    static final int LATIN_SIZE=12, HIRAGANA_SIZE=18, KANJI_SIZE=26;
 
     /**
      * The label to use for showing the Kanji of the selected element. Despite its name, this field

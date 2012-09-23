@@ -40,14 +40,15 @@ class EditorTextArea extends Data {
 
     /**
      * The table of selected words. Also used in order to get a reference to the dictionary.
+     *
+     * @todo Make private final after we merged {@code EditorTextArea} with {@code EditorPane}.
      */
-    private final WordTable wordTable;
+    WordTable wordTable;
 
     /**
      * Creates a new editor.
      */
-    EditorTextArea(final WordTable wordTable) {
-        this.wordTable = wordTable;
+    EditorTextArea() {
     }
 
     /**

@@ -79,7 +79,7 @@ final class SwingEditor extends EditorTextArea implements KeyListener, UndoableE
      * Creates a new editor.
      */
     SwingEditor(final WordTable wordTable) {
-        super(wordTable);
+        this.wordTable = wordTable;
         textPane = new JEditorPane();
         textPane.setContentType("text/plain");
         textPane.setFont(Font.decode("SansSerif-18"));
