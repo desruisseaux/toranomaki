@@ -15,54 +15,66 @@
 package fr.toranomaki.edict;
 
 import static java.lang.Character.*;
+import fr.toranomaki.grammar.CharacterType;
 import fr.toranomaki.grammar.AugmentedEntry;
 
 
 /**
- * Result of a word search. Instance of this class are created by the
- * {@link DictionaryReader#searchBest(String)} method.
+ * Result of a word search. On construction, only the {@link #entries} field is valid.
+ * Other fields are calculated by a call to the {@link #selectBestMatch()} method.
  *
  * @author Martin Desruisseaux
  */
 public final class SearchResult {
+    /**
+     * The word to search.
+     */
+    private final String toSearch;
+
+    /**
+     * The type of characters in the word to search.
+     */
+    final CharacterType characterType;
+
     /**
      * The entries which were examined for the search.
      */
     public final AugmentedEntry[] entries;
 
     /**
-     * Index of the selected entry in the {@link #entries} array.
+     * Index of the selected entry in the {@link #entries} array,
+     * or -1 if no match has been found.
      */
-    public final int selectedIndex;
+    public int selectedIndex;
 
     /**
      * The word which seems to be matching the search.
      */
-    public final String word;
+    public String selectedWord;
 
     /**
      * Index of the first character of the given word in the document.
      * This information is not used by the {@code SearchResult} class,
      * but is often useful to the caller.
      */
-    public final int documentOffset;
+    public int documentOffset;
 
     /**
      * Number of characters recognized in the string given to the search method.
      */
-    public final int matchLength;
+    public int matchLength;
 
     /**
      * {@code true} if every letters from the word found in the dictionary are also
      * found in the text given to the search method.
      */
-    public final boolean isFullMatch;
+    public boolean isFullMatch;
 
     /**
      * {@code true} if the word which has been found is a
      * {@linkplain AugmentedEntry#getDerivedWords() derived word}.
      */
-    public final boolean isDerivedWord;
+    public boolean isDerivedWord;
 
     /**
      * If this entry is highlighted in a text editor, the highlighter key as returned
@@ -72,41 +84,24 @@ public final class SearchResult {
 
     /**
      * Creates a new result of word search.
+     *
+     * @param toSearch The word to search.
+     * @param entries  The search result for the word to search.
      */
-    private SearchResult(final AugmentedEntry[] entries, final int selectedIndex, final String word,
-            final int documentOffset, final int matchLength, final boolean isFullMatch,
-            final boolean isDerivedWord)
-    {
-        this.entries        = entries;
-        this.selectedIndex  = selectedIndex;
-        this.word           = word;
-        this.documentOffset = documentOffset;
-        this.matchLength    = matchLength;
-        this.isFullMatch    = isFullMatch;
-        this.isDerivedWord  = isDerivedWord;
+    SearchResult(final String toSearch, final CharacterType type, final AugmentedEntry[] entries) {
+        this.toSearch = toSearch;
+        this.entries  = entries;
+        characterType = type;
+        selectedIndex = -1;
     }
 
     /**
-     * Searches the best entry matching the given text, or {@code null} if none.
-     *
-     * @param entries        An array of entries to consider for the search.
-     * @param toSearch       The word to search.
-     * @param isKanji        {@code true} for searching in Kanji elements, or {@code false}
-     *                       for searching in reading elements.
-     * @param documentOffset Index of the first character of the given word in the document.
-     *                       This information is not used by this method. This value is simply
-     *                       stored in the {@link #documentOffset} field for caller convenience.
-     * @return The search result, or {@code null} if none.
+     * Searches the best entry matching the search result.
+     * This method compute the values of all non-final fields.
      */
-    static SearchResult search(final AugmentedEntry[] entries, final String toSearch, final boolean isKanji,
-            final int documentOffset)
-    {
-        int     matchLength    = 0;
-        int     wordLength     = Integer.MAX_VALUE;
-        int     indexBest      = -1;
-        String  word           = null;
-        boolean isFullMatch    = false;
-        boolean isDerivedWord  = false;
+    public void selectBestMatch() {
+        final boolean isKanji = characterType.isKanji;
+        int wordLength = Integer.MAX_VALUE;
         for (int i=0; i<entries.length; i++) {
             final AugmentedEntry candidate = entries[i];
             final String[] derivedWords = candidate.getDerivedWords(isKanji);
@@ -161,21 +156,19 @@ public final class SearchResult {
                             continue;
                         }
                         // Keep the word having highest priority.
-                        if (indexBest >= 0 && candidate.compareTo(entries[indexBest]) >= 0) {
+                        if (selectedIndex >= 0 && candidate.compareTo(entries[selectedIndex]) >= 0) {
                             continue;
                         }
                     }
                 }
-                indexBest     = i;
-                word          = toVerify;
+                selectedIndex = i;
+                selectedWord  = toVerify;
                 matchLength   = si;
                 wordLength    = candidateLength;
                 isFullMatch   = candidateFullMatch;
                 isDerivedWord = (variant >= 0);
             }
         }
-        return (indexBest >= 0) ? new SearchResult(entries, indexBest, word,
-                documentOffset, matchLength, isFullMatch, isDerivedWord) : null;
     }
 
     /**
@@ -187,7 +180,7 @@ public final class SearchResult {
         if (isDerivedWord) {
             buffer.append("derived from ");
         }
-        buffer.append('"').append(word).append('"');
+        buffer.append('"').append(selectedWord).append('"');
         if (isFullMatch) {
             buffer.append(", full match");
         }

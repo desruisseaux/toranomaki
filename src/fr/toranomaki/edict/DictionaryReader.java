@@ -24,6 +24,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import fr.toranomaki.grammar.AugmentedEntry;
+import fr.toranomaki.grammar.CharacterType;
 
 
 /**
@@ -255,26 +256,24 @@ public class DictionaryReader extends BinaryData {
      */
     public final synchronized AugmentedEntry[] getEntriesUsingPrefix(final Alphabet alphabet, final String prefix) {
         if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
-        return wordIndex[alphabet.ordinal()].getEntriesUsingPrefix(prefix, new PrefixType(prefix), false);
+        return wordIndex[alphabet.ordinal()].getEntriesUsingPrefix(prefix, CharacterType.forWord(prefix), false).entries;
     }
 
     /**
      * Searches the best entry matching the given text, or {@code null} if none.
      *
-     * @param toSearch       The word to search.
-     * @param documentOffset Index of the first character of the given word in the document.
-     *        This information is not used by this method. This value is simply stored in the
-     *        {@link SearchResult#documentOffset} field for caller convenience.
+     * @param toSearch The word to search.
      * @return The search result, or {@code null} if none.
      */
-    public final synchronized SearchResult searchBest(final String toSearch, final int documentOffset) {
+    public final synchronized SearchResult searchBest(final String toSearch) {
         if (toSearch == null || toSearch.isEmpty()) {
             return null;
         }
-        final PrefixType pt = new PrefixType(toSearch);
-        final AugmentedEntry[] entries = wordIndex[pt.type().alphabet.ordinal()].getEntriesUsingPrefix(toSearch, pt, true);
-        Arrays.sort(entries); // Move entries with highest priority first.
-        return SearchResult.search(entries, toSearch, pt.type().isKanji, documentOffset);
+        final CharacterType type = CharacterType.forWord(toSearch);
+        final SearchResult result = wordIndex[type.alphabet.ordinal()].getEntriesUsingPrefix(toSearch, type, true);
+        Arrays.sort(result.entries); // Move entries with highest priority first.
+        result.selectBestMatch();
+        return result;
     }
 
     /**

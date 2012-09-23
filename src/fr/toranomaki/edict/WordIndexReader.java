@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import fr.toranomaki.grammar.AugmentedEntry;
+import fr.toranomaki.grammar.CharacterType;
 
 
 /**
@@ -330,14 +331,13 @@ final class WordIndexReader extends BinaryData {
      * a matching characters sequence is found.
      *
      * @param  prefix The prefix.
-     * @param  prefixType On input the type of the prefix.
-     *         On output, will contain the type of the prefix which has been actually used.
+     * @param  type Must be equals to {@code CharacterType.forWord(prefix)}.
      * @param  allowReducedSearch If {@code true}, this method will reduce the number of entries
      *         if an exact match is found. For example if the user ask for "Internet", then this
      *         method will not return "Internet access", "Internet address", etc.
      * @return Entries beginning by the given prefix.
      */
-    final AugmentedEntry[] getEntriesUsingPrefix(final String prefix, final PrefixType prefixType, final boolean allowReducedSearch) {
+    final SearchResult getEntriesUsingPrefix(final String prefix, CharacterType type, final boolean allowReducedSearch) {
         int wordIndex = getWordIndex(prefix);
         if (wordIndex < 0) {
             wordIndex = ~wordIndex;
@@ -346,7 +346,7 @@ final class WordIndexReader extends BinaryData {
             }
         } else if (allowReducedSearch) {
             final int[] references = getEntryReferencesUsingWord(wordIndex);
-            return getEntriesAt(references, references.length);
+            return new SearchResult(prefix, type, getEntriesAt(references, references.length));
         }
         /*
          * Before to search for words in ascending order, we first need to look at little bit
@@ -357,7 +357,7 @@ final class WordIndexReader extends BinaryData {
          */
         String candidate = getWordAt(wordIndex);
         int commonLength = commonPrefixLength(prefix, candidate);
-        final boolean isAlphabetic = prefixType.isAlphabetic();
+        final boolean isAlphabetic = (type == CharacterType.ALPHABETIC);
         if (isAlphabetic || commonLength != prefix.length()) {
             /*
              * We don't allow to skip this search for Latin characters, because we need to search
@@ -378,7 +378,10 @@ final class WordIndexReader extends BinaryData {
                 commonLength = cl;
                 wordIndex--;
             }
-            prefixType.update(prefix.substring(0, commonLength));
+            final CharacterType newType = CharacterType.forWord(prefix.substring(0, commonLength));
+            if (newType != null) {
+                type = newType;
+            }
         }
         /*
          * Now build the list of entries by scanning all matching character sequences
@@ -418,7 +421,7 @@ final class WordIndexReader extends BinaryData {
                 }
             }
         }
-        return getEntriesAt(references, numEntries);
+        return new SearchResult(prefix, type, getEntriesAt(references, numEntries));
     }
 
     /**

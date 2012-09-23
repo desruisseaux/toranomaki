@@ -66,7 +66,7 @@ class EditorTextArea extends Data {
     static String load() throws IOException {
         final File file = getFile();
         if (file.isFile()) {
-            final StringBuilder buffer = new StringBuilder();
+            final StringBuilder buffer = new StringBuilder(4096);
             try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(file), FILE_ENCODING))) {
                 String line; while ((line = in.readLine()) != null) {
                     buffer.append(line).append('\n');
@@ -125,8 +125,9 @@ class EditorTextArea extends Data {
                     upper += Character.charCount(c);
                 }
                 if (upper > lower) {
-                    final SearchResult search = wordTable.dictionary.searchBest(part.substring(lower, upper), documentOffset + lower);
+                    final SearchResult search = wordTable.dictionary.searchBest(part.substring(lower, upper));
                     if (search != null) {
+                        search.documentOffset = documentOffset + lower;
                         searchCompleted(search);
                     }
                 }

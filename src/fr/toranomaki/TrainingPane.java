@@ -61,7 +61,7 @@ final class TrainingPane implements EventHandler<ActionEvent> {
      * A value of 1 means that "easiest" word has 37% of the probability of "difficult" words.
      * For values 1.5, 1.75 and 2, the probabilities are 11%, 5% and 2% respectively.
      */
-    private static final double STANDARD_DEVIATION = 1.75;
+    private static final double STANDARD_DEVIATION = 1.5;
 
     /**
      * Identifiers used for the "Easy", "Medium", "Hard", "Translate", "List words" and "Add word" buttons.
