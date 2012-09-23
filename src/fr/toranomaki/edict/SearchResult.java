@@ -14,9 +14,10 @@
  */
 package fr.toranomaki.edict;
 
-import static java.lang.Character.*;
+import java.util.Arrays;
 import fr.toranomaki.grammar.CharacterType;
 import fr.toranomaki.grammar.AugmentedEntry;
+import static java.lang.Character.*;
 
 
 /**
@@ -34,7 +35,7 @@ public final class SearchResult {
     /**
      * The type of characters in the word to search.
      */
-    final CharacterType characterType;
+    private final CharacterType characterType;
 
     /**
      * The entries which were examined for the search.
@@ -50,7 +51,7 @@ public final class SearchResult {
     /**
      * The word which seems to be matching the search.
      */
-    public String selectedWord;
+    private String selectedWord;
 
     /**
      * Index of the first character of the given word in the document.
@@ -98,10 +99,13 @@ public final class SearchResult {
     /**
      * Searches the best entry matching the search result.
      * This method compute the values of all non-final fields.
+     *
+     * @return {@code true} if a match has been found, or {@code false} otherwise.
      */
-    public void selectBestMatch() {
+    public boolean selectBestMatch() {
+        Arrays.sort(entries); // Move entries with highest priority first.
         final boolean isKanji = characterType.isKanji;
-        int wordLength = Integer.MAX_VALUE;
+        int wordLength = (selectedWord != null) ? selectedWord.length() : Integer.MAX_VALUE;
         for (int i=0; i<entries.length; i++) {
             final AugmentedEntry candidate = entries[i];
             final String[] derivedWords = candidate.getDerivedWords(isKanji);
@@ -169,6 +173,20 @@ public final class SearchResult {
                 isDerivedWord = (variant >= 0);
             }
         }
+        return selectedIndex >= 0;
+    }
+
+    /**
+     * Initializes this {@code SearchResult} to the state of a previous search result.
+     * This is used when we want to ensure that the new search is at least as good as
+     * a previous one.
+     */
+    final void setInitialMatch(final SearchResult previous) {
+        // Do not copy selectedIndex, because they are not index in the same array.
+        selectedWord  = previous.selectedWord;
+        matchLength   = previous.matchLength;
+        isFullMatch   = previous.isFullMatch;
+        isDerivedWord = previous.isDerivedWord;
     }
 
     /**

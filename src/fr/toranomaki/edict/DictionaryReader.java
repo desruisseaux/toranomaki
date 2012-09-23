@@ -269,11 +269,34 @@ public class DictionaryReader extends BinaryData {
         if (toSearch == null || toSearch.isEmpty()) {
             return null;
         }
-        final CharacterType type = CharacterType.forWord(toSearch);
-        final SearchResult result = wordIndex[type.alphabet.ordinal()].getEntriesUsingPrefix(toSearch, type, true);
-        Arrays.sort(result.entries); // Move entries with highest priority first.
-        result.selectBestMatch();
-        return result;
+        final CharacterType   type   = CharacterType.forWord(toSearch);
+        final WordIndexReader index  = wordIndex[type.alphabet.ordinal()];
+        SearchResult result = index.getEntriesUsingPrefix(toSearch, type, true);
+        if (result.selectBestMatch()) {
+            if (!result.isFullMatch) {
+                /*
+                 * The match is not exact. If the partial match that we found ends with hiragana,
+                 * try to ignore all trailing hiragana. If the partial match ends with a kanji,
+                 * try to ignore only one kanji. Then see if the result is any better.
+                 */
+                int i = result.matchLength;
+                while (i != 0) {
+                    final int c = toSearch.codePointBefore(i);
+                    if (i != result.matchLength && Character.isIdeographic(c)) {
+                        final String smallerSearch = toSearch.substring(0, i);
+                        final SearchResult sr = index.getEntriesUsingPrefix(smallerSearch, type, true);
+                        sr.setInitialMatch(result);
+                        if (sr.selectBestMatch()) {
+                            result = sr;
+                        }
+                        break;
+                    }
+                    i -= Character.charCount(c);
+                }
+            }
+            return result;
+        }
+        return null;
     }
 
     /**

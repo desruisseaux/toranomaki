@@ -37,6 +37,12 @@ final class WordIndexReader extends BinaryData {
     static final AugmentedEntry[] EMPTY_RESULT = new AugmentedEntry[0];
 
     /**
+     * Maximum amount of matches to return. This is used for avoiding consuming too
+     * much resources when the user searched a too short word.
+     */
+    static final int MAXIMUM_SEARCH_RESULTS = 500;
+
+    /**
      * The dictionary which contain this index. The {@link DictionaryReader#buffer} shall be
      * a view over the content of the file created by {@link WordIndexWriter}. The first part
      * of that buffer contains the indexes, and the second part contains the bytes from which
@@ -394,7 +400,7 @@ final class WordIndexReader extends BinaryData {
         int minLength = candidate.length();
         if (commonLength != minLength || !allowReducedSearch) {
             Arrays.sort(references);
-            while (++wordIndex != numberOfWords) {
+list:       while (++wordIndex != numberOfWords) {
                 candidate = getWordAt(wordIndex);
                 if (commonPrefixLength(prefix, candidate) != commonLength) {
                     break; // The next word is no longer a good match - stop.
@@ -412,11 +418,13 @@ final class WordIndexReader extends BinaryData {
                     if (insertAt < 0) {
                         insertAt = ~insertAt;
                         if (numEntries == references.length) {
-                            references = Arrays.copyOf(references, Math.max(8, numEntries*2));
+                            references = Arrays.copyOf(references, Math.min(Math.max(8, numEntries*2), MAXIMUM_SEARCH_RESULTS));
                         }
                         System.arraycopy(references, insertAt, references, insertAt+1, numEntries-insertAt);
                         references[insertAt] = more;
-                        numEntries++;
+                        if (++numEntries == MAXIMUM_SEARCH_RESULTS) {
+                            break list;
+                        }
                     }
                 }
             }
