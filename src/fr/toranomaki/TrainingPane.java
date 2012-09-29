@@ -39,7 +39,7 @@ import javafx.geometry.Orientation;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 
-import fr.toranomaki.grammar.AugmentedEntry;
+import fr.toranomaki.edict.Entry;
 
 
 /**
@@ -195,7 +195,7 @@ final class TrainingPane implements EventHandler<ActionEvent> {
          * Enables the "add word" button only if the selected word is a new word.
          */
         @Override
-        void setSelected(AugmentedEntry entry) {
+        void setSelected(Entry entry) {
             if (entry == null) {
                 // If the user did a search in the table of words, then cleared the search,
                 // go back to the state where he choose if the word was "easy" or "hard".
@@ -235,7 +235,7 @@ final class TrainingPane implements EventHandler<ActionEvent> {
     /**
      * Returns the current entry, or {@code null} if none.
      */
-    private AugmentedEntry getEntry() {
+    private Entry getEntry() {
         final List<WordToLearn> wordsToLearn = getWordsToLearn();
         if (wordsToLearn.isEmpty()) {
             return null;
@@ -248,7 +248,7 @@ final class TrainingPane implements EventHandler<ActionEvent> {
      */
     private void showNextWord() {
         final List<WordToLearn> wordsToLearn = getWordsToLearn();
-        AugmentedEntry entry = null;
+        Entry entry = null;
         int last = wordIndex;
         while (!wordsToLearn.isEmpty()) {
             int size = wordsToLearn.size();
@@ -343,7 +343,7 @@ final class TrainingPane implements EventHandler<ActionEvent> {
              * The user asked to show the list of words to learn.
              */
             case LIST_WORDS: {
-                AugmentedEntry[] entries = new AugmentedEntry[wordsToLearn.size()];
+                Entry[] entries = new Entry[wordsToLearn.size()];
                 int n=0;
                 for (int i=entries.length; --i>=0;) {
                     entries[n] = wordsToLearn.get(i).getEntry(table.dictionary);
@@ -366,7 +366,7 @@ final class TrainingPane implements EventHandler<ActionEvent> {
              * out list.
              */
             case ADD_WORD: {
-                final AugmentedEntry entry = description.getSelected();
+                final Entry entry = description.getSelected();
                 if (entry != null) {
                     new NewWordDialog(entry, table.dictionary).show();
                 }

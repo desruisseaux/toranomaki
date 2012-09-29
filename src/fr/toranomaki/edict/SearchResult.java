@@ -16,7 +16,6 @@ package fr.toranomaki.edict;
 
 import java.util.Arrays;
 import fr.toranomaki.grammar.CharacterType;
-import fr.toranomaki.grammar.AugmentedEntry;
 import static java.lang.Character.*;
 
 
@@ -40,7 +39,7 @@ public final class SearchResult {
     /**
      * The entries which were examined for the search.
      */
-    public final AugmentedEntry[] entries;
+    public final Entry[] entries;
 
     /**
      * Index of the selected entry in the {@link #entries} array,
@@ -73,7 +72,7 @@ public final class SearchResult {
 
     /**
      * {@code true} if the word which has been found is a
-     * {@linkplain AugmentedEntry#getDerivedWords() derived word}.
+     * {@linkplain Entry#getDerivedWords() derived word}.
      */
     public boolean isDerivedWord;
 
@@ -89,7 +88,7 @@ public final class SearchResult {
      * @param toSearch The word to search.
      * @param entries  The search result for the word to search.
      */
-    SearchResult(final String toSearch, final CharacterType type, final AugmentedEntry[] entries) {
+    SearchResult(final String toSearch, final CharacterType type, final Entry[] entries) {
         this.toSearch = toSearch;
         this.entries  = entries;
         characterType = type;
@@ -107,7 +106,7 @@ public final class SearchResult {
         final boolean isKanji = characterType.isKanji;
         int wordLength = (selectedWord != null) ? selectedWord.length() : Integer.MAX_VALUE;
         for (int i=0; i<entries.length; i++) {
-            final AugmentedEntry candidate = entries[i];
+            final Entry candidate = entries[i];
             final String[] derivedWords = candidate.getDerivedWords(isKanji);
             /*
              * First, searches among all Kanji or reading elements declared in the JMdict

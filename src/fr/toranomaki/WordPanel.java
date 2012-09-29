@@ -35,8 +35,10 @@ import javafx.geometry.Pos;
 import javafx.geometry.VPos;
 import javafx.geometry.Insets;
 
+import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.PartOfSpeech;
-import fr.toranomaki.grammar.AugmentedEntry;
+
+import static fr.toranomaki.edict.Entry.WORD_INDEX;
 
 
 /**
@@ -69,7 +71,7 @@ class WordPanel {
     /**
      * The word element which is currently show.
      */
-    private AugmentedEntry currentEntry;
+    private Entry currentEntry;
 
     /**
      * The cache of flags for each language of interest.
@@ -150,7 +152,7 @@ class WordPanel {
      *
      * @param entry The selected entry, or {@code null} if none.
      */
-    void setSelected(final AugmentedEntry entry) {
+    void setSelected(final Entry entry) {
         if (entry != currentEntry) {
             senses.getChildren().clear();
             String kanjiText    = null;
@@ -158,8 +160,8 @@ class WordPanel {
             boolean isUncommon = false;
             if (entry != null) {
                 isUncommon   = entry.isUncommonKanji();
-                kanjiText    = entry.getWord(true,  AugmentedEntry.WORD_INDEX);
-                hiraganaText = entry.getWord(false, AugmentedEntry.WORD_INDEX);
+                kanjiText    = entry.getWord(true,  WORD_INDEX);
+                hiraganaText = entry.getWord(false, WORD_INDEX);
                 if (kanjiText == null) {
                     kanjiText = hiraganaText;
                     hiraganaText = null;
@@ -195,7 +197,7 @@ class WordPanel {
     /**
      * Returns the currently selected entry, or {@code null} if none.
      */
-    final AugmentedEntry getSelected() {
+    final Entry getSelected() {
         return currentEntry;
     }
 }

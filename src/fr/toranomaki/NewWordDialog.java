@@ -30,7 +30,7 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
 
-import fr.toranomaki.grammar.AugmentedEntry;
+import fr.toranomaki.edict.Entry;
 
 
 /**
@@ -47,7 +47,7 @@ final class NewWordDialog implements EventHandler<ActionEvent> {
     /**
      * The entry which may be added to the list of words to learn.
      */
-    private final AugmentedEntry entry;
+    private final Entry entry;
 
     /**
      * The Kanji elements declared in the entry to add.
@@ -74,7 +74,7 @@ final class NewWordDialog implements EventHandler<ActionEvent> {
     /**
      * Creates a new dialog for the given entry.
      */
-    NewWordDialog(final AugmentedEntry entry, final Dictionary addTo) {
+    NewWordDialog(final Entry entry, final Dictionary addTo) {
         this.entry = entry;
         this.addTo = addTo;
         kebChoices = new ChoiceBox<>();

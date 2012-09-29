@@ -30,8 +30,8 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.io.IOException;
 
+import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.DictionaryReader;
-import fr.toranomaki.grammar.AugmentedEntry;
 import fr.toranomaki.grammar.CharacterType;
 
 
@@ -195,7 +195,7 @@ final class Dictionary extends DictionaryReader {
      * This method verifies if the new word is one of the words to learn.
      */
     @Override
-    protected void entryCreated(final AugmentedEntry entry) {
+    protected void entryCreated(final Entry entry) {
         boolean isKanji = true;
         do {
             final int count = entry.getCount(isKanji);

@@ -22,7 +22,7 @@ import javafx.beans.value.ObservableValue;
 import javafx.beans.value.ObservableObjectValue;
 import javafx.beans.value.ObservableStringValue;
 
-import fr.toranomaki.grammar.AugmentedEntry;
+import fr.toranomaki.edict.Entry;
 
 
 /**
@@ -42,7 +42,7 @@ class EntryCellValue<T> implements ObservableObjectValue<T> {
      * <cite>Part Of Speech</cite> or senses, in the preferred language if available.
      */
     static final class Sense extends EntryCellValue<String> implements ObservableStringValue {
-        Sense(final AugmentedEntry entry, final boolean isPartOfSpeech) {
+        Sense(final Entry entry, final boolean isPartOfSpeech) {
             final fr.toranomaki.edict.Sense sense = entry.getSenseSummmary();
             if (sense != null) {
                 value = isPartOfSpeech ? sense.getGrammaticalClass() : sense.meaning;
@@ -55,7 +55,7 @@ class EntryCellValue<T> implements ObservableObjectValue<T> {
      * value right at construction time. Use this implementation when the full {@link Entry}
      * instance is not needed at rendering time.
      */
-    static final class SenseFactory implements Callback<TableColumn.CellDataFeatures<AugmentedEntry,String>, ObservableValue<String>> {
+    static final class SenseFactory implements Callback<TableColumn.CellDataFeatures<Entry,String>, ObservableValue<String>> {
         /** {@code true} for the <cite>part of speech</cite> column, or {@code false} for the <cite>meaning</cite> column. */
         private final boolean isPartOfSpeech;
 
@@ -63,7 +63,7 @@ class EntryCellValue<T> implements ObservableObjectValue<T> {
             this.isPartOfSpeech = isPartOfSpeech;
         }
 
-        @Override public ObservableValue<String> call(final TableColumn.CellDataFeatures<AugmentedEntry,String> cell) {
+        @Override public ObservableValue<String> call(final TableColumn.CellDataFeatures<Entry,String> cell) {
             return new EntryCellValue.Sense(cell.getValue(), isPartOfSpeech);
         }
     }
@@ -75,9 +75,9 @@ class EntryCellValue<T> implements ObservableObjectValue<T> {
      * when the while {@link Entry} instance is needed at cell rendering time, typically because
      * we need other information (like the priority) to decide how to render the value.
      */
-    static final class DefaultFactory implements Callback<TableColumn.CellDataFeatures<AugmentedEntry,AugmentedEntry>, ObservableValue<AugmentedEntry>> {
-        @Override public ObservableValue<AugmentedEntry> call(final TableColumn.CellDataFeatures<AugmentedEntry,AugmentedEntry> cell) {
-            final EntryCellValue<AugmentedEntry> value = new EntryCellValue<>();
+    static final class DefaultFactory implements Callback<TableColumn.CellDataFeatures<Entry,Entry>, ObservableValue<Entry>> {
+        @Override public ObservableValue<Entry> call(final TableColumn.CellDataFeatures<Entry,Entry> cell) {
+            final EntryCellValue<Entry> value = new EntryCellValue<>();
             value.value = cell.getValue();
             return value;
         }

@@ -17,9 +17,9 @@ package fr.toranomaki;
 import java.util.Arrays;
 import java.util.Objects;
 
+import fr.toranomaki.edict.Entry;
 import fr.toranomaki.edict.Alphabet;
 import fr.toranomaki.edict.DictionaryReader;
-import fr.toranomaki.grammar.AugmentedEntry;
 
 
 /**
@@ -31,7 +31,7 @@ final class WordToLearn extends Data {
     /**
      * The entry, which will be fetched from the database when first needed.
      */
-    private transient AugmentedEntry entry;
+    private transient Entry entry;
 
     /**
      * The Kanji and reading elements, or {@code null} if none. Those strings are used for locating
@@ -87,9 +87,9 @@ final class WordToLearn extends Data {
      * @param  dictionary The dictionary to use for fetching the word when needed.
      * @return The entry for the word to learn, or {@code null} if none.
      */
-    public AugmentedEntry getEntry(final DictionaryReader dictionary) {
+    public Entry getEntry(final DictionaryReader dictionary) {
         if (entry == null) {
-            final AugmentedEntry[] candidates = dictionary.getEntriesUsingAll(Alphabet.JAPANESE, kanji, reading);
+            final Entry[] candidates = dictionary.getEntriesUsingAll(Alphabet.JAPANESE, kanji, reading);
             switch (candidates.length) {
                 case 0: return null;
                 case 1: break;
@@ -105,7 +105,7 @@ final class WordToLearn extends Data {
      * Returns {@code true} if the Kanji or reading element of this {@code WordToLearn} is
      * contained in the given entry.
      */
-    final boolean isForEntry(final AugmentedEntry entry, final boolean isKanji) {
+    final boolean isForEntry(final Entry entry, final boolean isKanji) {
         final String element = getElement(isKanji);
         final int count = entry.getCount(isKanji);
         if (element == null) {

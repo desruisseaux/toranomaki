@@ -18,7 +18,6 @@ import java.util.Arrays;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
-import fr.toranomaki.grammar.AugmentedEntry;
 import fr.toranomaki.grammar.CharacterType;
 
 
@@ -34,7 +33,7 @@ final class WordIndexReader extends BinaryData {
     /**
      * The array to returns from the search method when no matching entry has been found.
      */
-    static final AugmentedEntry[] EMPTY_RESULT = new AugmentedEntry[0];
+    static final Entry[] EMPTY_RESULT = new Entry[0];
 
     /**
      * Maximum amount of matches to return. This is used for avoiding consuming too
@@ -288,8 +287,8 @@ final class WordIndexReader extends BinaryData {
      * @param references The references to entries.
      * @param length Number of valid elements in the references array.
      */
-    private AugmentedEntry[] getEntriesAt(final int[] references, final int length) {
-        final AugmentedEntry[] entries = new AugmentedEntry[length];
+    private Entry[] getEntriesAt(final int[] references, final int length) {
+        final Entry[] entries = new Entry[length];
         for (int i=0; i<length; i++) {
             entries[i] = dictionary.getEntryAt(references[i]);
         }
@@ -302,7 +301,7 @@ final class WordIndexReader extends BinaryData {
      * @param  words The words to search. Null elements are ignored.
      * @return Entries using all the given words, or an empty array if none.
      */
-    public AugmentedEntry[] getEntriesUsingAll(final String... words) {
+    public Entry[] getEntriesUsingAll(final String... words) {
         int length = 0;
         int[] references = null;
         for (final String word : words) {
