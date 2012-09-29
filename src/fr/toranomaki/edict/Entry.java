@@ -151,6 +151,12 @@ public class Entry implements Comparable<Entry> {
     private transient byte annotations;
 
     /**
+     * Number of time that this entry has been qualified "easy" by the user in the training pane
+     * during the current session.
+     */
+    private transient byte easyCount;
+
+    /**
      * Creates an initially empty entry.
      */
     public Entry() {
@@ -512,6 +518,20 @@ public class Entry implements Comparable<Entry> {
             this.sensesForPOS = unsafe;
         }
         return sensesForPOS;
+    }
+
+    /**
+     * Returns the number of time that this entry has been qualified "easy" by the user in the
+     * current cession. This method returns a value between 1 and 255. The returned value is
+     * increased by 1 everytime this method is invoked.
+     *
+     * @return The number of time that this entry has been qualified "easy".
+     */
+    public final synchronized int getEasyCount() {
+        if (++easyCount == 0) {
+            easyCount = -1; // Stick to the maximal unsigned value: 255.
+        }
+        return easyCount & 0xFF;
     }
 
     /**

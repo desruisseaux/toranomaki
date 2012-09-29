@@ -302,8 +302,9 @@ final class TrainingPane implements EventHandler<ActionEvent> {
              */
             case EASY: {
                 if (wordIndex != 0) {
-                    int n = random.nextInt(Math.min(wordIndex, NUM_PRIORITY_WORDS)) + 1;
                     final WordToLearn word = wordsToLearn.get(wordIndex);
+                    final Entry entry = word.getEntry(table.dictionary);
+                    int n = Math.min(wordIndex, entry.getEasyCount());
                     do {
                         wordsToLearn.set(wordIndex, wordsToLearn.get(--wordIndex));
                     } while (--n != 0);
