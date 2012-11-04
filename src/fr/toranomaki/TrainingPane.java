@@ -55,6 +55,12 @@ final class TrainingPane implements EventHandler<ActionEvent> {
     private static final int NUM_PRIORITY_WORDS = 10;
 
     /**
+     * Number of positions by which to move easy words. This is an arbitrary factor.
+     * Higher values will reduce faster the frequency at which easy words are asked.
+     */
+    private static final int NUM_POSITION_CHANGE = 2;
+
+    /**
      * The standard deviation of the Gaussian distribution of random numbers to pickup
      * for selecting a word. This determine the probability that the easiest words are
      * selected, compared to the probability that the most "difficult" words are selected.
@@ -301,15 +307,13 @@ final class TrainingPane implements EventHandler<ActionEvent> {
              * the 'showNextWord()' method.
              */
             case EASY: {
-                if (wordIndex != 0) {
-                    final WordToLearn word = wordsToLearn.get(wordIndex);
-                    final Entry entry = word.getEntry(table.dictionary);
-                    int n = Math.min(wordIndex, entry.getEasyCount());
-                    do {
-                        wordsToLearn.set(wordIndex, wordsToLearn.get(--wordIndex));
-                    } while (--n != 0);
-                    wordsToLearn.set(wordIndex, word);
+                final WordToLearn word = wordsToLearn.get(wordIndex);
+                final Entry entry = word.getEntry(table.dictionary);
+                int n = Math.min(wordIndex, entry.getEasyCount() * NUM_POSITION_CHANGE);
+                while (--n >= 0) {
+                    wordsToLearn.set(wordIndex--, wordsToLearn.get(wordIndex));
                 }
+                wordsToLearn.set(wordIndex, word);
                 showNextWord();
                 break;
             }
