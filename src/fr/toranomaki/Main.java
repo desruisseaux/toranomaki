@@ -96,6 +96,7 @@ public final class Main extends Application {
     public void stop() {
         executor.shutdown();
         try {
+            editor.save();
             dictionary.save();
         } catch (IOException e) {
             Logging.possibleDataLost(e);

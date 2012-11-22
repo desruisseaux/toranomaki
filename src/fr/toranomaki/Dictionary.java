@@ -217,7 +217,7 @@ final class Dictionary extends DictionaryReader {
                         length = 1;
                     }
                     for (int j=0; j<length; j++) {
-                        final WordToLearn word = (array != null) ? array[i] : (WordToLearn) value;
+                        final WordToLearn word = (array != null) ? array[j] : (WordToLearn) value;
                         if (word.isForEntry(entry, isKanji) && word.isForEntry(entry, !isKanji)) {
                             entry.setWordToLearn(word.kanji, word.reading);
                             return;
