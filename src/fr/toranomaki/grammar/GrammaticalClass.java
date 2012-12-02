@@ -94,7 +94,7 @@ public enum GrammaticalClass {
     EXPRESSION;
 
     /**
-     * The localized text to display in Swing widgets.
+     * The localized text to display in JavaFX widgets.
      */
     private transient String label;
 

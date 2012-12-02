@@ -33,10 +33,7 @@ import javafx.application.Application;
 
 
 /**
- * The main application entry point. This is the entry point we would use if the
- * application was a pure JavaFX application. However for now, we have to use the
- * {@link SwingMain} workaround because the JavaFX text area does not yet support
- * input methods (at least on MacOS).
+ * The main application entry point.
  *
  * @author Martin Desruisseaux
  */

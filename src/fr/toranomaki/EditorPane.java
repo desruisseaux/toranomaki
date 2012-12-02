@@ -14,7 +14,14 @@
  */
 package fr.toranomaki;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.Writer;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.util.concurrent.ExecutorService;
 
 import javafx.scene.Node;
@@ -29,13 +36,20 @@ import javafx.event.EventHandler;
 import javafx.event.EventType;
 import javafx.event.Event;
 
+import fr.toranomaki.edict.SearchResult;
+
 
 /**
  * The text editor, together with the table of word search results on the bottom.
  *
  * @author Martin Desruisseaux
  */
-final class EditorPane extends EditorTextArea implements EventHandler<KeyEvent>, ChangeListener<Number> {
+final class EditorPane extends Data implements EventHandler<KeyEvent>, ChangeListener<Number> {
+    /**
+     * The approximative length of the longest entry in Kanji characters.
+     */
+    private static final int LONGUEST_KANJI_WORD = 16;
+
     /**
      * The panel showing a description of the selected word.
      */
@@ -45,6 +59,11 @@ final class EditorPane extends EditorTextArea implements EventHandler<KeyEvent>,
      * The editor area.
      */
     private final TextArea textArea;
+
+    /**
+     * The table of selected words. Also used in order to get a reference to the dictionary.
+     */
+    private final WordTable wordTable;
 
     /**
      * {@code true} if a key from the keyboard is pressed and not yet released.
@@ -92,10 +111,51 @@ final class EditorPane extends EditorTextArea implements EventHandler<KeyEvent>,
     }
 
     /**
+     * Returns the file in which to save the editor content.
+     */
+    private static File getFile() throws IOException {
+        return getDirectory().resolve("Editor.txt").toFile();
+    }
+
+    /**
+     * Loads the editor content from the last saved session.
+     *
+     * @return The text, or {@code null} if none.
+     * @throws IOException If an error occurred while loading the text.
+     */
+    private static String load() throws IOException {
+        final File file = getFile();
+        if (file.isFile()) {
+            final StringBuilder buffer = new StringBuilder(4096);
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(file), FILE_ENCODING))) {
+                String line; while ((line = in.readLine()) != null) {
+                    buffer.append(line).append('\n');
+                }
+            }
+            if (buffer.length() != 0 && buffer.charAt(0) == BYTE_ORDER_MARK) {
+                return buffer.substring(1);
+            }
+            return buffer.toString();
+        }
+        return null;
+    }
+
+    /**
      * Saves the editor content.
+     *
+     * @throws IOException If an error occurred while saving the text.
      */
     final void save() throws IOException {
-        save(textArea.getText());
+        final String text = textArea.getText();
+        final File file = getFile();
+        if (text.trim().length() == 0) {
+            file.delete();
+        } else {
+            try (Writer out = new OutputStreamWriter(new FileOutputStream(file), FILE_ENCODING)) {
+                out.write(BYTE_ORDER_MARK);
+                out.write(text);
+            }
+        }
     }
 
     /**
@@ -139,6 +199,55 @@ final class EditorPane extends EditorTextArea implements EventHandler<KeyEvent>,
             if (length > 0) {
                 search(textArea.getText(position, position + length), position);
             }
+        }
+    }
+
+    /**
+     * Searches a word matching the given fragment. This method performs the search in a
+     * background thread, then invoke {@link #searchCompleted(SearchResult)} when the search
+     * is completed.
+     *
+     * @param part           The document fragment (not necessarily a word).
+     * @param documentOffset Index of the first character of the given word in the document.
+     *                       This information is not used by this method. This value is simply
+     *                       stored in the {@link #documentOffset} field for caller convenience.
+     */
+    private void search(final String part, final int documentOffset) {
+        wordTable.executor.execute(new Runnable() {
+            @Override public void run() {
+                final int stop = part.length();
+                int lower = 0;
+                while (lower < stop) { // Skip leading spaces without moving to next line.
+                    final int c = part.codePointAt(lower);
+                    if (!Character.isSpaceChar(c)) break;
+                    lower += Character.charCount(c);
+                }
+                int upper = lower;
+                while (upper < stop) {
+                    final int c = part.codePointAt(upper);
+                    if (!Character.isAlphabetic(c)) break;
+                    upper += Character.charCount(c);
+                }
+                if (upper > lower) {
+                    final SearchResult search = wordTable.dictionary.searchBest(part.substring(lower, upper));
+                    if (search != null) {
+                        search.documentOffset = documentOffset + lower;
+                        searchCompleted(search);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Invoked when a search has been successfully completed.
+     * The default implementation update the table view.
+     */
+    protected void searchCompleted(final SearchResult result) {
+        try {
+            wordTable.setContent(result.entries, result.selectedIndex);
+        } catch (Throwable e) {
+            Logging.recoverableException(WordTable.class, "setContent", e);
         }
     }
 }
