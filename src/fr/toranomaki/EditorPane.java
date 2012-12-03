@@ -29,14 +29,18 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.control.Control;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.IndexRange;
 import javafx.geometry.Orientation;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.EventHandler;
 import javafx.event.EventType;
 import javafx.event.Event;
+import javafx.application.Platform;
 
 import fr.toranomaki.edict.SearchResult;
+import fr.toranomaki.grammar.AnnotationsWriter;
+import static fr.toranomaki.grammar.AnnotationsWriter.LONGUEST_KANJI_WORD;
 
 
 /**
@@ -45,11 +49,6 @@ import fr.toranomaki.edict.SearchResult;
  * @author Martin Desruisseaux
  */
 final class EditorPane extends Data implements EventHandler<KeyEvent>, ChangeListener<Number> {
-    /**
-     * The approximative length of the longest entry in Kanji characters.
-     */
-    private static final int LONGUEST_KANJI_WORD = 16;
-
     /**
      * The panel showing a description of the selected word.
      */
@@ -64,6 +63,11 @@ final class EditorPane extends Data implements EventHandler<KeyEvent>, ChangeLis
      * The table of selected words. Also used in order to get a reference to the dictionary.
      */
     private final WordTable wordTable;
+
+    /**
+     * A helper class for writing the reading of some Kanji.
+     */
+    private final AnnotationsWriter kanjiHelper;
 
     /**
      * {@code true} if a key from the keyboard is pressed and not yet released.
@@ -81,6 +85,7 @@ final class EditorPane extends Data implements EventHandler<KeyEvent>, ChangeLis
     EditorPane(final Dictionary dictionary, final ExecutorService executor) {
         description = new WordPanel();
         textArea    = new TextArea();
+        kanjiHelper = new AnnotationsWriter(dictionary);
         wordTable   = new WordTable(description, dictionary, executor);
         textArea.setStyle("-fx-font-size: " + WordPanel.HIRAGANA_SIZE + "pt;");
         try {
@@ -92,6 +97,7 @@ final class EditorPane extends Data implements EventHandler<KeyEvent>, ChangeLis
             Logging.recoverableException(EditorPane.class, "load", e);
             // We can continue - the editor will just be initially empty.
         }
+        textArea.setWrapText(true);
         textArea.caretPositionProperty().addListener(this);
         textArea.setOnKeyPressed (this);
         textArea.setOnKeyReleased(this);
@@ -156,6 +162,27 @@ final class EditorPane extends Data implements EventHandler<KeyEvent>, ChangeLis
                 out.write(text);
             }
         }
+    }
+
+    /**
+     * Annotates the selected text.
+     */
+    final void annotateSelectedText() {
+        textArea.setEditable(false);
+        final IndexRange selection = textArea.getSelection();
+        final StringBuilder text = new StringBuilder(textArea.getText(selection.getStart(), selection.getEnd()));
+        wordTable.executor.execute(new Runnable() {
+            @Override public void run() {
+                kanjiHelper.annotate(text);
+                final String result = text.toString();
+                Platform.runLater(new Runnable() {
+                    @Override public void run() {
+                        textArea.replaceText(selection, result);
+                        textArea.setEditable(true);
+                    }
+                });
+            }
+        });
     }
 
     /**

@@ -137,18 +137,35 @@ public final class Main extends Application {
         pane.setCenter(initial);
 
         final MenuBar bar = new MenuBar();
-        final Menu menu   = new Menu("Window");
-        MenuItem menuItem = new MenuItem("Training");
-        menuItem.setOnAction(new ShowWindow(pane, initial));
-        menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+T"));
-        menu.getItems().add(menuItem);
-
-        menuItem = new MenuItem("Editor");
-        menuItem.setOnAction(new ShowWindow(pane, editor.createPane()));
-        menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+E"));
-        menu.getItems().add(menuItem);
-
-        bar.getMenus().add(menu);
+        {
+            final Menu menu = new Menu("Edit");
+            {
+                final MenuItem menuItem = new MenuItem("Annotate");
+                menuItem.setOnAction(new EventHandler<ActionEvent>() {
+                    @Override public void handle(final ActionEvent event) {
+                        editor.annotateSelectedText();
+                    }
+                });
+                menu.getItems().add(menuItem);
+            }
+            bar.getMenus().add(menu);
+        }
+        {
+            final Menu menu = new Menu("Window");
+            {
+                final MenuItem menuItem = new MenuItem("Training");
+                menuItem.setOnAction(new ShowWindow(pane, initial));
+                menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+T"));
+                menu.getItems().add(menuItem);
+            }
+            {
+                final MenuItem menuItem = new MenuItem("Editor");
+                menuItem.setOnAction(new ShowWindow(pane, editor.createPane()));
+                menuItem.setAccelerator(KeyCombination.valueOf("Shortcut+E"));
+                menu.getItems().add(menuItem);
+            }
+            bar.getMenus().add(menu);
+        }
         bar.setUseSystemMenuBar(true);
         pane.setTop(bar);
 
