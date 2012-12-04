@@ -24,6 +24,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import fr.toranomaki.grammar.CharacterType;
+import fr.toranomaki.grammar.Grammar;
 
 
 /**
@@ -255,7 +256,8 @@ public class DictionaryReader extends BinaryData {
      */
     public final synchronized Entry[] getEntriesUsingPrefix(final Alphabet alphabet, final String prefix) {
         if (alphabet == null) return WordIndexReader.EMPTY_RESULT;
-        return wordIndex[alphabet.ordinal()].getEntriesUsingPrefix(prefix, CharacterType.forWord(prefix), false).entries;
+        return wordIndex[alphabet.ordinal()].getEntriesUsingPrefix(prefix,
+                CharacterType.forWord(prefix) == CharacterType.ALPHABETIC, false).entries;
     }
 
     /**
@@ -268,10 +270,13 @@ public class DictionaryReader extends BinaryData {
         if (toSearch == null || toSearch.isEmpty()) {
             return null;
         }
-        final CharacterType   type   = CharacterType.forWord(toSearch);
-        final WordIndexReader index  = wordIndex[type.alphabet.ordinal()];
-        SearchResult result = index.getEntriesUsingPrefix(toSearch, type, true);
-        if (result.selectBestMatch()) {
+        final String          radical = Grammar.radical(toSearch);
+        final CharacterType   type    = CharacterType.forWord(toSearch);
+        final boolean         isKanji = type.isKanji;
+        final boolean         isLatin = (type == CharacterType.ALPHABETIC);
+        final WordIndexReader index   = wordIndex[type.alphabet.ordinal()];
+        SearchResult result = index.getEntriesUsingPrefix(radical, isLatin, toSearch.equals(radical));
+        if (result.selectBestMatch(toSearch, isKanji)) {
             if (!result.isFullMatch) {
                 /*
                  * The match is not exact. If the partial match that we found ends with hiragana,
@@ -283,9 +288,9 @@ public class DictionaryReader extends BinaryData {
                     final int c = toSearch.codePointBefore(i);
                     if (i != result.matchLength && Character.isIdeographic(c)) {
                         final String smallerSearch = toSearch.substring(0, i);
-                        final SearchResult sr = index.getEntriesUsingPrefix(smallerSearch, type, true);
+                        final SearchResult sr = index.getEntriesUsingPrefix(smallerSearch, isLatin, true);
                         sr.setInitialMatch(result);
-                        if (sr.selectBestMatch()) {
+                        if (sr.selectBestMatch(toSearch, isKanji)) {
                             result = sr;
                         }
                         break;

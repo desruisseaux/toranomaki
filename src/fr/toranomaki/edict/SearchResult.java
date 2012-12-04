@@ -15,7 +15,6 @@
 package fr.toranomaki.edict;
 
 import java.util.Arrays;
-import fr.toranomaki.grammar.CharacterType;
 import static java.lang.Character.*;
 
 
@@ -26,16 +25,6 @@ import static java.lang.Character.*;
  * @author Martin Desruisseaux
  */
 public final class SearchResult {
-    /**
-     * The word to search.
-     */
-    private final String toSearch;
-
-    /**
-     * The type of characters in the word to search.
-     */
-    private final CharacterType characterType;
-
     /**
      * The entries which were examined for the search.
      */
@@ -85,13 +74,10 @@ public final class SearchResult {
     /**
      * Creates a new result of word search.
      *
-     * @param toSearch The word to search.
-     * @param entries  The search result for the word to search.
+     * @param entries The search result for the word to search.
      */
-    SearchResult(final String toSearch, final CharacterType type, final Entry[] entries) {
-        this.toSearch = toSearch;
+    SearchResult(final Entry[] entries) {
         this.entries  = entries;
-        characterType = type;
         selectedIndex = -1;
     }
 
@@ -99,11 +85,12 @@ public final class SearchResult {
      * Searches the best entry matching the search result.
      * This method compute the values of all non-final fields.
      *
+     * @param  toSearch The word to search.
+     * @param  isKanji  {@code true} if {@code toSearch} uses Kanji.
      * @return {@code true} if a match has been found, or {@code false} otherwise.
      */
-    public boolean selectBestMatch() {
+    public boolean selectBestMatch(final String toSearch, final boolean isKanji) {
         Arrays.sort(entries); // Move entries with highest priority first.
-        final boolean isKanji = characterType.isKanji;
         int wordLength = (selectedWord != null) ? selectedWord.length() : Integer.MAX_VALUE;
         for (int i=0; i<entries.length; i++) {
             final Entry candidate = entries[i];

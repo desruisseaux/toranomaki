@@ -18,7 +18,6 @@ import java.util.Arrays;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
-import fr.toranomaki.grammar.CharacterType;
 
 
 /**
@@ -336,13 +335,13 @@ final class WordIndexReader extends BinaryData {
      * a matching characters sequence is found.
      *
      * @param  prefix The prefix.
-     * @param  type Must be equals to {@code CharacterType.forWord(prefix)}.
+     * @param  isLatin {@code true} if the word to search uses Latin alphabet.
      * @param  allowReducedSearch If {@code true}, this method will reduce the number of entries
      *         if an exact match is found. For example if the user ask for "Internet", then this
      *         method will not return "Internet access", "Internet address", etc.
      * @return Entries beginning by the given prefix.
      */
-    final SearchResult getEntriesUsingPrefix(final String prefix, CharacterType type, final boolean allowReducedSearch) {
+    final SearchResult getEntriesUsingPrefix(final String prefix, final boolean isLatin, final boolean allowReducedSearch) {
         int wordIndex = getWordIndex(prefix);
         if (wordIndex < 0) {
             wordIndex = ~wordIndex;
@@ -351,19 +350,18 @@ final class WordIndexReader extends BinaryData {
             }
         } else if (allowReducedSearch) {
             final int[] references = getEntryReferencesUsingWord(wordIndex);
-            return new SearchResult(prefix, type, getEntriesAt(references, references.length));
+            return new SearchResult(getEntriesAt(references, references.length));
         }
         /*
          * Before to search for words in ascending order, we first need to look at little bit
          * backward in case a longer matching characters sequence exists. For example if we
          * search for "ABCD" in a dictionary containing only "ABCC" and "ABDD", then the
-         * "entry >= 'ABCD'" condition while returns "ABDD". But the previous entry, "ABCC",
+         * "entry >= 'ABCD'" condition will return "ABDD". But the previous entry, "ABCC",
          * was a better march, so we need to check for it.
          */
         String candidate = getWordAt(wordIndex);
         int commonLength = commonPrefixLength(prefix, candidate);
-        final boolean isAlphabetic = (type == CharacterType.ALPHABETIC);
-        if (isAlphabetic || commonLength != prefix.length()) {
+        if (isLatin || commonLength != prefix.length()) {
             /*
              * We don't allow to skip this search for Latin characters, because we need to search
              * for words having a different case. For example the given prefix is all lower-cases
@@ -371,7 +369,7 @@ final class WordIndexReader extends BinaryData {
              * are located before the current 'wordIndex'.
              */
             while (wordIndex != 0) {
-                if (!isAlphabetic && candidate.length() == commonLength) {
+                if (!isLatin && candidate.length() == commonLength) {
                     break; // The current word matches fully the begining of the prefix.
                 }
                 final String previous = getWordAt(wordIndex-1);
@@ -382,10 +380,6 @@ final class WordIndexReader extends BinaryData {
                 candidate = previous;
                 commonLength = cl;
                 wordIndex--;
-            }
-            final CharacterType newType = CharacterType.forWord(prefix.substring(0, commonLength));
-            if (newType != null) {
-                type = newType;
             }
         }
         /*
@@ -428,7 +422,7 @@ list:       while (++wordIndex != numberOfWords) {
                 }
             }
         }
-        return new SearchResult(prefix, type, getEntriesAt(references, numEntries));
+        return new SearchResult(getEntriesAt(references, numEntries));
     }
 
     /**

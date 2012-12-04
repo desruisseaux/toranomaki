@@ -71,6 +71,7 @@ final class VerbRules extends Rules {
             case VERB_する_IRREGULAR: return hasExpectedEnding(pos, word, "する");
             case VERB_1: return hasExpectedEnding(pos, word, 'る');
             case VERB_5う: ending = 'う'; break;
+            case VERB_5いく:
             case VERB_5く: ending = 'く'; break;
             case VERB_5ぐ: ending = 'ぐ'; break;
             case VERB_5す: ending = 'す'; break;
@@ -93,14 +94,15 @@ final class VerbRules extends Rules {
             default: return null;
             case VERB_する_IRREGULAR: return word.substring(0, length-2) + 'し' + suffix;
             case VERB_1: return word.substring(0, length-1).concat(suffix);
-            case VERB_5う: insert = 'い'; break;
-            case VERB_5く: insert = 'き'; break;
-            case VERB_5ぐ: insert = 'ぎ'; break;
-            case VERB_5す: insert = 'し'; break;
-            case VERB_5つ: insert = 'ち'; break;
-            case VERB_5ぶ: insert = 'び'; break;
-            case VERB_5む: insert = 'み'; break;
-            case VERB_5る: insert = 'り'; break;
+            case VERB_5う:  insert = 'い'; break;
+            case VERB_5いく:
+            case VERB_5く:  insert = 'き'; break;
+            case VERB_5ぐ:  insert = 'ぎ'; break;
+            case VERB_5す:  insert = 'し'; break;
+            case VERB_5つ:  insert = 'ち'; break;
+            case VERB_5ぶ:  insert = 'び'; break;
+            case VERB_5む:  insert = 'み'; break;
+            case VERB_5る:  insert = 'り'; break;
         }
         return word.substring(0, length-1) + insert + suffix;
     }

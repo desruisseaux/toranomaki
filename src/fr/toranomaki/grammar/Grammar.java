@@ -94,4 +94,28 @@ public final class Grammar {
         }
         return result;
     }
+
+    /**
+     * Attempts to return the radical of the given word. The current implementation just returns
+     * the heading Kanji characters, skipping trailing hiragana characters. This is a very naive
+     * implementation which doesn't work in many cases, but it can be used as an approximation.
+     * If no leading Kanji character is found, then this method returns the given string unchanged.
+     *
+     * @param  word The word from which to get the radical, if possible.
+     * @return A string that <em>may</em> reasonably be the radial (caller needs to verify with
+     *         the dictionary) or the given word unchanged.
+     */
+    public static String radical(String word) {
+        final int length = word.length();
+        int upper = 0;
+        while (upper < length) {
+            final int c = word.codePointAt(upper);
+            if (!Character.isIdeographic(c)) break;
+            upper += Character.charCount(c);
+        }
+        if (upper != 0) {
+            word = word.substring(0, upper);
+        }
+        return word;
+    }
 }
